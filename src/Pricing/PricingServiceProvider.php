@@ -1,0 +1,27 @@
+<?php
+
+declare(strict_types=1);
+
+namespace InOtherShops\Pricing;
+
+use Illuminate\Database\Eloquent\Relations\Relation;
+use Illuminate\Support\ServiceProvider;
+
+final class PricingServiceProvider extends ServiceProvider
+{
+    public function register(): void
+    {
+        $this->mergeConfigFrom(__DIR__.'/config/pricing.php', 'pricing');
+    }
+
+    public function boot(): void
+    {
+        $this->loadMigrationsFrom(__DIR__.'/Database/Migrations');
+
+        Relation::morphMap([
+            'price' => Pricing::price()::class,
+            'price_list' => Pricing::priceList()::class,
+            'voucher' => Pricing::voucher()::class,
+        ]);
+    }
+}

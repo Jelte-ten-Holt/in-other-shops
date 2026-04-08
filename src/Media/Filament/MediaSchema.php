@@ -1,0 +1,260 @@
+<?php
+
+declare(strict_types=1);
+
+namespace InOtherShops\Media\Filament;
+
+use InOtherShops\Media\Contracts\HasMedia;
+use InOtherShops\Media\Enums\MediaType;
+use InOtherShops\Media\Models\Media;
+use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Components\Hidden;
+use Filament\Forms\Components\Repeater;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
+use Filament\Schemas\Components\Html;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\HtmlString;
+use InvalidArgumentException;
+
+final class MediaSchema
+{
+    public static function mediaRepeater(string $collection): Repeater
+    {
+        self::validateCollection($collection);
+
+        $disk = config('media.disk');
+        $directory = config('media.directory');
+        $label = self::collectionLabel($collection);
+
+        return Repeater::make("_media.{$collection}")
+            ->label($label)
+            ->schema([
+                Hidden::make('media_id'),
+                Select::make('type')
+                    ->options([
+                        MediaType::Upload->value => 'Upload',
+                        MediaType::External->value => 'External URL',
+                    ])
+                    ->default(MediaType::Upload->value)
+                    ->required()
+                    ->live()
+                    ->columnSpanFull(),
+                FileUpload::make('path')
+                    ->required()
+                    ->disk($disk)
+                    ->directory($directory)
+                    ->visibility('public')
+                    ->columnSpanFull()
+                    ->visible(fn ($get) => $get('type') === MediaType::Upload->value),
+                TextInput::make('url')
+                    ->label('URL')
+                    ->required()
+                    ->url()
+                    ->live(onBlur: true)
+                    ->columnSpanFull()
+                    ->visible(fn ($get) => $get('type') === MediaType::External->value),
+                Html::make(fn ($get) => new HtmlString(
+                    '<img src="'.e($get('url')).'" style="max-height: 150px; border-radius: 0.5rem;" />',
+                ))
+                    ->visible(fn ($get) => $get('type') === MediaType::External->value && filled($get('url')))
+                    ->columnSpanFull(),
+                TextInput::make('alt')
+                    ->maxLength(255),
+            ])
+            ->columns(1)
+            ->reorderable()
+            ->collapsible();
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    public static function fillFormData(Model&HasMedia $record, array $data): array
+    {
+        $record->load('media');
+
+        $collections = array_keys(self::collections());
+
+        foreach ($collections as $collection) {
+            $items = $record->media
+                ->filter(fn (Media $media) => $media->pivot->collection === $collection)
+                ->sortBy(fn (Media $media) => $media->pivot->position)
+                ->values()
+                ->map(fn (Media $media) => [
+                    'media_id' => $media->id,
+                    'type' => $media->type->value,
+                    'path' => $media->path,
+                    'url' => $media->type !== MediaType::Upload ? $media->getAttribute('url') : null,
+                    'alt' => $media->alt,
+                ])
+                ->all();
+
+            $data['_media'][$collection] = $items;
+        }
+
+        return $data;
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    public static function saveFormData(Model&HasMedia $record, array $data): void
+    {
+        $mediaData = $data['_media'] ?? [];
+
+        foreach ($mediaData as $collection => $items) {
+            self::syncCollection($record, $collection, $items ?? []);
+        }
+
+        $record->unsetRelation('media');
+    }
+
+    /**
+     * @return array<string, array<string, string>>
+     */
+    public static function collections(): array
+    {
+        return config('media.collections', []);
+    }
+
+    private static function syncCollection(Model&HasMedia $record, string $collection, array $items): void
+    {
+        $existingIds = $record->media()
+            ->wherePivot('collection', $collection)
+            ->pluck('media.id')
+            ->all();
+
+        $keptIds = [];
+
+        foreach (array_values($items) as $position => $item) {
+            if (! empty($item['media_id'])) {
+                self::updateExistingMedia($record, (int) $item['media_id'], $collection, $position, $item);
+                $keptIds[] = (int) $item['media_id'];
+            } else {
+                $media = self::createMedia($item);
+
+                if ($media === null) {
+                    continue;
+                }
+
+                $record->media()->attach($media->id, [
+                    'collection' => $collection,
+                    'position' => $position,
+                ]);
+                $keptIds[] = $media->id;
+            }
+        }
+
+        self::removeOrphanedMedia($record, $collection, $existingIds, $keptIds);
+    }
+
+    private static function updateExistingMedia(
+        Model&HasMedia $record,
+        int $mediaId,
+        string $collection,
+        int $position,
+        array $item,
+    ): void {
+        $updates = ['alt' => $item['alt'] ?? null];
+
+        $type = MediaType::tryFrom($item['type'] ?? '') ?? MediaType::Upload;
+
+        if ($type === MediaType::External) {
+            $updates['url'] = $item['url'] ?? null;
+        }
+
+        Media::where('id', $mediaId)->update($updates);
+
+        $record->media()->updateExistingPivot($mediaId, [
+            'collection' => $collection,
+            'position' => $position,
+        ]);
+    }
+
+    private static function createMedia(array $item): ?Media
+    {
+        $type = MediaType::tryFrom($item['type'] ?? '') ?? MediaType::Upload;
+
+        return match ($type) {
+            MediaType::Upload => self::createUploadMedia($item),
+            MediaType::External => self::createExternalMedia($item),
+            default => null,
+        };
+    }
+
+    private static function createUploadMedia(array $item): ?Media
+    {
+        if (empty($item['path'])) {
+            return null;
+        }
+
+        $disk = config('media.disk');
+        $storage = Storage::disk($disk);
+
+        return Media::create([
+            'type' => MediaType::Upload,
+            'disk' => $disk,
+            'path' => $item['path'],
+            'filename' => basename($item['path']),
+            'mime_type' => $storage->mimeType($item['path']) ?: 'application/octet-stream',
+            'size' => $storage->size($item['path']) ?: 0,
+            'alt' => $item['alt'] ?? null,
+        ]);
+    }
+
+    private static function createExternalMedia(array $item): ?Media
+    {
+        if (empty($item['url'])) {
+            return null;
+        }
+
+        $url = $item['url'];
+        $filename = basename(parse_url($url, PHP_URL_PATH) ?: 'external');
+
+        return Media::create([
+            'type' => MediaType::External,
+            'filename' => $filename,
+            'mime_type' => 'image/jpeg',
+            'size' => 0,
+            'url' => $url,
+            'alt' => $item['alt'] ?? null,
+        ]);
+    }
+
+    private static function removeOrphanedMedia(
+        Model&HasMedia $record,
+        string $collection,
+        array $existingIds,
+        array $keptIds,
+    ): void {
+        $orphanedIds = array_diff($existingIds, $keptIds);
+
+        if (empty($orphanedIds)) {
+            return;
+        }
+
+        $record->media()->detach($orphanedIds);
+        Media::whereIn('id', $orphanedIds)->get()->each->delete();
+    }
+
+    private static function validateCollection(string $collection): void
+    {
+        $valid = array_keys(self::collections());
+
+        if (! in_array($collection, $valid, true)) {
+            throw new InvalidArgumentException(
+                "Invalid media collection '{$collection}'. Valid collections: ".implode(', ', $valid).'.',
+            );
+        }
+    }
+
+    private static function collectionLabel(string $collection): string
+    {
+        $config = self::collections()[$collection];
+
+        return __($config['label'] ?? $collection);
+    }
+}
