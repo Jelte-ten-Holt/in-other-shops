@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace InOtherShops\Commerce;
 
 use Illuminate\Database\Eloquent\Relations\Relation;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 
 final class CommerceServiceProvider extends ServiceProvider
@@ -26,5 +27,21 @@ final class CommerceServiceProvider extends ServiceProvider
             'order' => Commerce::order()::class,
             'order_line' => Commerce::orderLine()::class,
         ]);
+
+        $this->registerCartRoutes();
+    }
+
+    private function registerCartRoutes(): void
+    {
+        if (! config('commerce.cart.api.enabled', true)) {
+            return;
+        }
+
+        $prefix = config('commerce.cart.api.prefix', 'api/cart');
+        $middleware = config('commerce.cart.api.middleware', ['web']);
+
+        Route::prefix($prefix)
+            ->middleware($middleware)
+            ->group(__DIR__.'/Cart/Routes/api.php');
     }
 }

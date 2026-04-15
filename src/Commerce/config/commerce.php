@@ -21,4 +21,28 @@ return [
         'order' => InOtherShops\Commerce\Order\Models\Order::class,
         'order_line' => InOtherShops\Commerce\Order\Models\OrderLine::class,
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Cart API
+    |--------------------------------------------------------------------------
+    |
+    | Optional REST endpoints for the cart domain. Disable when a consumer
+    | drives the cart in-process (e.g. Livewire) and does not need HTTP.
+    |
+    | The default middleware stack is ["web"] because guest cart resolution
+    | reads `session()->getId()` — a stateless API consumer should swap in
+    | their own auth/session middleware (e.g. sanctum stateful) and may also
+    | need a `cartables` map for non-default morph aliases.
+    |
+    */
+
+    'cart' => [
+        'api' => [
+            'enabled' => true,
+            'prefix' => 'api/cart',
+            'middleware' => ['web'],
+            'default_currency' => 'EUR',
+        ],
+    ],
 ];

@@ -10,30 +10,49 @@ If the sub-concerns ever need to be extracted independently, the sub-namespace s
 
 Session/token-based shopping cart, designed for guest checkout with optional customer linking.
 
-### Planned Models
+### Models
 
-- **Cart** — identified by session token (guests) or linked to a customer. Polymorphic `cartable` items.
+- **Cart** — identified by `session_token` (guests) or polymorphic `owner` (e.g., authenticated user). Has many `CartItem`s. Stores `currency`.
 - **CartItem** — belongs to a Cart, polymorphic `cartable` relationship (e.g., a Product, Bundle, or any model implementing `Cartable`). Stores quantity; price is resolved at read time via the Pricing domain.
 
 ### Contracts
 
-- **`Cartable`** — any model that can be added to a cart (requires a display name, identifier, and price-resolution hook).
+- **`Cartable`** — any model that can be added to a cart. Requires `getCartableLabel(): string` and `getCartableDescription(): ?string`.
 
 ### Concerns
 
-- **`InteractsWithCart`** — trait for models implementing `Cartable`, providing convenience methods like `addToCart()`.
+- **`InteractsWithCart`** — trait for models implementing `Cartable`. Provides `cartItems(): MorphMany` and default `getCartableLabel()`/`getCartableDescription()` that return the model's `name`/`description` columns.
 
-### Planned Actions
+### Actions
 
-- `AddToCart` — add a cartable item (or increment quantity)
-- `RemoveFromCart` — remove a line item
-- `UpdateQuantity` — change quantity for a line item
-- `ClearCart` — empty the cart
-- `ResolveCart` — find or create a cart for the current session/customer
+- `ResolveCart` — find or create a cart for the given owner (precedence) or session token
+- `AddToCart` — add a cartable item (or increment quantity if already present); dispatches `CartUpdated`
+- `UpdateCartItemQuantity` — change quantity; setting `0` removes the item; dispatches `CartUpdated`
+- `RemoveFromCart` — remove a line item; dispatches `CartUpdated`
+- `ClearCart` — empty the cart; dispatches `CartCleared`
+- `ClaimCart` — transfer a guest cart to an authenticated owner; dispatches `CartClaimed`
 
 ### Events
 
-- `CartUpdated` — dispatched on any cart mutation (add, remove, quantity change, clear)
+- `CartUpdated` — dispatched on add/update/remove
+- `CartCleared` — dispatched when the cart is emptied
+- `CartClaimed` — dispatched when a guest cart is claimed by an authenticated owner
+
+### REST API
+
+The package ships an opt-in REST layer under `InOtherShops\Commerce\Cart\Http\*`. `CommerceServiceProvider` auto-registers the routes when `commerce.cart.api.enabled` is true (default). Defaults: prefix `api/cart`, middleware `['web']` (session needed for guest token resolution), default currency `EUR`. Override per-consumer in `config/commerce.php`.
+
+| Verb | Path | Action |
+|---|---|---|
+| GET | `/api/cart` | Show current cart |
+| DELETE | `/api/cart` | Clear all items |
+| POST | `/api/cart/items` | Add an item — body: `{type, id, quantity?}` |
+| PATCH | `/api/cart/items/{item}` | Update quantity — body: `{quantity}` (0 removes) |
+| DELETE | `/api/cart/items/{item}` | Remove an item |
+
+`type` is the morph-map alias of the cartable. Validation rejects types that don't exist in the morph map or whose model doesn't implement `Cartable`. Items not belonging to the current cart return 404 from update/destroy.
+
+Owner resolution uses Laravel defaults: `Auth::user()` when authenticated, `session()->getId()` otherwise. Consumers driving the cart in-process (e.g., Livewire) can disable the API via `commerce.cart.api.enabled = false`.
 
 ---
 
