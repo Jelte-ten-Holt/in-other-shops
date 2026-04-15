@@ -7,6 +7,7 @@ namespace InOtherShops\Inventory\Enums;
 enum StockMovementReason: string
 {
     case Received = 'received';
+    case Restock = 'restock';
     case Sold = 'sold';
     case Reserved = 'reserved';
     case Released = 'released';
@@ -16,6 +17,7 @@ enum StockMovementReason: string
     {
         return match ($this) {
             self::Received => 'Received',
+            self::Restock => 'Restock',
             self::Sold => 'Sold',
             self::Reserved => 'Reserved',
             self::Released => 'Released',

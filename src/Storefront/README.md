@@ -8,6 +8,8 @@ Read-only API layer that exposes browsable catalog items. Composes multiple doma
 
 Any model can appear in the storefront by implementing `Browsable` and using the `IsBrowsable` trait.
 
+Models that want stock state in the storefront payload additionally implement `Storefront\Contracts\HasAvailability` (`stockLevel(): int` + `isInStock(): bool`). The package only exposes the boolean (`in_stock`) — exposing exact stock levels is a project decision (e.g. "only 2 left!" UI hints) and lives in the consuming project's own resources. The contract is intentionally minimal so that derived-stock models (e.g. bundles whose stock is computed from components) can implement it without needing a `stockItem` relationship like `Inventory\Contracts\HasStock` requires.
+
 ```php
 interface Browsable
 {
@@ -74,7 +76,7 @@ Registered dynamically under `api/storefront/` from configured models:
 
 ### JSON Resources
 
-- **`BrowsableResource`** — conditionally includes prices (resolved for context currency), categories, and tags based on which contracts the model implements. Adds `type` metadata.
+- **`BrowsableResource`** — conditionally includes prices (resolved for context currency), `in_stock` (boolean), categories, and tags based on which contracts the model implements. Adds `type` metadata.
 - **`CategoryResource`** — category with nested children.
 - **`PriceResource`** — raw amount + formatted string + compare-at price.
 - **`TagResource`** — tag with type.

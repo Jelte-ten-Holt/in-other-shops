@@ -146,6 +146,7 @@ final class InventorySchema
     private static function adjustmentReasonOptions(): array
     {
         return [
+            StockMovementReason::Restock->value => StockMovementReason::Restock->label(),
             StockMovementReason::Received->value => StockMovementReason::Received->label(),
             StockMovementReason::Sold->value => StockMovementReason::Sold->label(),
             StockMovementReason::Adjusted->value => StockMovementReason::Adjusted->label(),

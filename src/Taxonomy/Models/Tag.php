@@ -17,6 +17,7 @@ class Tag extends Model implements Translatable
     protected function casts(): array
     {
         return [
+            'position' => 'integer',
             'is_active' => 'boolean',
         ];
     }

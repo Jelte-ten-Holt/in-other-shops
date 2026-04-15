@@ -34,6 +34,7 @@ Flat (no hierarchy). Optional `type` column for grouping (e.g., `color`, `materi
 | `id` | bigint | PK |
 | `slug` | string, unique | URL-safe identifier |
 | `type` | string, nullable | grouping key |
+| `position` | unsigned int | ordering (default 0); consuming projects decide whether to surface ordering or treat tags as flat |
 | `is_active` | boolean | visibility toggle (default true) |
 | `timestamps` | | |
 

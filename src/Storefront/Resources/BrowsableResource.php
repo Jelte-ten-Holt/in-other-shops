@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace InOtherShops\Storefront\Resources;
 
 use InOtherShops\Pricing\Contracts\HasPrices;
+use InOtherShops\Storefront\Contracts\HasAvailability;
 use InOtherShops\Storefront\DTOs\StorefrontContext;
 use InOtherShops\Taxonomy\Contracts\HasCategories;
 use InOtherShops\Taxonomy\Contracts\HasTags;
@@ -19,6 +20,7 @@ final class BrowsableResource extends JsonResource
         $data = $this->baseData();
 
         $this->addPriceData($data);
+        $this->addAvailabilityData($data);
         $this->addCategoryData($data);
         $this->addTagData($data);
 
@@ -46,6 +48,15 @@ final class BrowsableResource extends JsonResource
 
         $data['price'] = $price !== null ? new PriceResource($price) : null;
         $data['prices'] = PriceResource::collection($this->whenLoaded('prices'));
+    }
+
+    private function addAvailabilityData(array &$data): void
+    {
+        if (! $this->resource instanceof HasAvailability) {
+            return;
+        }
+
+        $data['in_stock'] = $this->resource->isInStock();
     }
 
     private function addCategoryData(array &$data): void

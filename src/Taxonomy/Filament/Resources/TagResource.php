@@ -45,6 +45,10 @@ final class TagResource extends Resource
                         TextInput::make('type')
                             ->maxLength(255)
                             ->placeholder('e.g. color, material, season'),
+                        TextInput::make('position')
+                            ->numeric()
+                            ->default(0)
+                            ->minValue(0),
                     ]),
                 Section::make('Status')
                     ->schema([
@@ -66,6 +70,8 @@ final class TagResource extends Resource
                     ->badge()
                     ->placeholder('—')
                     ->searchable(),
+                Tables\Columns\TextColumn::make('position')
+                    ->sortable(),
                 Tables\Columns\IconColumn::make('is_active')
                     ->label('Active')
                     ->boolean(),
@@ -74,6 +80,8 @@ final class TagResource extends Resource
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
+            ->defaultSort('position')
+            ->reorderable('position')
             ->actions([
                 Actions\EditAction::make(),
             ])

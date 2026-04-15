@@ -65,7 +65,7 @@ When a domain fires events you want to log, create a subscriber in `app/Listener
 
 ### 1. Create the subscriber
 
-Inject `LogDispatcher`, listen to the domain event, transform it into a `LogEntry`:
+Laravel 11+ auto-discovers listeners in `app/Listeners/**`: any public method whose first parameter type-hints an event class is automatically wired up. No `subscribe()` method, no `Event::subscribe()` registration — just inject `LogDispatcher` and write `handle*` methods that type-hint the events you care about.
 
 ```php
 // app/Listeners/Logging/InventoryLogSubscriber.php
@@ -77,11 +77,6 @@ final class InventoryLogSubscriber
     public function __construct(
         private readonly LogDispatcher $dispatcher,
     ) {}
-
-    public function subscribe(Dispatcher $events): void
-    {
-        $events->listen(StockAdjusted::class, [self::class, 'handleStockAdjusted']);
-    }
 
     public function handleStockAdjusted(StockAdjusted $event): void
     {
@@ -95,10 +90,19 @@ final class InventoryLogSubscriber
             ],
         ));
     }
+
+    public function handleStockReleased(StockReleased $event): void
+    {
+        // ...
+    }
 }
 ```
 
-Use a **subscriber** (with `subscribe()`) when the class handles multiple events from the same domain. Use a **single listener** (with `handle()`) when it handles one event.
+The class doesn't need to extend or implement anything. Method names are conventional (`handle*`) but only the type-hint matters for discovery.
+
+> **Do not combine auto-discovery with an explicit `subscribe(Dispatcher $events)` method that calls `$events->listen(...)`.** That registers the same handler twice and causes **double dispatch** — every event fires the log entry twice. Pick one.
+
+Use the explicit `subscribe()` pattern only as a fallback for listeners that live outside `app/Listeners/**`, or when you need to register listeners conditionally.
 
 ### 2. Add a dedicated log channel (optional)
 

@@ -88,6 +88,7 @@ final class CategoryResource extends Resource
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->defaultSort('position')
+            ->reorderable('position')
             ->actions([
                 Actions\EditAction::make(),
                 Actions\DeleteAction::make()

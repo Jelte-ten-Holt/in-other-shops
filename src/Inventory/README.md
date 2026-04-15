@@ -26,7 +26,7 @@ Unique constraint on `[stockable_type, stockable_id]`.
 | `id` | bigint | PK |
 | `stock_item_id` | FK | parent stock item (cascadeOnDelete) |
 | `quantity` | integer | signed — positive for additions, negative for deductions |
-| `reason` | string | enum value (received, sold, reserved, released, adjusted) |
+| `reason` | string | enum value (received, restock, sold, reserved, released, adjusted) |
 | `description` | string, nullable | optional free-text description |
 | `reference_type` | string, nullable | morph type of the model that caused this movement (e.g. order) |
 | `reference_id` | bigint, nullable | morph ID |
@@ -38,7 +38,7 @@ Helpers: `isExpired()` — checks if `reserved_until` is in the past.
 
 ### Enum
 
-**`StockMovementReason`** — `received`, `sold`, `reserved`, `released`, `adjusted`. Has a `label()` method for display.
+**`StockMovementReason`** — `received`, `restock`, `sold`, `reserved`, `released`, `adjusted`. Has a `label()` method for display. `Restock` is the user-facing word for routine supplier replenishment; `Received` covers broader inbound cases (returns, transfers, opening stock).
 
 ### Contract & Trait
 
