@@ -11,6 +11,7 @@ use InOtherShops\Inventory\Models\StockItem;
 use InOtherShops\Inventory\Models\StockMovement;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 
@@ -46,11 +47,28 @@ final class AdjustStock
     }
 
     /**
+     * Acquire a row-locked StockItem for the given stockable, creating it if absent.
+     *
+     * The lock serializes concurrent adjustments for the same stockable so that
+     * callers doing read-then-write (e.g. availability check → reserve) see a
+     * consistent stock level and cannot oversell.
+     *
      * @param  Model&HasStock  $stockable
      */
     private function findOrCreateStockItem(Model $stockable): StockItem
     {
-        return $stockable->stockItem()->firstOrCreate([], ['stock_level' => 0]);
+        $stockItem = $stockable->stockItem()->lockForUpdate()->first();
+
+        if ($stockItem !== null) {
+            return $stockItem;
+        }
+
+        try {
+            return $stockable->stockItem()->create(['stock_level' => 0]);
+        } catch (UniqueConstraintViolationException) {
+            /** @var StockItem */
+            return $stockable->stockItem()->lockForUpdate()->first();
+        }
     }
 
     private function createMovement(

@@ -27,7 +27,9 @@ final class InventoryServiceProvider extends ServiceProvider
             'stock_movement' => Inventory::stockMovement()::class,
         ]);
 
-        Livewire::component('inventory-stock-movements-table', StockMovementsTable::class);
+        if ($this->app->bound('livewire')) {
+            Livewire::component('inventory-stock-movements-table', StockMovementsTable::class);
+        }
 
         $this->commands([ReleaseExpiredReservationsCommand::class]);
 

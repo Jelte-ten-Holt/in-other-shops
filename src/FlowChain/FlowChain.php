@@ -15,6 +15,7 @@ use InOtherShops\FlowChain\Events\FlowChainFailed;
 use InOtherShops\FlowChain\Events\FlowChainStarted;
 use InOtherShops\FlowChain\Events\FlowChainStepCompleted;
 use InOtherShops\FlowChain\Events\FlowChainStepFailed;
+use InOtherShops\FlowChain\Exceptions\FlowChainRollbackSignal;
 use InOtherShops\FlowChain\Exceptions\StepFailedException;
 use Illuminate\Support\Facades\DB;
 
@@ -51,11 +52,28 @@ final class FlowChain
 
     public function run(FlowPayload $payload): FlowChainResult
     {
-        if ($this->useTransaction) {
-            return DB::transaction(fn (): FlowChainResult => $this->execute($payload));
+        if (! $this->useTransaction) {
+            return $this->execute($payload);
         }
 
-        return $this->execute($payload);
+        return $this->runInTransaction($payload);
+    }
+
+    private function runInTransaction(FlowPayload $payload): FlowChainResult
+    {
+        try {
+            return DB::transaction(function () use ($payload): FlowChainResult {
+                $result = $this->execute($payload);
+
+                if ($result->status === FlowChainStatus::Failed) {
+                    throw new FlowChainRollbackSignal($result);
+                }
+
+                return $result;
+            });
+        } catch (FlowChainRollbackSignal $signal) {
+            return $signal->result;
+        }
     }
 
     private function execute(FlowPayload $payload): FlowChainResult

@@ -1,0 +1,71 @@
+<?php
+
+declare(strict_types=1);
+
+namespace InOtherShops\Tests;
+
+use InOtherShops\Commerce\CommerceServiceProvider;
+use InOtherShops\Currency\CurrencyServiceProvider;
+use InOtherShops\FlowChain\FlowChainServiceProvider;
+use InOtherShops\Inventory\InventoryServiceProvider;
+use InOtherShops\Location\LocationServiceProvider;
+use InOtherShops\Logging\LoggingServiceProvider;
+use InOtherShops\Media\MediaServiceProvider;
+use InOtherShops\Payment\PaymentServiceProvider;
+use InOtherShops\Pricing\PricingServiceProvider;
+use InOtherShops\Shipping\ShippingServiceProvider;
+use InOtherShops\Storefront\StorefrontServiceProvider;
+use InOtherShops\Taxonomy\TaxonomyServiceProvider;
+use InOtherShops\Tests\Stubs\TestStockable;
+use InOtherShops\Translation\TranslationServiceProvider;
+use Illuminate\Database\Eloquent\Relations\Relation;
+use Orchestra\Testbench\TestCase as Orchestra;
+
+abstract class TestCase extends Orchestra
+{
+    protected function defineEnvironment($app): void
+    {
+        $app['config']->set('database.default', 'mysql');
+        $app['config']->set('database.connections.mysql', [
+            'driver' => 'mysql',
+            'host' => env('DB_HOST', '127.0.0.1'),
+            'port' => env('DB_PORT', '3306'),
+            'database' => env('DB_DATABASE', 'in_other_shops_testing'),
+            'username' => env('DB_USERNAME', 'in_other_shops'),
+            'password' => env('DB_PASSWORD', 'secret'),
+            'charset' => 'utf8mb4',
+            'collation' => 'utf8mb4_unicode_ci',
+            'prefix' => '',
+            'strict' => true,
+            'engine' => 'InnoDB',
+        ]);
+
+        Relation::morphMap([
+            'test_stockable' => TestStockable::class,
+        ]);
+    }
+
+    protected function defineDatabaseMigrations(): void
+    {
+        $this->loadMigrationsFrom(__DIR__.'/Stubs/migrations');
+    }
+
+    protected function getPackageProviders($app): array
+    {
+        return [
+            CurrencyServiceProvider::class,
+            TranslationServiceProvider::class,
+            LoggingServiceProvider::class,
+            LocationServiceProvider::class,
+            MediaServiceProvider::class,
+            TaxonomyServiceProvider::class,
+            PricingServiceProvider::class,
+            InventoryServiceProvider::class,
+            ShippingServiceProvider::class,
+            PaymentServiceProvider::class,
+            CommerceServiceProvider::class,
+            FlowChainServiceProvider::class,
+            StorefrontServiceProvider::class,
+        ];
+    }
+}

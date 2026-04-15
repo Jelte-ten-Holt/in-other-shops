@@ -37,17 +37,25 @@ Adding a dependency between domains is a significant decision — it means those
 ### Key Patterns
 
 - **Registry pattern:** Each domain with models has a registry class at its root (e.g., `Taxonomy.php`, `Commerce.php`). It resolves model classes via config so consuming projects can extend them.
-- **Contract + Concern:** Each domain ships `Contracts/Has{X}` and `Concerns/InteractsWith{X}`. Project models implement the contract and use the trait.
+- **Contract + Concern:** Each domain ships `Contracts/Has{X}` and `Concerns/InteractsWith{X}`. Project models implement the contract and use the trait. Contracts always use the `Has*` prefix for capability contracts (no `*able` suffix — see Naming).
 - **Filament Schema classes:** Domains ship `Filament/{Domain}Schema.php` with static factory methods returning preconfigured Filament form components.
 - **Domain events:** State changes dispatch events (past tense: `StockAdjusted`, `MediaStored`). Reads and calculations do not.
+- **Domain log subscribers:** Each domain that dispatches events also ships a `Listeners/{Domain}LogSubscriber.php` auto-discovered by Laravel 11+. Subscribers route domain events through `LogDispatcher` to per-domain Monolog channels. Consumers override channels/handlers via config; they do not re-implement subscribers. Logging is package functionality, not a consumer concern.
 - **Config-driven models:** Every domain config includes a `models` key. The registry resolves classes through this config.
+- **Factories ship with the domain:** every model with a factory ships that factory in `src/{Domain}/Database/Factories/`. `newFactory()` on the model points into the package namespace. Tests — both the package's own PHPUnit suite and consumer tests — rely on the package's factories.
 
 ### What Does NOT Belong in This Package
 
 - Project-specific models (Product, Bundle, etc.) — these are defined by the consuming project
 - Project-specific orchestration (checkout flows, listeners that wire domains together)
-- Factories and seeders — these are project concerns
+- Seeders — project-specific data belongs in the consuming project
 - Authentication — every project handles this differently
+
+### Naming
+
+- **Capability contracts use `Has*`.** `HasCart`, `HasOrders`, `HasMedia`, `HasPrices`, `HasStorefrontPresence`, `HasTranslations`. No `*able` suffix — `Has*` is shorter and unambiguously marks a contract as a package capability attach-point.
+- **Trait companions use `InteractsWith*`.** One trait per contract; the trait implements the contract's relation methods plus thin default behaviour.
+- **Actions:** verb-noun, single responsibility, invokable. Pick a verb family per domain and stay consistent (see `TODO.md` — verb-family audit pending).
 
 ## Coding Standards
 
@@ -60,7 +68,9 @@ Adding a dependency between domains is a significant decision — it means those
 
 ## Commands
 
-This package has no CLI commands of its own. The consuming project runs tests and linting.
+The package runs its own PHPUnit suite (Orchestra Testbench) — `composer test`. Consuming projects can run their own tests on top; they should not be the only safety net.
+
+The package does not ship application-level CLI commands. Exception: inventory housekeeping (`inventory:release-expired`) which is gated behind config.
 
 ## Adding a New Domain
 

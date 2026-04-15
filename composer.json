@@ -8,6 +8,11 @@
         "laravel/framework": "^12.0 || ^13.0",
         "filament/filament": "^5.0"
     },
+    "require-dev": {
+        "orchestra/testbench": "^10.0 || ^11.0",
+        "phpunit/phpunit": "^11.0 || ^12.0",
+        "mockery/mockery": "^1.6"
+    },
     "autoload": {
         "psr-4": {
             "InOtherShops\\Commerce\\": "src/Commerce/",
@@ -26,6 +31,15 @@
             "InOtherShops\\Taxonomy\\": "src/Taxonomy/",
             "InOtherShops\\Translation\\": "src/Translation/"
         }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "InOtherShops\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": "vendor/bin/phpunit",
+        "test:coverage": "vendor/bin/phpunit --coverage-text"
     },
     "extra": {
         "laravel": {

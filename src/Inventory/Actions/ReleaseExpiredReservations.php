@@ -6,8 +6,10 @@ namespace InOtherShops\Inventory\Actions;
 
 use InOtherShops\Inventory\Enums\StockMovementReason;
 use InOtherShops\Inventory\Events\StockReleased;
+use InOtherShops\Inventory\Inventory;
 use InOtherShops\Inventory\Models\StockMovement;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 final class ReleaseExpiredReservations
 {
@@ -20,42 +22,74 @@ final class ReleaseExpiredReservations
      */
     public function __invoke(): Collection
     {
-        $expired = $this->findExpiredReservations();
+        $candidateIds = $this->findExpiredReservationIds();
 
-        return $expired->map(fn (StockMovement $movement) => $this->releaseMovement($movement));
+        return $candidateIds
+            ->map(fn (int $id): ?StockMovement => $this->tryReleaseOne($id))
+            ->filter()
+            ->values();
     }
 
     /**
-     * @return \Illuminate\Database\Eloquent\Collection<int, StockMovement>
+     * @return Collection<int, int>
      */
-    private function findExpiredReservations(): \Illuminate\Database\Eloquent\Collection
+    private function findExpiredReservationIds(): Collection
     {
-        return StockMovement::where('reason', StockMovementReason::Reserved)
+        $model = Inventory::stockMovement()::class;
+
+        /** @var Collection<int, int> */
+        return $model::query()
+            ->where('reason', StockMovementReason::Reserved)
             ->whereNotNull('reserved_until')
             ->where('reserved_until', '<=', now())
-            ->with('stockItem.stockable')
-            ->get();
+            ->pluck('id');
     }
 
-    private function releaseMovement(StockMovement $movement): StockMovement
+    /**
+     * Attempt to release a single reservation within its own transaction.
+     *
+     * Returns null when another worker already handled the row (reason no
+     * longer Reserved) or it is no longer past its TTL. The `reason =
+     * Reserved` guard inside the locked SELECT is what makes the overall
+     * `__invoke` idempotent under concurrent workers.
+     */
+    private function tryReleaseOne(int $movementId): ?StockMovement
     {
-        $stockable = $movement->stockItem->stockable;
+        return DB::transaction(function () use ($movementId): ?StockMovement {
+            $model = Inventory::stockMovement()::class;
 
-        $releaseMovement = ($this->adjustStock)(
-            stockable: $stockable,
-            quantity: abs($movement->quantity),
-            reason: StockMovementReason::Released,
-            description: "Expired reservation (movement #{$movement->id})",
-            reference: $movement->reference,
-        );
+            /** @var StockMovement|null $movement */
+            $movement = $model::query()
+                ->where('id', $movementId)
+                ->where('reason', StockMovementReason::Reserved)
+                ->whereNotNull('reserved_until')
+                ->where('reserved_until', '<=', now())
+                ->with('stockItem.stockable')
+                ->lockForUpdate()
+                ->first();
 
-        $movement->update([
-            'reason' => StockMovementReason::Released,
-            'reserved_until' => null,
-        ]);
+            if ($movement === null) {
+                return null;
+            }
 
-        StockReleased::dispatch($movement, $releaseMovement);
+            $stockable = $movement->stockItem->stockable;
 
-        return $releaseMovement;
+            $releaseMovement = ($this->adjustStock)(
+                stockable: $stockable,
+                quantity: abs($movement->quantity),
+                reason: StockMovementReason::Released,
+                description: "Expired reservation (movement #{$movement->id})",
+                reference: $movement->reference,
+            );
+
+            $movement->update([
+                'reason' => StockMovementReason::Released,
+                'reserved_until' => null,
+            ]);
+
+            StockReleased::dispatch($movement, $releaseMovement);
+
+            return $releaseMovement;
+        });
     }
 }
