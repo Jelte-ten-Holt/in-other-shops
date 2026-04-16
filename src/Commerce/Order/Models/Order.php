@@ -59,6 +59,11 @@ class Order extends Model implements HasAddresses, HasPayments, HasShipment
         return $this->hasMany(Commerce::orderLine()::class);
     }
 
+    public function getPaymentTotalDue(): int
+    {
+        return (int) $this->total;
+    }
+
     public function shippingAddress(): MorphMany
     {
         return $this->addresses()->whereIn('type', [AddressType::Shipping, AddressType::ShippingAndBilling]);

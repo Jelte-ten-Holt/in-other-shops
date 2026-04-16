@@ -36,7 +36,7 @@ Unique constraint: `[profileable_type, profileable_id, gateway]` — one profile
 
 ## Contracts & Traits
 
-**`HasPayments`** / **`InteractsWithPayments`** — interface + trait for any payable model. Methods: `payments()` (morphMany), `latestPayment()`, `isPaid()`.
+**`HasPayments`** / **`InteractsWithPayments`** — interface + trait for any payable model. Methods: `payments()` (morphMany), `latestPayment()`, `totalPaid()`, `getPaymentTotalDue()`, `isPaid()`. Implementers must provide `getPaymentTotalDue()` returning the amount owed (e.g. Order returns `$this->total`) — the Payment domain cannot infer the owing amount from payments alone. `totalPaid()` sums `amount - amount_refunded` across Succeeded and PartiallyRefunded payments; `isPaid()` returns `totalPaid() >= getPaymentTotalDue()`.
 
 **`HasPaymentProfiles`** / **`InteractsWithPaymentProfiles`** — interface + trait for models that store gateway customer references. Methods: `paymentProfiles()` (morphMany), `paymentProfileFor(string $gateway)`.
 

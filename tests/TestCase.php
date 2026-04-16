@@ -16,6 +16,7 @@ use InOtherShops\Pricing\PricingServiceProvider;
 use InOtherShops\Shipping\ShippingServiceProvider;
 use InOtherShops\Storefront\StorefrontServiceProvider;
 use InOtherShops\Taxonomy\TaxonomyServiceProvider;
+use InOtherShops\Tests\Stubs\TestPayable;
 use InOtherShops\Tests\Stubs\TestStockable;
 use InOtherShops\Translation\TranslationServiceProvider;
 use Illuminate\Database\Eloquent\Relations\Relation;
@@ -42,6 +43,7 @@ abstract class TestCase extends Orchestra
 
         Relation::morphMap([
             'test_stockable' => TestStockable::class,
+            'test_payable' => TestPayable::class,
         ]);
     }
 

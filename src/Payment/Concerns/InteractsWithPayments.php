@@ -8,6 +8,7 @@ use InOtherShops\Payment\Enums\PaymentStatus;
 use InOtherShops\Payment\Models\Payment as PaymentModel;
 use InOtherShops\Payment\Payment;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
+use Illuminate\Support\Facades\DB;
 
 trait InteractsWithPayments
 {
@@ -23,8 +24,15 @@ trait InteractsWithPayments
         return $this->payments()->latest()->first();
     }
 
+    public function totalPaid(): int
+    {
+        return (int) $this->payments()
+            ->whereIn('status', [PaymentStatus::Succeeded, PaymentStatus::PartiallyRefunded])
+            ->sum(DB::raw('amount - amount_refunded'));
+    }
+
     public function isPaid(): bool
     {
-        return $this->payments()->where('status', PaymentStatus::Succeeded)->exists();
+        return $this->totalPaid() >= $this->getPaymentTotalDue();
     }
 }

@@ -5,13 +5,23 @@ declare(strict_types=1);
 namespace InOtherShops\Payment\Models;
 
 use InOtherShops\Currency\Enums\Currency;
+use InOtherShops\Payment\Database\Factories\PaymentFactory;
 use InOtherShops\Payment\Enums\PaymentStatus;
+use Illuminate\Database\Eloquent\Factories\Factory;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 
 class Payment extends Model
 {
+    use HasFactory;
+
     protected $guarded = [];
+
+    protected static function newFactory(): Factory
+    {
+        return new PaymentFactory;
+    }
 
     protected function casts(): array
     {
