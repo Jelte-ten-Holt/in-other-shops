@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace InOtherShops\Commerce\Cart\Concerns;
 
 use InOtherShops\Commerce\Commerce;
+use InOtherShops\Currency\Enums\Currency;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 
 trait InteractsWithCart
@@ -24,5 +25,10 @@ trait InteractsWithCart
     public function getCartableDescription(): ?string
     {
         return $this->description ?? null;
+    }
+
+    public function getCartableUnitPrice(Currency $currency): ?int
+    {
+        return null;
     }
 }

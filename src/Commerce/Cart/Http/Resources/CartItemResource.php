@@ -7,8 +7,6 @@ namespace InOtherShops\Commerce\Cart\Http\Resources;
 use InOtherShops\Commerce\Cart\Contracts\Cartable;
 use InOtherShops\Commerce\Cart\Models\CartItem;
 use InOtherShops\Currency\Enums\Currency;
-use InOtherShops\Pricing\Contracts\HasPrices;
-use InOtherShops\Pricing\Pricing;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -56,25 +54,10 @@ final class CartItemResource extends JsonResource
 
     private function resolveUnitPrice(mixed $cartable, Currency $currency): ?int
     {
-        if (! $cartable instanceof HasPrices) {
+        if (! $cartable instanceof Cartable) {
             return null;
         }
 
-        $price = $cartable->priceFor($currency, $this->defaultPriceList());
-
-        return $price?->amount;
-    }
-
-    private function defaultPriceList()
-    {
-        static $cached = false;
-        static $list = null;
-
-        if (! $cached) {
-            $list = Pricing::priceList()::query()->where('is_default', true)->first();
-            $cached = true;
-        }
-
-        return $list;
+        return $cartable->getCartableUnitPrice($currency);
     }
 }

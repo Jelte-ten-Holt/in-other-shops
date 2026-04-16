@@ -7,8 +7,8 @@ namespace InOtherShops\Storefront\Controllers;
 use InOtherShops\Storefront\Actions\ListCategoryBrowsables;
 use InOtherShops\Storefront\Resources\BrowsableResource;
 use InOtherShops\Storefront\Resources\CategoryResource;
-use InOtherShops\Taxonomy\Models\Category;
 use InOtherShops\Taxonomy\Taxonomy;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -27,7 +27,7 @@ final class CategoryShowController
         return $this->buildResponse($category, $items, $request);
     }
 
-    private function findActiveCategory(string $slug): ?Category
+    private function findActiveCategory(string $slug): ?Model
     {
         return Taxonomy::category()->query()
             ->where('slug', $slug)
@@ -40,7 +40,7 @@ final class CategoryShowController
             ->first();
     }
 
-    private function paginatedItems(ListCategoryBrowsables $action, Category $category, Request $request): mixed
+    private function paginatedItems(ListCategoryBrowsables $action, Model $category, Request $request): mixed
     {
         $perPage = min((int) $request->input('per_page', config('storefront.defaults.per_page', 24)), 100);
         $page = max((int) $request->input('page', 1), 1);
@@ -48,7 +48,7 @@ final class CategoryShowController
         return $action($category, $perPage, $page);
     }
 
-    private function buildResponse(Category $category, mixed $items, Request $request): JsonResponse
+    private function buildResponse(Model $category, mixed $items, Request $request): JsonResponse
     {
         return response()->json([
             'data' => (new CategoryResource($category))->toArray($request),

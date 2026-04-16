@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace InOtherShops\Commerce\Cart\Http\Resources;
 
+use InOtherShops\Commerce\Cart\Contracts\Cartable;
 use InOtherShops\Commerce\Cart\Models\Cart;
 use InOtherShops\Currency\Enums\Currency;
-use InOtherShops\Pricing\Pricing;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -39,23 +39,22 @@ final class CartResource extends JsonResource
 
     private function subtotal($items, Currency $currency): int
     {
-        $defaultList = Pricing::priceList()::query()->where('is_default', true)->first();
         $total = 0;
 
         foreach ($items as $item) {
             $cartable = $item->cartable;
 
-            if (! $cartable instanceof \InOtherShops\Pricing\Contracts\HasPrices) {
+            if (! $cartable instanceof Cartable) {
                 continue;
             }
 
-            $price = $cartable->priceFor($currency, $defaultList);
+            $unitPrice = $cartable->getCartableUnitPrice($currency);
 
-            if ($price === null) {
+            if ($unitPrice === null) {
                 continue;
             }
 
-            $total += $price->amount * $item->quantity;
+            $total += $unitPrice * $item->quantity;
         }
 
         return $total;

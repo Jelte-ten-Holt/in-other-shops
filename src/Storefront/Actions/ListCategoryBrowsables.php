@@ -7,8 +7,8 @@ namespace InOtherShops\Storefront\Actions;
 use InOtherShops\Storefront\Concerns\ResolvesEagerLoading;
 use InOtherShops\Storefront\Contracts\Browsable;
 use InOtherShops\Taxonomy\Contracts\HasCategories;
-use InOtherShops\Taxonomy\Models\Category;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 
@@ -16,7 +16,7 @@ final class ListCategoryBrowsables
 {
     use ResolvesEagerLoading;
 
-    public function __invoke(Category $category, int $perPage = 24, int $page = 1): LengthAwarePaginator
+    public function __invoke(Model $category, int $perPage = 24, int $page = 1): LengthAwarePaginator
     {
         $models = $this->categorizableBrowsables();
         $items = $this->collectItemsFromAllModels($models, $category);
@@ -47,7 +47,7 @@ final class ListCategoryBrowsables
     /**
      * @param  array<string, class-string<Browsable&HasCategories>>  $models
      */
-    private function collectItemsFromAllModels(array $models, Category $category): Collection
+    private function collectItemsFromAllModels(array $models, Model $category): Collection
     {
         $all = new Collection;
 
@@ -63,7 +63,7 @@ final class ListCategoryBrowsables
     /**
      * @param  class-string<Browsable&HasCategories>  $modelClass
      */
-    private function queryModelForCategory(string $modelClass, Category $category): Collection
+    private function queryModelForCategory(string $modelClass, Model $category): Collection
     {
         $query = $modelClass::browseQuery()
             ->whereHas('categories', fn (Builder $q) => $q->where('categories.id', $category->id));
