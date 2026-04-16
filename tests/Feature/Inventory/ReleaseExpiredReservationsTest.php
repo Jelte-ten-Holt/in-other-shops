@@ -6,8 +6,11 @@ namespace InOtherShops\Tests\Feature\Inventory;
 
 use InOtherShops\Inventory\Actions\AdjustStock;
 use InOtherShops\Inventory\Actions\ReleaseExpiredReservations;
+use InOtherShops\Inventory\Actions\ReleaseReservation;
 use InOtherShops\Inventory\Actions\ReserveStock;
+use InOtherShops\Inventory\Enums\ReservationStatus;
 use InOtherShops\Inventory\Enums\StockMovementReason;
+use InOtherShops\Inventory\Events\ReservationReleased;
 use InOtherShops\Inventory\Events\StockReleased;
 use InOtherShops\Inventory\Models\StockItem;
 use InOtherShops\Inventory\Models\StockMovement;
@@ -31,7 +34,7 @@ final class ReleaseExpiredReservationsTest extends TestCase
 
         $adjust = new AdjustStock;
         $this->reserve = new ReserveStock($adjust);
-        $this->action = new ReleaseExpiredReservations($adjust);
+        $this->action = new ReleaseExpiredReservations(new ReleaseReservation($adjust));
     }
 
     #[Test]
@@ -50,7 +53,33 @@ final class ReleaseExpiredReservationsTest extends TestCase
         $released = ($this->action)();
 
         $this->assertCount(1, $released);
+        $this->assertSame(ReservationStatus::Released, $released[0]->status);
+        $this->assertNotNull($released[0]->release_movement_id);
         $this->assertSame(10, $stockable->stockItem()->first()->fresh()->stock_level);
+    }
+
+    #[Test]
+    public function release_appends_a_new_movement_and_leaves_the_reserve_movement_untouched(): void
+    {
+        $stockable = $this->stockableWithLevel(10);
+
+        $reservation = ($this->reserve)(
+            stockable: $stockable,
+            quantity: 3,
+            reservedUntil: now()->subMinute(),
+        );
+
+        ($this->action)();
+
+        $reserveMovement = StockMovement::query()->find($reservation->reserve_movement_id);
+        $this->assertSame(-3, $reserveMovement->quantity);
+        $this->assertSame(StockMovementReason::Reserved, $reserveMovement->reason);
+
+        $releaseMovement = StockMovement::query()->find($reservation->fresh()->release_movement_id);
+        $this->assertSame(3, $releaseMovement->quantity);
+        $this->assertSame(StockMovementReason::Released, $releaseMovement->reason);
+
+        $this->assertSame(2, StockMovement::query()->count());
     }
 
     #[Test]
@@ -67,33 +96,30 @@ final class ReleaseExpiredReservationsTest extends TestCase
         $first = ($this->action)();
         $second = ($this->action)();
 
-        $this->assertCount(1, $first, 'First run releases the expired reservation.');
-        $this->assertCount(0, $second, 'Second run finds nothing to release — guard rejects already-released reason.');
+        $this->assertCount(1, $first);
+        $this->assertCount(0, $second, 'Second run finds nothing — status is no longer Pending.');
         $this->assertSame(10, $stockable->stockItem()->first()->fresh()->stock_level,
             'Stock level must not be inflated by a double-release.');
     }
 
     #[Test]
-    public function it_does_not_release_a_reservation_that_has_already_been_manually_released(): void
+    public function it_does_not_release_a_reservation_that_is_not_pending(): void
     {
         $stockable = $this->stockableWithLevel(10);
 
-        ($this->reserve)(
+        $reservation = ($this->reserve)(
             stockable: $stockable,
             quantity: 3,
             reservedUntil: now()->subMinute(),
         );
 
-        // Simulate another worker having already flipped the movement.
-        StockMovement::query()
-            ->where('reason', StockMovementReason::Reserved)
-            ->update(['reason' => StockMovementReason::Released, 'reserved_until' => null]);
+        $reservation->update(['status' => ReservationStatus::Released, 'resolved_at' => now()]);
 
         $released = ($this->action)();
 
         $this->assertCount(0, $released);
         $this->assertSame(7, $stockable->stockItem()->first()->fresh()->stock_level,
-            'Manually "released" row should not be touched — the Adjusted stock_level stays as-is.');
+            'Already-released reservation should not trigger another stock restoration.');
     }
 
     #[Test]
@@ -130,9 +156,9 @@ final class ReleaseExpiredReservationsTest extends TestCase
     }
 
     #[Test]
-    public function it_dispatches_stock_released_once_per_release(): void
+    public function it_dispatches_stock_released_and_reservation_released_once_per_release(): void
     {
-        Event::fake([StockReleased::class]);
+        Event::fake([StockReleased::class, ReservationReleased::class]);
 
         $stockable = $this->stockableWithLevel(10);
 
@@ -146,6 +172,7 @@ final class ReleaseExpiredReservationsTest extends TestCase
         ($this->action)();
 
         Event::assertDispatchedTimes(StockReleased::class, 1);
+        Event::assertDispatchedTimes(ReservationReleased::class, 1);
     }
 
     private function stockableWithLevel(int $level): TestStockable

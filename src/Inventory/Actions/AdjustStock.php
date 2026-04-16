@@ -9,7 +9,6 @@ use InOtherShops\Inventory\Enums\StockMovementReason;
 use InOtherShops\Inventory\Events\StockAdjusted;
 use InOtherShops\Inventory\Models\StockItem;
 use InOtherShops\Inventory\Models\StockMovement;
-use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
@@ -27,14 +26,13 @@ final class AdjustStock
         ?string $description = null,
         ?Model $reference = null,
         ?string $source = null,
-        ?CarbonInterface $reservedUntil = null,
     ): StockMovement {
         $this->validateSource($source);
 
-        [$movement, $stockItem] = DB::transaction(function () use ($stockable, $quantity, $reason, $description, $reference, $source, $reservedUntil): array {
+        [$movement, $stockItem] = DB::transaction(function () use ($stockable, $quantity, $reason, $description, $reference, $source): array {
             $stockItem = $this->findOrCreateStockItem($stockable);
 
-            $movement = $this->createMovement($stockItem, $quantity, $reason, $description, $reference, $source, $reservedUntil);
+            $movement = $this->createMovement($stockItem, $quantity, $reason, $description, $reference, $source);
 
             $this->updateStockLevel($stockItem, $quantity);
 
@@ -78,14 +76,12 @@ final class AdjustStock
         ?string $description,
         ?Model $reference,
         ?string $source,
-        ?CarbonInterface $reservedUntil,
     ): StockMovement {
         $attributes = [
             'quantity' => $quantity,
             'reason' => $reason,
             'description' => $description,
             'source' => $source,
-            'reserved_until' => $reservedUntil,
         ];
 
         if ($reference !== null) {

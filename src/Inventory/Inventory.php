@@ -6,6 +6,7 @@ namespace InOtherShops\Inventory;
 
 use InOtherShops\Inventory\Models\StockItem;
 use InOtherShops\Inventory\Models\StockMovement;
+use InOtherShops\Inventory\Models\StockReservation;
 
 final class Inventory
 {
@@ -19,6 +20,13 @@ final class Inventory
     public static function stockMovement(): StockMovement
     {
         $class = config('inventory.models.stock_movement', StockMovement::class);
+
+        return new $class;
+    }
+
+    public static function stockReservation(): StockReservation
+    {
+        $class = config('inventory.models.stock_reservation', StockReservation::class);
 
         return new $class;
     }

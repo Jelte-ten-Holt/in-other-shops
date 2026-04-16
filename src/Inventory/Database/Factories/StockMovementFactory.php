@@ -26,30 +26,6 @@ final class StockMovementFactory extends Factory
             'reason' => StockMovementReason::Adjusted,
             'description' => null,
             'source' => null,
-            'reserved_until' => null,
         ];
-    }
-
-    public function reserved(?\DateTimeInterface $until = null): self
-    {
-        return $this->state(fn () => [
-            'quantity' => -1,
-            'reason' => StockMovementReason::Reserved,
-            'reserved_until' => $until ?? now()->addMinutes(30),
-        ]);
-    }
-
-    public function expired(): self
-    {
-        return $this->reserved(now()->subMinute());
-    }
-
-    public function released(): self
-    {
-        return $this->state(fn () => [
-            'quantity' => 1,
-            'reason' => StockMovementReason::Released,
-            'reserved_until' => null,
-        ]);
     }
 }

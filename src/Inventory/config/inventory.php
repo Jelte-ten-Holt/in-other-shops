@@ -46,5 +46,6 @@ return [
     'models' => [
         'stock_item' => InOtherShops\Inventory\Models\StockItem::class,
         'stock_movement' => InOtherShops\Inventory\Models\StockMovement::class,
+        'stock_reservation' => InOtherShops\Inventory\Models\StockReservation::class,
     ],
 ];

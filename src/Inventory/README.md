@@ -1,6 +1,6 @@
 # Inventory Domain
 
-Stock tracking for any model via polymorphic `HasStock` / `InteractsWithStock`. Tracks a materialized `stock_level` on `StockItem` for fast reads, with a `StockMovement` ledger for full audit trail.
+Stock tracking for any model via polymorphic `HasStock` / `InteractsWithStock`. Tracks a materialized `stock_level` on `StockItem` for fast reads, an append-only `StockMovement` ledger for audit, and a separate `StockReservation` entity for the pending/confirmed/released lifecycle.
 
 ## Architecture
 
@@ -19,7 +19,7 @@ Stock tracking for any model via polymorphic `HasStock` / `InteractsWithStock`. 
 
 Unique constraint on `[stockable_type, stockable_id]`.
 
-**`StockMovement`** — audit ledger entry. Every stock change creates a movement.
+**`StockMovement`** — **append-only** ledger entry. Every stock delta creates exactly one movement; movements are never updated.
 
 | column | type | purpose |
 |---|---|---|
@@ -28,17 +28,34 @@ Unique constraint on `[stockable_type, stockable_id]`.
 | `quantity` | integer | signed — positive for additions, negative for deductions |
 | `reason` | string | enum value (received, restock, sold, reserved, released, adjusted) |
 | `description` | string, nullable | optional free-text description |
-| `reference_type` | string, nullable | morph type of the model that caused this movement (e.g. order) |
-| `reference_id` | bigint, nullable | morph ID |
+| `reference_type` / `reference_id` | morph | upstream model that caused the delta (e.g. order line) |
 | `source` | string, nullable | where the movement originated (e.g. dashboard, checkout) |
-| `reserved_until` | timestamp, nullable | TTL for reservations — after this time, the reservation expires |
+| `created_at` | timestamp | only — `const UPDATED_AT = null` enforces immutability |
+
+**`StockReservation`** — lifecycle entity for pending/confirmed/released reservations. Mutable (status flips over its lifetime) but the ledger movements it points at are not.
+
+| column | type | purpose |
+|---|---|---|
+| `id` | bigint | PK |
+| `stock_item_id` | FK | parent stock item (cascadeOnDelete) |
+| `reserve_movement_id` | FK, unique | the `-X Reserved` ledger entry that opened the reservation |
+| `release_movement_id` | FK, nullable | the `+X Released` ledger entry, set when released |
+| `quantity` | unsigned int | always positive; direction is implied by lifecycle |
+| `status` | string | `pending` / `confirmed` / `released` |
+| `reserved_until` | timestamp, nullable | TTL for automatic expiry |
+| `resolved_at` | timestamp, nullable | when the reservation transitioned out of `pending` |
+| `reference_type` / `reference_id` | morph | upstream reference (same morph as the reserve movement) |
+| `description` / `source` | string, nullable | mirrors the reserve movement |
 | `timestamps` | | |
 
-Helpers: `isExpired()` — checks if `reserved_until` is in the past.
+Indexes: `unique(reserve_movement_id)`, `(status, reserved_until)` for the expiry sweep.
 
-### Enum
+Helper: `StockReservation::isExpired()` — `status = Pending && reserved_until < now`.
 
-**`StockMovementReason`** — `received`, `restock`, `sold`, `reserved`, `released`, `adjusted`. Has a `label()` method for display. `Restock` is the user-facing word for routine supplier replenishment; `Received` covers broader inbound cases (returns, transfers, opening stock).
+### Enums
+
+- **`StockMovementReason`** — `received`, `restock`, `sold`, `reserved`, `released`, `adjusted`.
+- **`ReservationStatus`** — `pending`, `confirmed`, `released`. `isResolved()` returns true for non-pending.
 
 ### Contract & Trait
 
@@ -55,11 +72,11 @@ interface HasStock
 
 ### Actions
 
-- **`AdjustStock`** — finds or creates the StockItem, creates a StockMovement, updates `stock_level`. All in a single DB transaction. Returns the StockMovement. Accepts optional `?Model $reference`, `?string $source`, `?CarbonInterface $reservedUntil`. Validates `source` against `config('inventory.sources')`.
-- **`ReserveStock`** — wraps AdjustStock with `reserved` reason and negative quantity. Accepts optional `?Model $reference`, `?string $source`, `?CarbonInterface $reservedUntil`.
-- **`ReleaseStock`** — wraps AdjustStock with `released` reason and positive quantity. Accepts optional `?Model $reference`, `?string $source`.
-- **`ConfirmReservation`** — finds all reserved movements for a given reference model and converts them to `sold`. Stock level is unchanged (the reservation already decremented it). Clears `reserved_until`. Optionally updates description.
-- **`ReleaseExpiredReservations`** — finds all reserved movements where `reserved_until` is in the past, releases the stock back (positive adjustment), marks the original movement as `released`. Dispatches `StockReleased` event for each.
+- **`AdjustStock`** — finds or creates the StockItem, writes one StockMovement, updates `stock_level`. Single DB transaction. Returns the StockMovement. Validates `source` against `config('inventory.sources')`.
+- **`ReserveStock`** — inside a transaction: decrements stock via `AdjustStock` with `reason=Reserved` **and** creates a `StockReservation` row (`status=Pending`) pointing at that movement. Returns the `StockReservation`. Dispatches `ReservationCreated`.
+- **`ConfirmReservation`** — transitions all pending reservations for a given reference to `Confirmed`. **No new movement**; stock already decremented at reserve time. The original `Reserved` ledger entry stays untouched. Dispatches `ReservationConfirmed` per transition.
+- **`ReleaseReservation`** — releases a single reservation: appends a `+X Released` movement via `AdjustStock`, transitions the reservation `Pending → Released`, sets `release_movement_id`. Locked select + `status=Pending` guard makes it safe under concurrency. Dispatches `ReservationReleased` + `StockReleased`.
+- **`ReleaseExpiredReservations`** — finds pending reservations past `reserved_until` and invokes `ReleaseReservation` for each. Idempotent under concurrent workers.
 
 ### Commands
 
@@ -67,8 +84,9 @@ interface HasStock
 
 ### Events
 
-- **`StockAdjusted`** — dispatched after every stock adjustment (after transaction commits). Carries the `StockMovement` and updated `StockItem`. Fired by `AdjustStock` (and therefore also by `ReserveStock` and `ReleaseStock`, which wrap it).
-- **`StockReleased`** — dispatched when an expired reservation is released. Carries the original reservation movement and the new release movement.
+- **`StockAdjusted`** — every stock delta. Carries the `StockMovement` and updated `StockItem`. Fires from `AdjustStock`.
+- **`StockReleased`** — a reservation was released (the ledger side). Carries the `StockReservation` and the new release `StockMovement`.
+- **`ReservationCreated`** / **`ReservationConfirmed`** / **`ReservationReleased`** — reservation lifecycle transitions. Each carries the `StockReservation`.
 
 ### Config
 
@@ -80,18 +98,22 @@ interface HasStock
     'import' => 'Import',
 ],
 'reservation_ttl' => env('INVENTORY_RESERVATION_TTL', 30),  // minutes
+'models' => [
+    'stock_item' => InOtherShops\Inventory\Models\StockItem::class,
+    'stock_movement' => InOtherShops\Inventory\Models\StockMovement::class,
+    'stock_reservation' => InOtherShops\Inventory\Models\StockReservation::class,
+],
 ```
-
-When `sources` is configured, `AdjustStock` validates the `source` parameter against the keys. When empty/null, any value is accepted.
 
 ### Design Decisions
 
-- **morphOne** — one StockItem per stockable. Multi-location inventory would add a `location_id` to StockItem later.
-- **Materialized `stock_level`** — avoids summing movements on every read. Updated atomically via `increment()` in the same transaction as movement creation.
-- **Polymorphic reference** — stock movements can be linked back to the model that caused them (e.g. an Order). This enables `ConfirmReservation` to find all reservations for a specific order and convert them to sold. The Inventory domain never imports Order — it only knows about the morph.
-- **Source tracking** — `source` records where the movement originated (dashboard, checkout, import). Validated against config so sources stay consistent. Displayed in Filament's StockMovementsTable.
-- **TTL-based expiry** — reservations with `reserved_until` are automatically released by a scheduled command. Reservations without a TTL never expire (manual release only).
-- **No availability check** — `stockLevel()` on the trait is sufficient. The consuming model decides what "available" means (e.g., closeout products may sell at stock_level 0).
+- **Ledger is append-only, reservation has a lifecycle.** Mixing both into one table forces rewriting history (flipping `reason` from `reserved` to `sold`/`released`) which destroys the audit trail. The split puts immutability where it belongs (the ledger) and mutability where it belongs (an entity with a state machine).
+- **`ConfirmReservation` writes no movement.** Confirmation changes reservation state, not stock level. Writing a `quantity=0` movement would be noise; the reservation's `resolved_at` + `status=Confirmed` carries the fact that confirmation happened, and the original `-X Reserved` movement remains the honest record of the decrement.
+- **`ReleaseReservation` writes a new `+X Released` movement.** The original `-X Reserved` entry is never mutated; the +X entry is its compensating ledger pair.
+- **Concurrency via `status=Pending` guard + `lockForUpdate`.** Idempotent expiry runs; double-release is impossible.
+- **`unique(reserve_movement_id)` on reservations.** One reservation per reserve movement — enforced at the schema level.
+- **morphOne StockItem** — one item per stockable. Multi-location inventory would add `location_id` later.
+- **Materialized `stock_level`** — avoids summing the ledger on every read. Updated atomically via `increment()` in the same transaction as movement creation.
 
 ## Dependencies
 
@@ -99,10 +121,11 @@ None — independent domain.
 
 ## Filament Integration
 
-- **`InventorySchema`** — `stockSection()` returns a collapsible Section with stock level display, low-stock threshold, and inline stock adjustment (quantity, reason, description). Uses `fillFormData()`/`saveFormData()` for manual sync, following the Translation/Media pattern.
-- **`StockMovementsTable`** — Livewire table of all movements for a stockable, with sortable columns (date, quantity, reason badge, source badge, description).
+- **`InventorySchema`** — `stockSection()` returns a collapsible Section with stock level display, low-stock threshold, and inline stock adjustment (quantity, reason, description). Uses `fillFormData()`/`saveFormData()` for manual sync.
+- **`StockMovementsTable`** — Livewire table of all movements for a stockable, with sortable columns (date, quantity, reason, source, description).
 
 ## Future
 
-- Low-stock notification events
-- Multi-location inventory support
+- Low-stock notification events.
+- Multi-location inventory support.
+- Reservation log subscriber (package-ships pattern, once Phase D lands).

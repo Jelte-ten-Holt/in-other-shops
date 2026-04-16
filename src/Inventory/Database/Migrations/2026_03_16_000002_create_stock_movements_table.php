@@ -16,7 +16,9 @@ return new class extends Migration
             $table->integer('quantity');
             $table->string('reason');
             $table->string('description')->nullable();
-            $table->timestamps();
+            $table->nullableMorphs('reference');
+            $table->string('source')->nullable();
+            $table->timestamp('created_at')->useCurrent();
         });
     }
 
