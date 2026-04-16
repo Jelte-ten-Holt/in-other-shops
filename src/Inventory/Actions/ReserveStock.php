@@ -8,11 +8,13 @@ use InOtherShops\Inventory\Contracts\HasStock;
 use InOtherShops\Inventory\Enums\ReservationStatus;
 use InOtherShops\Inventory\Enums\StockMovementReason;
 use InOtherShops\Inventory\Events\ReservationCreated;
+use InOtherShops\Inventory\Events\StockReservationFailed;
 use InOtherShops\Inventory\Inventory;
 use InOtherShops\Inventory\Models\StockReservation;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
+use RuntimeException;
 
 final class ReserveStock
 {
@@ -30,8 +32,13 @@ final class ReserveStock
         ?Model $reference = null,
         ?string $source = null,
         ?CarbonInterface $reservedUntil = null,
+        bool $rejectOversell = true,
     ): StockReservation {
         $quantity = abs($quantity);
+
+        if ($rejectOversell) {
+            $this->assertAvailable($stockable, $quantity);
+        }
 
         $reservation = DB::transaction(
             fn (): StockReservation => $this->reserve($stockable, $quantity, $description, $reference, $source, $reservedUntil),
@@ -40,6 +47,24 @@ final class ReserveStock
         ReservationCreated::dispatch($reservation);
 
         return $reservation;
+    }
+
+    /**
+     * @param  Model&HasStock  $stockable
+     */
+    private function assertAvailable(Model $stockable, int $quantity): void
+    {
+        $available = $stockable->stockLevel();
+
+        if ($available >= $quantity) {
+            return;
+        }
+
+        StockReservationFailed::dispatch($stockable, $quantity, $available);
+
+        throw new RuntimeException(
+            "Cannot reserve {$quantity} units of {$stockable->getMorphClass()}#{$stockable->getKey()}: only {$available} available.",
+        );
     }
 
     /**

@@ -13,6 +13,12 @@ interface PaymentGateway
 {
     public function createSession(Payment $payment, string $returnUrl, string $cancelUrl, ?string $gatewayCustomerId = null): PaymentSession;
 
+    /**
+     * Throw when the signature does not verify. Called before `parseWebhook`
+     * so the parser can assume the payload is authentic.
+     */
+    public function verifyWebhookSignature(Request $request): void;
+
     public function parseWebhook(Request $request): WebhookPayload;
 
     public function refund(Payment $payment, ?int $amount = null): void;

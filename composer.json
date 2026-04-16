@@ -13,6 +13,9 @@
         "phpunit/phpunit": "^11.0 || ^12.0",
         "mockery/mockery": "^1.6"
     },
+    "suggest": {
+        "stripe/stripe-php": "Install to enable the Stripe payment gateway driver (^15.0 || ^16.0)."
+    },
     "autoload": {
         "psr-4": {
             "InOtherShops\\Commerce\\": "src/Commerce/",
@@ -54,6 +57,7 @@
                 "InOtherShops\\Inventory\\InventoryServiceProvider",
                 "InOtherShops\\Shipping\\ShippingServiceProvider",
                 "InOtherShops\\Payment\\PaymentServiceProvider",
+                "InOtherShops\\Payment\\Drivers\\Stripe\\StripeGatewayServiceProvider",
                 "InOtherShops\\Commerce\\CommerceServiceProvider",
                 "InOtherShops\\FlowChain\\FlowChainServiceProvider",
                 "InOtherShops\\Storefront\\StorefrontServiceProvider"

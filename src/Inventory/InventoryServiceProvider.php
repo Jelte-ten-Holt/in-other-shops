@@ -6,8 +6,10 @@ namespace InOtherShops\Inventory;
 
 use InOtherShops\Inventory\Commands\ReleaseExpiredReservationsCommand;
 use InOtherShops\Inventory\Filament\StockMovementsTable;
+use InOtherShops\Inventory\Listeners\InventoryLogSubscriber;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Database\Eloquent\Relations\Relation;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 use Livewire\Livewire;
 
@@ -42,5 +44,7 @@ final class InventoryServiceProvider extends ServiceProvider
             $schedule = $this->app->make(Schedule::class);
             $schedule->command('inventory:release-expired')->everyFiveMinutes();
         });
+
+        Event::subscribe(InventoryLogSubscriber::class);
     }
 }

@@ -9,7 +9,9 @@ use InOtherShops\Payment\Enums\PaymentStatus;
 use InOtherShops\Payment\Events\PaymentFailed;
 use InOtherShops\Payment\Events\PaymentSucceeded;
 use InOtherShops\Payment\Models\Payment;
+use InOtherShops\Payment\Models\WebhookEvent;
 use InOtherShops\Payment\PaymentGatewayManager;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
 
 final class HandlePaymentWebhook
@@ -22,7 +24,13 @@ final class HandlePaymentWebhook
     {
         $gateway = $this->gateways->gateway($gatewayName);
 
+        $gateway->verifyWebhookSignature($request);
+
         $payload = $gateway->parseWebhook($request);
+
+        if (! $this->recordIdempotency($gatewayName, $payload)) {
+            return null;
+        }
 
         $payment = $this->findPayment($gatewayName, $payload);
 
@@ -37,6 +45,29 @@ final class HandlePaymentWebhook
         }
 
         return $payment;
+    }
+
+    /**
+     * Insert an idempotency row. Returns false when the delivery was already
+     * processed (unique-constraint hit), true on first delivery or when the
+     * gateway doesn't supply an event id.
+     */
+    private function recordIdempotency(string $gatewayName, WebhookPayload $payload): bool
+    {
+        if ($payload->eventId === null) {
+            return true;
+        }
+
+        try {
+            WebhookEvent::query()->create([
+                'gateway' => $gatewayName,
+                'event_id' => $payload->eventId,
+            ]);
+        } catch (UniqueConstraintViolationException) {
+            return false;
+        }
+
+        return true;
     }
 
     private function findPayment(string $gatewayName, WebhookPayload $payload): ?Payment

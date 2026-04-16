@@ -14,6 +14,7 @@ final readonly class WebhookPayload
     public function __construct(
         public string $gatewayReference,
         public PaymentStatus $status,
+        public ?string $eventId = null,
         public array $gatewayData = [],
     ) {}
 }

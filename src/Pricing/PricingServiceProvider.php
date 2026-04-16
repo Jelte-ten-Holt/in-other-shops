@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace InOtherShops\Pricing;
 
+use InOtherShops\Pricing\Listeners\PricingLogSubscriber;
 use Illuminate\Database\Eloquent\Relations\Relation;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 
 final class PricingServiceProvider extends ServiceProvider
@@ -23,5 +25,7 @@ final class PricingServiceProvider extends ServiceProvider
             'price_list' => Pricing::priceList(),
             'voucher' => Pricing::voucher(),
         ]);
+
+        Event::subscribe(PricingLogSubscriber::class);
     }
 }

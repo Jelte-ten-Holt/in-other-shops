@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace InOtherShops\Commerce;
 
+use InOtherShops\Commerce\Cart\Commands\PruneExpiredCartsCommand;
+use InOtherShops\Commerce\Listeners\CommerceLogSubscriber;
 use Illuminate\Database\Eloquent\Relations\Relation;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 
@@ -29,6 +32,9 @@ final class CommerceServiceProvider extends ServiceProvider
         ]);
 
         $this->registerCartRoutes();
+        $this->commands([PruneExpiredCartsCommand::class]);
+
+        Event::subscribe(CommerceLogSubscriber::class);
     }
 
     private function registerCartRoutes(): void

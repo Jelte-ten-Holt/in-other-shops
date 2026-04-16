@@ -48,30 +48,28 @@ Prior to building checkout in the `in-other-worlds` consumer project, a critical
 
 ### Phase D — Logging backfill (package ships subscribers)
 
-Ruling (2026-04-15): logging is vital shop functionality; subscribers ship in the package, not per-consumer. `InventoryLogSubscriber` is the pattern.
+- [x] **D1. `CommerceLogSubscriber`** — `OrderCreated` / `OrderFailed` / `OrderStatusChanged` → `commerce` channel.
+- [x] **D2. `PaymentLogSubscriber`** — `PaymentSucceeded` / `PaymentFailed` / `PaymentRefunded` → `payment` (failures at Error).
+- [x] **D3. `FlowChainLogSubscriber`** — `FlowChainStarted` / `FlowChainCompleted` / `FlowChainFailed` / `FlowChainStepFailed` → `flowchain`. Step-level failures at Warning.
+- [x] **D4. `PricingLogSubscriber`** — `PriceCreated` / `PriceUpdated` / `PriceDeleted` + `VoucherApplied` → `commerce`.
+- [x] **D5. Default log channels** — `commerce`, `payment`, `flowchain`, `inventory` already shipped in `domain-log.php`.
 
-- [ ] **D1. `CommerceLogSubscriber`** — `OrderCreated` / `OrderFailed` / `OrderStatusChanged` → `commerce` channel.
-- [ ] **D2. `PaymentLogSubscriber`** — `PaymentSucceeded` / `PaymentFailed` / `PaymentRefunded` → `payment` channel (failures at `Error` level).
-- [ ] **D3. `FlowChainLogSubscriber`** — `FlowChainStarted` / `FlowChainCompleted` / `FlowChainFailed` / `FlowChainStepFailed` → `flowchain` channel.
-- [ ] **D4. `PricingLogSubscriber`** — `PriceCreated` / `PriceUpdated` / `PriceDeleted` + voucher apply → `commerce` channel (audit trail).
-- [ ] **D5. Default log channels in `domain-log.php`** — `commerce`, `payment`, `flowchain`. Consumers override.
+Subscribers live in `src/{Domain}/Listeners/` and are explicitly registered via `Event::subscribe()` in each domain's service provider. Consumer's `app/Listeners/Logging/InventoryLogSubscriber` and its test have been removed — the package subscriber covers the same events.
 
 ### Phase E — Checkout primitives
 
-- [ ] **E1. `CreateOrder` action** — takes cart + customer + addresses + `PriceBreakdown`; creates `Order` + `OrderLine`s with snapshotted pricing; dispatches `OrderCreated`. Order-number generation strategy (configurable).
-- [ ] **E2. `StockReservationFailed` event** — fires from `ReserveStock` when requested quantity exceeds available. Lets checkout handle oversell gracefully instead of bare exception.
-- [ ] **E3. Webhook idempotency** — `webhook_events` table with `(gateway, event_id)` unique; `HandlePaymentWebhook` records+dedupes. `WebhookPayload` DTO gains `eventId`.
-- [ ] **E4. Gateway webhook signature verification in contract** — add `verifyWebhookSignature(Request $request): void` (throws on mismatch) to `PaymentGateway`; split from `parseWebhook`.
-- [ ] **E5. Guest cart expiry** — `expires_at` column on `carts`; prune command. Prevents session-token cart accumulation.
+- [x] **E1. `CreateOrder` action** — takes `Cart` + `PriceBreakdown` + billing address (+ optional shipping) + optional customer/guestEmail; creates `Order` + `OrderLine`s with snapshotted pricing via `HasOrders::toOrderLineData`, copies addresses via `HasAddresses`, commits voucher usage via `ApplyVoucher` in the same transaction, dispatches `OrderCreated` after commit. Order-number generation configurable via `commerce.order.number_generator` (default `RandomOrderNumberGenerator`).
+- [x] **E2. `StockReservationFailed` event** — `ReserveStock` gains `rejectOversell` parameter (default true). When `stockLevel() < quantity`, dispatches `StockReservationFailed` and throws `RuntimeException`. Consumers that accept oversell (backorder) pass `rejectOversell: false`.
+- [x] **E3. Webhook idempotency** — `webhook_events` table with unique `(gateway, event_id)`. `WebhookPayload` gains nullable `eventId`. `HandlePaymentWebhook` inserts the idempotency row first; unique violation = already processed → returns null without dispatching.
+- [x] **E4. Gateway webhook signature verification** — `PaymentGateway` contract adds `verifyWebhookSignature(Request): void`. `HandlePaymentWebhook` calls it before `parseWebhook`.
+- [x] **E5. Guest cart expiry** — `expires_at` column on `carts` (added in C10 migration). New `commerce:prune-carts` command removes guest carts past TTL.
 
 ### Phase F — Stripe driver
 
-Depends on C2 (manager), C3 (DTO), E3 (idempotency), E4 (signature).
-
-- [ ] **F1. `composer.json`** — add `stripe/stripe-php` to `suggest`. No hard require.
-- [ ] **F2. `StripePaymentGateway`** — implements `PaymentGateway` + `ManagesCustomers`. Uses Payment Intents. Returns `clientSecret` via `InitiatePaymentResult`.
-- [ ] **F3. `StripeGatewayServiceProvider`** — registers via `PaymentGatewayManager::extend('stripe', …)` only when `class_exists(\Stripe\StripeClient::class) && config('payment.gateways.stripe.secret')`. Sets the optional-dep driver precedent.
-- [ ] **F4. Config shape** — `payment.gateways.stripe.{secret, webhook_secret, …}`.
+- [x] **F1. `composer.json`** — `stripe/stripe-php` added to `suggest`.
+- [x] **F2. `StripePaymentGateway`** — implements `PaymentGateway` + `ManagesCustomers`, uses Payment Intents, returns `clientSecret` via `PaymentSession`. Lives at `src/Payment/Drivers/Stripe/`. Untested (no Stripe SDK installed); integration tests happen consumer-side when `stripe/stripe-php` lands.
+- [x] **F3. `StripeGatewayServiceProvider`** — boots no-op when `\Stripe\StripeClient` is absent or `payment.gateways.stripe.secret` is empty. Otherwise registers via `PaymentGatewayManager::extend('stripe', …)`. Added to `composer.json` `extra.laravel.providers`. Sets the optional-dep driver precedent.
+- [x] **F4. Config shape** — `payment.gateways.stripe.{secret, webhook_secret}` from `STRIPE_SECRET` / `STRIPE_WEBHOOK_SECRET`.
 
 ---
 

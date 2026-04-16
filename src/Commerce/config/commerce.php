@@ -24,6 +24,22 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Order
+    |--------------------------------------------------------------------------
+    |
+    | `number_generator` must implement OrderNumberGenerator. Default is
+    | a random-suffix generator; swap in a sequential one when you need
+    | human-friendly sequences. `number_prefix` is used by the default.
+    |
+    */
+
+    'order' => [
+        'number_prefix' => env('ORDER_NUMBER_PREFIX', 'ORD'),
+        'number_generator' => InOtherShops\Commerce\Order\Support\RandomOrderNumberGenerator::class,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Cart API
     |--------------------------------------------------------------------------
     |
