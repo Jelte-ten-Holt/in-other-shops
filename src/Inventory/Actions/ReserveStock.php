@@ -62,7 +62,7 @@ final class ReserveStock
             source: $source,
         );
 
-        $model = Inventory::stockReservation()::class;
+        $model = Inventory::stockReservation();
 
         /** @var StockReservation $reservation */
         $reservation = $model::query()->create([

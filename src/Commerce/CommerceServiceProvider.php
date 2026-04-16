@@ -20,12 +20,12 @@ final class CommerceServiceProvider extends ServiceProvider
         $this->loadMigrationsFrom(__DIR__.'/Database/Migrations');
 
         Relation::morphMap([
-            'cart' => Commerce::cart()::class,
-            'cart_item' => Commerce::cartItem()::class,
-            'customer' => Commerce::customer()::class,
-            'customer_group' => Commerce::customerGroup()::class,
-            'order' => Commerce::order()::class,
-            'order_line' => Commerce::orderLine()::class,
+            'cart' => Commerce::cart(),
+            'cart_item' => Commerce::cartItem(),
+            'customer' => Commerce::customer(),
+            'customer_group' => Commerce::customerGroup(),
+            'order' => Commerce::order(),
+            'order_line' => Commerce::orderLine(),
         ]);
 
         $this->registerCartRoutes();

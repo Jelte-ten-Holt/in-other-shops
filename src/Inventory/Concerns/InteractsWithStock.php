@@ -14,7 +14,7 @@ trait InteractsWithStock
     {
         $model = Inventory::stockItem();
 
-        return $this->morphOne($model::class, 'stockable');
+        return $this->morphOne($model, 'stockable');
     }
 
     public function stockMovements(): HasManyThrough
@@ -23,8 +23,8 @@ trait InteractsWithStock
         $stockMovementModel = Inventory::stockMovement();
 
         return $this->hasManyThrough(
-            $stockMovementModel::class,
-            $stockItemModel::class,
+            $stockMovementModel,
+            $stockItemModel,
             firstKey: 'stockable_id',
             secondKey: 'stock_item_id',
         )->where('stock_items.stockable_type', $this->getMorphClass());

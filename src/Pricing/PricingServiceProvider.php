@@ -19,9 +19,9 @@ final class PricingServiceProvider extends ServiceProvider
         $this->loadMigrationsFrom(__DIR__.'/Database/Migrations');
 
         Relation::morphMap([
-            'price' => Pricing::price()::class,
-            'price_list' => Pricing::priceList()::class,
-            'voucher' => Pricing::voucher()::class,
+            'price' => Pricing::price(),
+            'price_list' => Pricing::priceList(),
+            'voucher' => Pricing::voucher(),
         ]);
     }
 }

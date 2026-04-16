@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace InOtherShops\Storefront\Actions;
 
 use InOtherShops\Storefront\Concerns\ResolvesEagerLoading;
-use InOtherShops\Storefront\Contracts\Browsable;
+use InOtherShops\Storefront\Contracts\HasStorefrontPresence;
 use InOtherShops\Taxonomy\Contracts\HasCategories;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -26,7 +26,7 @@ final class ListCategoryBrowsables
     }
 
     /**
-     * @return array<string, class-string<Browsable&HasCategories>>
+     * @return array<string, class-string<HasStorefrontPresence&HasCategories>>
      */
     private function categorizableBrowsables(): array
     {
@@ -36,7 +36,7 @@ final class ListCategoryBrowsables
         $models = config('storefront.models', []);
 
         foreach ($models as $type => $modelClass) {
-            if (is_subclass_of($modelClass, Browsable::class) && is_subclass_of($modelClass, HasCategories::class)) {
+            if (is_subclass_of($modelClass, HasStorefrontPresence::class) && is_subclass_of($modelClass, HasCategories::class)) {
                 $eligible[$type] = $modelClass;
             }
         }
@@ -45,7 +45,7 @@ final class ListCategoryBrowsables
     }
 
     /**
-     * @param  array<string, class-string<Browsable&HasCategories>>  $models
+     * @param  array<string, class-string<HasStorefrontPresence&HasCategories>>  $models
      */
     private function collectItemsFromAllModels(array $models, Model $category): Collection
     {
@@ -61,7 +61,7 @@ final class ListCategoryBrowsables
     }
 
     /**
-     * @param  class-string<Browsable&HasCategories>  $modelClass
+     * @param  class-string<HasStorefrontPresence&HasCategories>  $modelClass
      */
     private function queryModelForCategory(string $modelClass, Model $category): Collection
     {

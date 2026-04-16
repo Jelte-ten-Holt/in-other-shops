@@ -4,25 +4,27 @@ declare(strict_types=1);
 
 namespace InOtherShops\Payment\Actions;
 
-use InOtherShops\Payment\Contracts\PaymentGateway;
 use InOtherShops\Payment\DTOs\WebhookPayload;
 use InOtherShops\Payment\Enums\PaymentStatus;
 use InOtherShops\Payment\Events\PaymentFailed;
 use InOtherShops\Payment\Events\PaymentSucceeded;
 use InOtherShops\Payment\Models\Payment;
+use InOtherShops\Payment\PaymentGatewayManager;
 use Illuminate\Http\Request;
 
 final class HandlePaymentWebhook
 {
     public function __construct(
-        private readonly PaymentGateway $gateway,
+        private readonly PaymentGatewayManager $gateways,
     ) {}
 
-    public function __invoke(Request $request): ?Payment
+    public function __invoke(string $gatewayName, Request $request): ?Payment
     {
-        $payload = $this->parseWebhook($request);
+        $gateway = $this->gateways->gateway($gatewayName);
 
-        $payment = $this->findPayment($payload);
+        $payload = $gateway->parseWebhook($request);
+
+        $payment = $this->findPayment($gatewayName, $payload);
 
         if ($payment === null) {
             return null;
@@ -37,14 +39,12 @@ final class HandlePaymentWebhook
         return $payment;
     }
 
-    private function parseWebhook(Request $request): WebhookPayload
+    private function findPayment(string $gatewayName, WebhookPayload $payload): ?Payment
     {
-        return $this->gateway->parseWebhook($request);
-    }
-
-    private function findPayment(WebhookPayload $payload): ?Payment
-    {
-        return Payment::where('gateway_reference', $payload->gatewayReference)->first();
+        return Payment::query()
+            ->where('gateway', $gatewayName)
+            ->where('gateway_reference', $payload->gatewayReference)
+            ->first();
     }
 
     private function updatePaymentStatus(Payment $payment, WebhookPayload $payload): bool

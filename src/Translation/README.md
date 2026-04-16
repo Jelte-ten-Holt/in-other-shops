@@ -63,12 +63,12 @@ A single-locale shop sets `locales` to `['en']` and everything works — there's
 
 ## Contracts
 
-### `Translatable`
+### `HasTranslations`
 
 For any model that has translatable text fields.
 
 ```php
-interface Translatable
+interface HasTranslations
 {
     /**
      * The fields that are translatable.
@@ -89,7 +89,7 @@ Each model declares which fields are translatable. This serves as both documenta
 
 ### `InteractsWithTranslations`
 
-Implements the `Translatable` contract and provides locale-aware accessors.
+Implements the `HasTranslations` contract and provides locale-aware accessors.
 
 ```php
 trait InteractsWithTranslations
@@ -213,7 +213,7 @@ This returns a Tabs component with one tab per locale, each containing the speci
 
 ### Domains that will depend on Translation
 
-| Domain | Translatable fields |
+| Domain | HasTranslations fields |
 |--------|-------------------|
 | **Taxonomy** | Category: `name`, `description`. Tag: `name`. |
 | **Option** | Option: `name`. OptionValue: `label`. |
@@ -225,7 +225,7 @@ This returns a Tabs component with one tab per locale, each containing the speci
 When Translation is implemented, existing domains need to:
 
 1. Drop their text columns (`name`, `description`, etc.) from migrations.
-2. Implement `Translatable` and use `InteractsWithTranslations`.
+2. Implement `HasTranslations` and use `InteractsWithTranslations`.
 3. Seed translations instead of setting model attributes directly.
 4. Update Filament resources to use `TranslationSchema`.
 5. Update tests to create translations.
@@ -236,7 +236,7 @@ This is a breaking change for existing domains but should be done early, before 
 
 ## Search
 
-Translatable fields are no longer directly queryable (`WHERE name LIKE '%boot%'` won't work). Two strategies:
+HasTranslations fields are no longer directly queryable (`WHERE name LIKE '%boot%'` won't work). Two strategies:
 
 ### 1. Join-based search (simple, no extra infrastructure)
 
@@ -304,7 +304,7 @@ Storefront ───── depends on Pricing + Taxonomy
 app/Domains/Translation/
 ├── TranslationServiceProvider.php
 ├── Contracts/
-│   └── Translatable.php
+│   └── HasTranslations.php
 ├── Concerns/
 │   └── InteractsWithTranslations.php
 ├── Models/

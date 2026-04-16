@@ -14,6 +14,7 @@ return new class extends Migration
             $table->id();
             $table->morphs('shippable');
             $table->integer('cost')->default(0);
+            $table->string('currency', 3);
             $table->string('method')->nullable();
             $table->timestamps();
         });

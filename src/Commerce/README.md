@@ -13,15 +13,15 @@ Session/token-based shopping cart, designed for guest checkout with optional cus
 ### Models
 
 - **Cart** — identified by `session_token` (guests) or polymorphic `owner` (e.g., authenticated user). Has many `CartItem`s. Stores `currency`.
-- **CartItem** — belongs to a Cart, polymorphic `cartable` relationship (e.g., a Product, Bundle, or any model implementing `Cartable`). Stores quantity; price is resolved at read time via the Pricing domain.
+- **CartItem** — belongs to a Cart, polymorphic `cartable` relationship (e.g., a Product, Bundle, or any model implementing `HasCart`). Stores quantity; price is resolved at read time via the Pricing domain.
 
 ### Contracts
 
-- **`Cartable`** — any model that can be added to a cart. Requires `getCartableLabel(): string` and `getCartableDescription(): ?string`.
+- **`HasCart`** — any model that can be added to a cart. Requires `getCartableLabel(): string` and `getCartableDescription(): ?string`.
 
 ### Concerns
 
-- **`InteractsWithCart`** — trait for models implementing `Cartable`. Provides `cartItems(): MorphMany` and default `getCartableLabel()`/`getCartableDescription()` that return the model's `name`/`description` columns.
+- **`InteractsWithCart`** — trait for models implementing `HasCart`. Provides `cartItems(): MorphMany` and default `getCartableLabel()`/`getCartableDescription()` that return the model's `name`/`description` columns.
 
 ### Actions
 
@@ -50,7 +50,7 @@ The package ships an opt-in REST layer under `InOtherShops\Commerce\Cart\Http\*`
 | PATCH | `/api/cart/items/{item}` | Update quantity — body: `{quantity}` (0 removes) |
 | DELETE | `/api/cart/items/{item}` | Remove an item |
 
-`type` is the morph-map alias of the cartable. Validation rejects types that don't exist in the morph map or whose model doesn't implement `Cartable`. Items not belonging to the current cart return 404 from update/destroy.
+`type` is the morph-map alias of the cartable. Validation rejects types that don't exist in the morph map or whose model doesn't implement `HasCart`. Items not belonging to the current cart return 404 from update/destroy.
 
 Owner resolution uses Laravel defaults: `Auth::user()` when authenticated, `session()->getId()` otherwise. Consumers driving the cart in-process (e.g., Livewire) can disable the API via `commerce.cart.api.enabled = false`.
 
@@ -109,11 +109,11 @@ Represents completed purchases. Orders snapshot all pricing and product data at 
 
 ### Contracts
 
-- **`Orderable`** — any model that can become an order line (provides snapshot data: name, unit price, metadata).
+- **`HasOrders`** — any model that can become an order line (provides snapshot data: name, unit price, metadata).
 
 ### Concerns
 
-- **`InteractsWithOrders`** — trait for models implementing `Orderable`, providing convenience methods like `orderLines()`.
+- **`InteractsWithOrders`** — trait for models implementing `HasOrders`, providing convenience methods like `orderLines()`.
 
 ### Enums
 
@@ -147,17 +147,17 @@ All status changes should go through `UpdateOrderStatus` to ensure transition va
 
 ---
 
-## Making a Model Orderable
+## Making a Model HasOrders
 
 Any model that can become an order line needs three things:
 
-### 1. Implement `Orderable` and use `InteractsWithOrders`
+### 1. Implement `HasOrders` and use `InteractsWithOrders`
 
 ```php
-use InOtherShops\Commerce\Order\Contracts\Orderable;
+use InOtherShops\Commerce\Order\Contracts\HasOrders;
 use InOtherShops\Commerce\Order\Concerns\InteractsWithOrders;
 
-final class Product extends Model implements Orderable
+final class Product extends Model implements HasOrders
 {
     use InteractsWithOrders;  // gives $product->orderLines()
 
@@ -208,22 +208,22 @@ $order->lines()->create([
 ]);
 ```
 
-### What `Orderable` provides
+### What `HasOrders` provides
 
 | Piece | Purpose |
 |---|---|
-| `Orderable` contract | Defines `toOrderLineData(string $currencyCode): array` — snapshots catalog data |
-| `Orderable` contract | Defines `availableCurrencies(): array` — returns ISO 4217 codes this model can be ordered in |
+| `HasOrders` contract | Defines `toOrderLineData(string $currencyCode): array` — snapshots catalog data |
+| `HasOrders` contract | Defines `availableCurrencies(): array` — returns ISO 4217 codes this model can be ordered in |
 | `InteractsWithOrders` trait | Adds `orderLines(): MorphMany` — reverse lookup ("which orders contain this product?") |
 
 The contract intentionally does **not** include `quantity` or `line_total` — those are checkout-time values, not catalog data.
 
 ### Using `Purchasable` (project-level convenience)
 
-The project's `Purchasable` contract composes `HasPrices` + `Orderable`, so implementing `Purchasable` covers both pricing and order snapshot capabilities in one interface:
+The project's `Purchasable` contract composes `HasPrices` + `HasOrders`, so implementing `Purchasable` covers both pricing and order snapshot capabilities in one interface:
 
 ```php
-interface Purchasable extends HasPrices, Orderable {}
+interface Purchasable extends HasPrices, HasOrders {}
 ```
 
 ---

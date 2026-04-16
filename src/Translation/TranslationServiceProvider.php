@@ -19,7 +19,7 @@ final class TranslationServiceProvider extends ServiceProvider
         $this->loadMigrationsFrom(__DIR__.'/Database/Migrations');
 
         Relation::morphMap([
-            'translation' => Translation::translation()::class,
+            'translation' => Translation::translation(),
         ]);
     }
 }

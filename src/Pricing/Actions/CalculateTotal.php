@@ -24,9 +24,9 @@ final class CalculateTotal
     public function __invoke(
         array $items,
         Currency $currency,
+        int $taxRate,
         ?PriceList $priceList = null,
         ?string $voucherCode = null,
-        int $taxRate = 2100,
     ): PriceBreakdown {
         [$lines, $subtotal] = $this->buildLineItems($items, $currency, $priceList);
         $discount = $this->applyDiscount($voucherCode, $subtotal, $currency);

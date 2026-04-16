@@ -38,7 +38,7 @@ class StockItem extends Model
 
     public function movements(): HasMany
     {
-        return $this->hasMany(Inventory::stockMovement()::class);
+        return $this->hasMany(Inventory::stockMovement());
     }
 
     public function isLowStock(): bool

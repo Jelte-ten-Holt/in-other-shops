@@ -10,24 +10,21 @@ use InOtherShops\Pricing\Models\Voucher;
 
 final class Pricing
 {
-    public static function price(): Price
+    /** @return class-string<Price> */
+    public static function price(): string
     {
-        $class = config('pricing.models.price', Price::class);
-
-        return new $class;
+        return config('pricing.models.price', Price::class);
     }
 
-    public static function priceList(): PriceList
+    /** @return class-string<PriceList> */
+    public static function priceList(): string
     {
-        $class = config('pricing.models.price_list', PriceList::class);
-
-        return new $class;
+        return config('pricing.models.price_list', PriceList::class);
     }
 
-    public static function voucher(): Voucher
+    /** @return class-string<Voucher> */
+    public static function voucher(): string
     {
-        $class = config('pricing.models.voucher', Voucher::class);
-
-        return new $class;
+        return config('pricing.models.voucher', Voucher::class);
     }
 }

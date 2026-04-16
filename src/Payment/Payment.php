@@ -9,17 +9,15 @@ use InOtherShops\Payment\Models\PaymentProfile;
 
 final class Payment
 {
-    public static function payment(): PaymentModel
+    /** @return class-string<PaymentModel> */
+    public static function payment(): string
     {
-        $class = config('payment.models.payment', PaymentModel::class);
-
-        return new $class;
+        return config('payment.models.payment', PaymentModel::class);
     }
 
-    public static function paymentProfile(): PaymentProfile
+    /** @return class-string<PaymentProfile> */
+    public static function paymentProfile(): string
     {
-        $class = config('payment.models.payment_profile', PaymentProfile::class);
-
-        return new $class;
+        return config('payment.models.payment_profile', PaymentProfile::class);
     }
 }

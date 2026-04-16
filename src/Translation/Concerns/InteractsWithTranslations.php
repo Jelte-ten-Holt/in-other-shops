@@ -14,7 +14,7 @@ trait InteractsWithTranslations
     {
         $model = Translation::translation();
 
-        return $this->morphMany($model::class, 'translatable');
+        return $this->morphMany($model, 'translatable');
     }
 
     public function translated(string $field, ?string $locale = null): ?string

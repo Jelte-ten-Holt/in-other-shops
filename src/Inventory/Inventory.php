@@ -10,24 +10,21 @@ use InOtherShops\Inventory\Models\StockReservation;
 
 final class Inventory
 {
-    public static function stockItem(): StockItem
+    /** @return class-string<StockItem> */
+    public static function stockItem(): string
     {
-        $class = config('inventory.models.stock_item', StockItem::class);
-
-        return new $class;
+        return config('inventory.models.stock_item', StockItem::class);
     }
 
-    public static function stockMovement(): StockMovement
+    /** @return class-string<StockMovement> */
+    public static function stockMovement(): string
     {
-        $class = config('inventory.models.stock_movement', StockMovement::class);
-
-        return new $class;
+        return config('inventory.models.stock_movement', StockMovement::class);
     }
 
-    public static function stockReservation(): StockReservation
+    /** @return class-string<StockReservation> */
+    public static function stockReservation(): string
     {
-        $class = config('inventory.models.stock_reservation', StockReservation::class);
-
-        return new $class;
+        return config('inventory.models.stock_reservation', StockReservation::class);
     }
 }

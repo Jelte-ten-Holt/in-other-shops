@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace InOtherShops\Commerce\Cart\Http\Requests;
 
-use InOtherShops\Commerce\Cart\Contracts\Cartable;
+use InOtherShops\Commerce\Cart\Contracts\HasCart;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\Relation;
@@ -41,7 +41,7 @@ final class AddToCartRequest extends FormRequest
                 return;
             }
 
-            if (! $cartable instanceof Cartable) {
+            if (! $cartable instanceof HasCart) {
                 $validator->errors()->add('type', 'The selected item is not addable to a cart.');
             }
         });
@@ -50,11 +50,11 @@ final class AddToCartRequest extends FormRequest
     /**
      * Returns the resolved cartable model after validation passes.
      */
-    public function cartable(): Cartable&Model
+    public function cartable(): HasCart&Model
     {
         $cartable = $this->resolveCartable();
 
-        if (! $cartable instanceof Cartable) {
+        if (! $cartable instanceof HasCart) {
             throw new \RuntimeException('AddToCartRequest::cartable() called before validation succeeded.');
         }
 

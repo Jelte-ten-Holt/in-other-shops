@@ -4,18 +4,24 @@ declare(strict_types=1);
 
 namespace InOtherShops\Payment\DTOs;
 
+/**
+ * Gateway response from session creation.
+ *
+ * One of `redirectUrl` or `clientSecret` is typically set — redirect for
+ * hosted checkout flows, clientSecret for SDK-driven flows. Gateways with
+ * neither (bank transfer, cash-on-delivery) leave both null.
+ *
+ * @param  array<string, mixed>  $gatewayData
+ */
 final readonly class PaymentSession
 {
     /**
-     * Currently redirect-only. When client-side flows are needed (Stripe Elements,
-     * Adyen Drop-in), add a PaymentFlowType enum and an optional clientSecret field.
-     * The redirectUrl becomes nullable, and the payment page branches on flow type.
-     *
      * @param  array<string, mixed>  $gatewayData
      */
     public function __construct(
-        public string $redirectUrl,
         public string $gatewayReference,
+        public ?string $redirectUrl = null,
+        public ?string $clientSecret = null,
         public array $gatewayData = [],
     ) {}
 }

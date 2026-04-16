@@ -123,7 +123,7 @@ class OrderResource extends Resource
     /**
      * Override in your project to register orderable models.
      *
-     * @return array<string, class-string<\InOtherShops\Commerce\Order\Contracts\Orderable>>
+     * @return array<string, class-string<\InOtherShops\Commerce\Order\Contracts\HasOrders>>
      */
     protected static function orderableModels(): array
     {

@@ -6,7 +6,7 @@ namespace InOtherShops\Storefront\Contracts;
 
 use Illuminate\Database\Eloquent\Builder;
 
-interface Browsable
+interface HasStorefrontPresence
 {
     public function getBrowsableName(): string;
 

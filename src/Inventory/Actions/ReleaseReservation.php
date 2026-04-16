@@ -41,7 +41,7 @@ final class ReleaseReservation
 
     private function release(int $reservationId): ?StockReservation
     {
-        $model = Inventory::stockReservation()::class;
+        $model = Inventory::stockReservation();
 
         /** @var StockReservation|null $reservation */
         $reservation = $model::query()

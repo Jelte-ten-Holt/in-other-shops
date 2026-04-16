@@ -15,6 +15,12 @@ return new class extends Migration
             $table->foreignId('cart_id')->constrained()->cascadeOnDelete();
             $table->morphs('cartable');
             $table->unsignedInteger('quantity')->default(1);
+            // Snapshot of unit price (smallest currency subunit) at add time.
+            // Lets the UI surface "price has changed since you added this"
+            // without recomputing on every render. Nullable because not every
+            // cartable has a resolvable price (gift items, backorder, etc.).
+            $table->unsignedInteger('unit_price')->nullable();
+            $table->string('currency', 3)->nullable();
             $table->timestamps();
 
             $table->unique(['cart_id', 'cartable_type', 'cartable_id']);

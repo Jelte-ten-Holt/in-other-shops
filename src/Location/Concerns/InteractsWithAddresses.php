@@ -13,6 +13,6 @@ trait InteractsWithAddresses
     {
         $model = Location::address();
 
-        return $this->morphMany($model::class, 'addressable');
+        return $this->morphMany($model, 'addressable');
     }
 }

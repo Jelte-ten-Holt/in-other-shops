@@ -14,6 +14,6 @@ class CustomerGroup extends Model
 
     public function customers(): HasMany
     {
-        return $this->hasMany(Commerce::customer()::class);
+        return $this->hasMany(Commerce::customer());
     }
 }

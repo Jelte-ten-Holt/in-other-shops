@@ -18,7 +18,7 @@ class OrderLinesRelationManager extends RelationManager
     /**
      * Override in your project to register orderable models.
      *
-     * @return array<string, class-string<\InOtherShops\Commerce\Order\Contracts\Orderable>>
+     * @return array<string, class-string<\InOtherShops\Commerce\Order\Contracts\HasOrders>>
      */
     protected function orderableModels(): array
     {

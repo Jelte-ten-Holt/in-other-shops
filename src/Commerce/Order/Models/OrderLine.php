@@ -5,14 +5,24 @@ declare(strict_types=1);
 namespace InOtherShops\Commerce\Order\Models;
 
 use InOtherShops\Commerce\Commerce;
+use InOtherShops\Commerce\Database\Factories\OrderLineFactory;
 use InOtherShops\Currency\Enums\Currency;
+use Illuminate\Database\Eloquent\Factories\Factory;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 
 class OrderLine extends Model
 {
+    use HasFactory;
+
     protected $guarded = [];
+
+    protected static function newFactory(): Factory
+    {
+        return new OrderLineFactory;
+    }
 
     protected function casts(): array
     {
@@ -26,7 +36,7 @@ class OrderLine extends Model
 
     public function order(): BelongsTo
     {
-        return $this->belongsTo(Commerce::order()::class);
+        return $this->belongsTo(Commerce::order());
     }
 
     public function orderable(): MorphTo

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace InOtherShops\Commerce\Cart\Http\Resources;
 
-use InOtherShops\Commerce\Cart\Contracts\Cartable;
+use InOtherShops\Commerce\Cart\Contracts\HasCart;
 use InOtherShops\Commerce\Cart\Models\Cart;
 use InOtherShops\Currency\Enums\Currency;
 use Illuminate\Http\Request;
@@ -44,7 +44,7 @@ final class CartResource extends JsonResource
         foreach ($items as $item) {
             $cartable = $item->cartable;
 
-            if (! $cartable instanceof Cartable) {
+            if (! $cartable instanceof HasCart) {
                 continue;
             }
 

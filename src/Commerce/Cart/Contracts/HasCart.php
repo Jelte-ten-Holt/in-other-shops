@@ -6,7 +6,7 @@ namespace InOtherShops\Commerce\Cart\Contracts;
 
 use InOtherShops\Currency\Enums\Currency;
 
-interface Cartable
+interface HasCart
 {
     public function getCartableLabel(): string;
 

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace InOtherShops\Translation\Filament;
 
-use InOtherShops\Translation\Contracts\Translatable;
+use InOtherShops\Translation\Contracts\HasTranslations;
 use Filament\Forms\Components\Component;
 use Filament\Schemas\Components\Tabs;
 use Filament\Schemas\Components\Tabs\Tab;
@@ -36,7 +36,7 @@ final class TranslationSchema
     }
 
     /** @return array<string, array<string, string>> */
-    public static function fillFormData(Model&Translatable $record): array
+    public static function fillFormData(Model&HasTranslations $record): array
     {
         $locales = config('translation.locales', ['en']);
         $data = [];
@@ -55,7 +55,7 @@ final class TranslationSchema
     }
 
     /** @param  array<string, mixed>  $formData */
-    public static function saveFormData(Model&Translatable $record, array $formData): void
+    public static function saveFormData(Model&HasTranslations $record, array $formData): void
     {
         $translations = $formData['translations'] ?? [];
 

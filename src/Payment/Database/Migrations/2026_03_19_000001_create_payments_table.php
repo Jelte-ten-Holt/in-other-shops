@@ -24,7 +24,11 @@ return new class extends Migration
             $table->timestamps();
 
             $table->index(['payable_type', 'payable_id']);
-            $table->index('gateway_reference');
+            // Gateway refs are only guaranteed unique within a gateway — composite
+            // unique prevents cross-gateway false matches in webhook lookups.
+            // Nullable gateway_reference rows are still allowed (MySQL treats NULLs
+            // as distinct in unique indexes).
+            $table->unique(['gateway', 'gateway_reference']);
         });
     }
 

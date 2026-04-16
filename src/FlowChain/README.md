@@ -280,7 +280,7 @@ E-commerce platforms face four competing dimensions: upgradability, modifiabilit
 ### The contract is the boundary
 
 A step should depend on:
-- Domain **contracts** (`HasPrices`, `Orderable`, `Cartable`)
+- Domain **contracts** (`HasPrices`, `HasOrders`, `HasCart`)
 - Domain **action signatures** (`CalculateTotal::__invoke(array $items, Currency $currency, ...): PriceBreakdown`)
 - Domain **DTOs** (`PriceBreakdown`, `PriceBreakdownLine`)
 

@@ -19,7 +19,7 @@ final class LocationServiceProvider extends ServiceProvider
         $this->loadMigrationsFrom(__DIR__.'/Database/Migrations');
 
         Relation::morphMap([
-            'address' => Location::address()::class,
+            'address' => Location::address(),
         ]);
     }
 }

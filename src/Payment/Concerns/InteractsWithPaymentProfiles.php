@@ -14,7 +14,7 @@ trait InteractsWithPaymentProfiles
     {
         $model = Payment::paymentProfile();
 
-        return $this->morphMany($model::class, 'profileable');
+        return $this->morphMany($model, 'profileable');
     }
 
     public function paymentProfileFor(string $gateway): ?PaymentProfile

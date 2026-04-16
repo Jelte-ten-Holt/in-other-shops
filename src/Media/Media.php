@@ -9,17 +9,15 @@ use InOtherShops\Media\Models\Mediable;
 
 final class Media
 {
-    public static function media(): MediaModel
+    /** @return class-string<MediaModel> */
+    public static function media(): string
     {
-        $class = config('media.models.media', MediaModel::class);
-
-        return new $class;
+        return config('media.models.media', MediaModel::class);
     }
 
-    public static function mediable(): Mediable
+    /** @return class-string<Mediable> */
+    public static function mediable(): string
     {
-        $class = config('media.models.mediable', Mediable::class);
-
-        return new $class;
+        return config('media.models.mediable', Mediable::class);
     }
 }

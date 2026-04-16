@@ -36,17 +36,17 @@ class StockReservation extends Model
 
     public function stockItem(): BelongsTo
     {
-        return $this->belongsTo(Inventory::stockItem()::class);
+        return $this->belongsTo(Inventory::stockItem());
     }
 
     public function reserveMovement(): BelongsTo
     {
-        return $this->belongsTo(Inventory::stockMovement()::class, 'reserve_movement_id');
+        return $this->belongsTo(Inventory::stockMovement(), 'reserve_movement_id');
     }
 
     public function releaseMovement(): BelongsTo
     {
-        return $this->belongsTo(Inventory::stockMovement()::class, 'release_movement_id');
+        return $this->belongsTo(Inventory::stockMovement(), 'release_movement_id');
     }
 
     /**

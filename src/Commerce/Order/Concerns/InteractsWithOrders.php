@@ -13,6 +13,6 @@ trait InteractsWithOrders
     {
         $model = Commerce::orderLine();
 
-        return $this->morphMany($model::class, 'orderable');
+        return $this->morphMany($model, 'orderable');
     }
 }

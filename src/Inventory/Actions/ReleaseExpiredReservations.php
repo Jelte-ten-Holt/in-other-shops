@@ -31,7 +31,7 @@ final class ReleaseExpiredReservations
      */
     private function findExpiredIds(): Collection
     {
-        $model = Inventory::stockReservation()::class;
+        $model = Inventory::stockReservation();
 
         /** @var Collection<int, int> */
         return $model::query()
@@ -43,7 +43,7 @@ final class ReleaseExpiredReservations
 
     private function tryRelease(int $reservationId): ?StockReservation
     {
-        $model = Inventory::stockReservation()::class;
+        $model = Inventory::stockReservation();
 
         /** @var StockReservation|null $reservation */
         $reservation = $model::query()->find($reservationId);

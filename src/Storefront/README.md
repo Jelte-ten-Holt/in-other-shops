@@ -4,14 +4,14 @@ Read-only API layer that exposes browsable catalog items. Composes multiple doma
 
 ## Architecture
 
-### Browsable Contract & Trait
+### HasStorefrontPresence Contract & Trait
 
-Any model can appear in the storefront by implementing `Browsable` and using the `IsBrowsable` trait.
+Any model can appear in the storefront by implementing `HasStorefrontPresence` and using the `InteractsWithStorefrontPresence` trait.
 
 Models that want stock state in the storefront payload additionally implement `Storefront\Contracts\HasAvailability` (`stockLevel(): int` + `isInStock(): bool`). The package only exposes the boolean (`in_stock`) — exposing exact stock levels is a project decision (e.g. "only 2 left!" UI hints) and lives in the consuming project's own resources. The contract is intentionally minimal so that derived-stock models (e.g. bundles whose stock is computed from components) can implement it without needing a `stockItem` relationship like `Inventory\Contracts\HasStock` requires.
 
 ```php
-interface Browsable
+interface HasStorefrontPresence
 {
     public function getBrowsableName(): string;
     public function getBrowsableSlug(): string;
@@ -21,7 +21,7 @@ interface Browsable
 }
 ```
 
-`IsBrowsable` provides defaults: maps to `name`/`slug`/`description` attributes, `browseQuery()` scopes to `is_active = true` and `published_at <= now()`.
+`InteractsWithStorefrontPresence` provides defaults: maps to `name`/`slug`/`description` attributes, `browseQuery()` scopes to `is_active = true` and `published_at <= now()`.
 
 ### Configuration
 
@@ -47,7 +47,7 @@ Actions inspect which domain contracts a model implements and automatically eage
 
 | Contract | Eager loads |
 |---|---|
-| `Translatable` | `translations` (filtered by locale) |
+| `HasTranslations` | `translations` (filtered by locale) |
 | `HasPrices` | `prices` |
 | `HasCategories` | `categories`, `categories.translations` (filtered by locale) |
 | `HasTags` | `tags`, `tags.translations` (filtered by locale) |

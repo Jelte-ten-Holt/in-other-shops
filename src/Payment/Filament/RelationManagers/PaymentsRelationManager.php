@@ -4,12 +4,13 @@ declare(strict_types=1);
 
 namespace InOtherShops\Payment\Filament\RelationManagers;
 
-use InOtherShops\Payment\Contracts\PaymentGateway;
 use InOtherShops\Payment\Enums\PaymentStatus;
 use InOtherShops\Payment\Models\Payment;
+use InOtherShops\Payment\PaymentGatewayManager;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables;
 use Filament\Tables\Table;
+use InvalidArgumentException;
 
 class PaymentsRelationManager extends RelationManager
 {
@@ -45,6 +46,12 @@ class PaymentsRelationManager extends RelationManager
 
     private function resolvePaymentUrl(Payment $payment): ?string
     {
-        return app(PaymentGateway::class)->paymentDashboardUrl($payment);
+        try {
+            $gateway = app(PaymentGatewayManager::class)->gateway($payment->gateway);
+        } catch (InvalidArgumentException) {
+            return null;
+        }
+
+        return $gateway->paymentDashboardUrl($payment);
     }
 }

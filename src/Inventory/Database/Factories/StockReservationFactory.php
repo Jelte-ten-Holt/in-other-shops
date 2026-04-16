@@ -16,7 +16,7 @@ final class StockReservationFactory extends Factory
 {
     public function modelName(): string
     {
-        return Inventory::stockReservation()::class;
+        return Inventory::stockReservation();
     }
 
     public function definition(): array

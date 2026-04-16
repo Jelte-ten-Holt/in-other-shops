@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace InOtherShops\Commerce\Order\Contracts;
 
-interface Orderable
+interface HasOrders
 {
     /**
      * Snapshot catalog data for order line creation.

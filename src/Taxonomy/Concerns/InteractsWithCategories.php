@@ -13,6 +13,6 @@ trait InteractsWithCategories
     {
         $model = Taxonomy::category();
 
-        return $this->morphToMany($model::class, 'categorizable')->withTimestamps();
+        return $this->morphToMany($model, 'categorizable')->withTimestamps();
     }
 }

@@ -14,7 +14,7 @@ trait InteractsWithCart
     {
         $model = Commerce::cartItem();
 
-        return $this->morphMany($model::class, 'cartable');
+        return $this->morphMany($model, 'cartable');
     }
 
     public function getCartableLabel(): string

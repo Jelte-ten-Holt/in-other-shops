@@ -13,6 +13,6 @@ trait InteractsWithShipment
     {
         $model = Shipping::shipment();
 
-        return $this->morphOne($model::class, 'shippable');
+        return $this->morphOne($model, 'shippable');
     }
 }

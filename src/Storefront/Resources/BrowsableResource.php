@@ -12,7 +12,7 @@ use InOtherShops\Taxonomy\Contracts\HasTags;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
-/** @mixin \InOtherShops\Storefront\Contracts\Browsable */
+/** @mixin \InOtherShops\Storefront\Contracts\HasStorefrontPresence */
 final class BrowsableResource extends JsonResource
 {
     public function toArray(Request $request): array

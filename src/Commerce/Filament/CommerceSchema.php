@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace InOtherShops\Commerce\Filament;
 
-use InOtherShops\Commerce\Order\Contracts\Orderable;
+use InOtherShops\Commerce\Order\Contracts\HasOrders;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
@@ -18,7 +18,7 @@ final class CommerceSchema
     /**
      * Build an order lines repeater, optionally with orderable product selection.
      *
-     * @param  array<string, class-string<Orderable>>  $orderableModels  Morph alias => model class, e.g. ['product' => Product::class]
+     * @param  array<string, class-string<HasOrders>>  $orderableModels  Morph alias => model class, e.g. ['product' => Product::class]
      * @param  array<string, string>  $currencyOptions  Fallback options for the currency select when no orderable is selected
      */
     public static function orderLinesRepeater(
@@ -41,7 +41,7 @@ final class CommerceSchema
     }
 
     /**
-     * @param  array<string, class-string<Orderable>>  $orderableModels
+     * @param  array<string, class-string<HasOrders>>  $orderableModels
      * @param  array<string, string>  $currencyOptions
      * @return array<Component>
      */
@@ -143,7 +143,7 @@ final class CommerceSchema
     }
 
     /**
-     * @param  array<string, class-string<Orderable>>  $orderableModels
+     * @param  array<string, class-string<HasOrders>>  $orderableModels
      * @param  array<string, string>  $currencyOptions
      * @return array<string, string>
      */
@@ -176,7 +176,7 @@ final class CommerceSchema
     }
 
     /**
-     * @param  array<string, class-string<Orderable>>  $orderableModels
+     * @param  array<string, class-string<HasOrders>>  $orderableModels
      * @param  array<string, string>  $currencyOptions
      * @return array<Component>
      */
@@ -198,7 +198,7 @@ final class CommerceSchema
     }
 
     /**
-     * @param  array<string, class-string<Orderable>>  $orderableModels
+     * @param  array<string, class-string<HasOrders>>  $orderableModels
      * @param  array<string, string>  $currencyOptions
      */
     private static function handleOrderableSelected(
@@ -239,7 +239,7 @@ final class CommerceSchema
     }
 
     /**
-     * @param  array<string, class-string<Orderable>>  $orderableModels
+     * @param  array<string, class-string<HasOrders>>  $orderableModels
      * @return array<string, string>
      */
     private static function buildOrderableOptions(array $orderableModels, string $orderableTitleColumn): array
@@ -256,8 +256,8 @@ final class CommerceSchema
     }
 
     /**
-     * @param  array<string, class-string<Orderable>>  $orderableModels
-     * @return array{string|null, Orderable|null}
+     * @param  array<string, class-string<HasOrders>>  $orderableModels
+     * @return array{string|null, HasOrders|null}
      */
     private static function findOrderableById(int $id, array $orderableModels): array
     {
@@ -272,7 +272,7 @@ final class CommerceSchema
         return [null, null];
     }
 
-    private static function fillOrderLineFromModel(Orderable $model, string $currencyCode, Set $set, Get $get): void
+    private static function fillOrderLineFromModel(HasOrders $model, string $currencyCode, Set $set, Get $get): void
     {
         if ($currencyCode === '') {
             return;
@@ -292,7 +292,7 @@ final class CommerceSchema
     }
 
     /**
-     * @param  array<string, class-string<Orderable>>  $orderableModels
+     * @param  array<string, class-string<HasOrders>>  $orderableModels
      */
     private static function fillPriceFromOrderable(?string $currencyCode, Set $set, Get $get, array $orderableModels): void
     {

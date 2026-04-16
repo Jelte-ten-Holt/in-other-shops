@@ -51,7 +51,16 @@ final class VoucherResource extends Resource
                             ->required()
                             ->numeric()
                             ->minValue(0)
-                            ->suffix(fn (Get $get) => $get('type') === VoucherType::Percentage->value ? '%' : null),
+                            ->suffix(fn (Get $get) => $get('type') === VoucherType::Percentage->value ? '%' : null)
+                            ->helperText(fn (Get $get) => $get('type') === VoucherType::Percentage->value
+                                ? 'Admin-friendly percentage (e.g. 10 = 10%). Stored internally as basis points.'
+                                : 'Amount in the smallest currency subunit (cents for EUR).')
+                            ->formatStateUsing(fn (?int $state, Get $get) => $state !== null && $get('type') === VoucherType::Percentage->value
+                                ? $state / 100
+                                : $state)
+                            ->dehydrateStateUsing(fn (mixed $state, Get $get) => $get('type') === VoucherType::Percentage->value
+                                ? (int) round(((float) $state) * 100)
+                                : (int) $state),
                         PricingSchema::currencySelect()
                             ->hidden(fn (Get $get) => $get('type') === VoucherType::Percentage->value)
                             ->required(fn (Get $get) => $get('type') === VoucherType::Fixed->value),
@@ -95,7 +104,7 @@ final class VoucherResource extends Resource
                     ->badge(),
                 Tables\Columns\TextColumn::make('amount')
                     ->formatStateUsing(fn (Voucher $record) => $record->type === VoucherType::Percentage
-                        ? "{$record->amount}%"
+                        ? rtrim(rtrim(number_format($record->amount / 100, 2), '0'), '.').'%'
                         : ($record->currency instanceof Currency
                             ? $record->currency->format($record->amount)
                             : $record->amount)

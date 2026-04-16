@@ -23,9 +23,9 @@ final class InventoryServiceProvider extends ServiceProvider
         $this->loadMigrationsFrom(__DIR__.'/Database/Migrations');
 
         Relation::morphMap([
-            'stock_item' => Inventory::stockItem()::class,
-            'stock_movement' => Inventory::stockMovement()::class,
-            'stock_reservation' => Inventory::stockReservation()::class,
+            'stock_item' => Inventory::stockItem(),
+            'stock_movement' => Inventory::stockMovement(),
+            'stock_reservation' => Inventory::stockReservation(),
         ]);
 
         if ($this->app->bound('livewire')) {

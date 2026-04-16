@@ -8,10 +8,9 @@ use InOtherShops\Shipping\Models\Shipment;
 
 final class Shipping
 {
-    public static function shipment(): Shipment
+    /** @return class-string<Shipment> */
+    public static function shipment(): string
     {
-        $class = config('shipping.models.shipment', Shipment::class);
-
-        return new $class;
+        return config('shipping.models.shipment', Shipment::class);
     }
 }

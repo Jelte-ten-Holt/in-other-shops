@@ -5,15 +5,25 @@ declare(strict_types=1);
 return [
     /*
     |--------------------------------------------------------------------------
-    | Payment Gateway
+    | Payment Gateways
     |--------------------------------------------------------------------------
     |
-    | The FQCN of the PaymentGateway implementation to use. The service
-    | provider binds this class to the PaymentGateway contract.
+    | Per-driver configuration keyed by gateway name. Each gateway's service
+    | provider registers a factory via PaymentGatewayManager::extend(name, ...)
+    | — typically gated on its SDK being installed and config being present.
+    |
+    | Example:
+    |
+    |   'gateways' => [
+    |       'stripe' => [
+    |           'secret' => env('STRIPE_SECRET'),
+    |           'webhook_secret' => env('STRIPE_WEBHOOK_SECRET'),
+    |       ],
+    |   ],
     |
     */
 
-    'gateway' => env('PAYMENT_GATEWAY'),
+    'gateways' => [],
 
     /*
     |--------------------------------------------------------------------------

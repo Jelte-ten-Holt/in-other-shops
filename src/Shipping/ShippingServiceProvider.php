@@ -19,7 +19,7 @@ final class ShippingServiceProvider extends ServiceProvider
         $this->loadMigrationsFrom(__DIR__.'/Database/Migrations');
 
         Relation::morphMap([
-            'shipment' => Shipping::shipment()::class,
+            'shipment' => Shipping::shipment(),
         ]);
 
         $this->publishes([

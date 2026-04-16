@@ -16,7 +16,7 @@ final class StockMovementFactory extends Factory
 {
     public function modelName(): string
     {
-        return Inventory::stockMovement()::class;
+        return Inventory::stockMovement();
     }
 
     public function definition(): array

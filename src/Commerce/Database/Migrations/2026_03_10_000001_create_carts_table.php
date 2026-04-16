@@ -15,7 +15,13 @@ return new class extends Migration
             $table->string('session_token')->nullable()->unique();
             $table->nullableMorphs('owner');
             $table->string('currency', 3);
+            $table->timestamp('expires_at')->nullable();
             $table->timestamps();
+
+            // At most one cart per authenticated owner. MySQL treats NULLs as
+            // distinct in unique indexes, so guest carts (owner_type/id NULL)
+            // are unaffected and remain keyed by session_token alone.
+            $table->unique(['owner_type', 'owner_id']);
         });
     }
 

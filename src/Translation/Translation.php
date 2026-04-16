@@ -8,10 +8,9 @@ use InOtherShops\Translation\Models\Translation as TranslationModel;
 
 final class Translation
 {
-    public static function translation(): TranslationModel
+    /** @return class-string<TranslationModel> */
+    public static function translation(): string
     {
-        $class = config('translation.models.translation', TranslationModel::class);
-
-        return new $class;
+        return config('translation.models.translation', TranslationModel::class);
     }
 }

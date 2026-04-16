@@ -161,7 +161,7 @@ The product detail page loads the parent, eager-loads variants with their option
 
 - **Pricing** — prices attach to variants (which carry options), not to options themselves. Option-dependent pricing (XXL costs more) is modeled by the variant having a different price, not by the option carrying a price.
 - **Inventory** *(future)* — stock levels track per variant. The variant's option values describe what's in stock ("Size 42 in Red: 3 remaining").
-- **Storefront** — the parent product is `Browsable`. Variants are not browsable (they don't appear in catalog listings). The detail page endpoint includes variants with their option values so the frontend can build a picker.
+- **Storefront** — the parent product is `HasStorefrontPresence`. Variants are not browsable (they don't appear in catalog listings). The detail page endpoint includes variants with their option values so the frontend can build a picker.
 - **Taxonomy** — no direct relationship. Options define "what this is" (attributes), Taxonomy defines "where to find it" (organization). A product can have both categories/tags and option values without any overlap.
 
 ---

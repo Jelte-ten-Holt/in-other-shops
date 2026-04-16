@@ -4,13 +4,23 @@ declare(strict_types=1);
 
 namespace InOtherShops\Location\Models;
 
+use InOtherShops\Location\Database\Factories\AddressFactory;
 use InOtherShops\Location\Enums\AddressType;
+use Illuminate\Database\Eloquent\Factories\Factory;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 
 class Address extends Model
 {
+    use HasFactory;
+
     protected $guarded = [];
+
+    protected static function newFactory(): Factory
+    {
+        return new AddressFactory;
+    }
 
     protected function casts(): array
     {

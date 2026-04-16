@@ -13,45 +13,39 @@ use InOtherShops\Commerce\Order\Models\OrderLine;
 
 final class Commerce
 {
-    public static function cart(): Cart
+    /** @return class-string<Cart> */
+    public static function cart(): string
     {
-        $class = config('commerce.models.cart', Cart::class);
-
-        return new $class;
+        return config('commerce.models.cart', Cart::class);
     }
 
-    public static function cartItem(): CartItem
+    /** @return class-string<CartItem> */
+    public static function cartItem(): string
     {
-        $class = config('commerce.models.cart_item', CartItem::class);
-
-        return new $class;
+        return config('commerce.models.cart_item', CartItem::class);
     }
 
-    public static function customer(): Customer
+    /** @return class-string<Customer> */
+    public static function customer(): string
     {
-        $class = config('commerce.models.customer', Customer::class);
-
-        return new $class;
+        return config('commerce.models.customer', Customer::class);
     }
 
-    public static function customerGroup(): CustomerGroup
+    /** @return class-string<CustomerGroup> */
+    public static function customerGroup(): string
     {
-        $class = config('commerce.models.customer_group', CustomerGroup::class);
-
-        return new $class;
+        return config('commerce.models.customer_group', CustomerGroup::class);
     }
 
-    public static function order(): Order
+    /** @return class-string<Order> */
+    public static function order(): string
     {
-        $class = config('commerce.models.order', Order::class);
-
-        return new $class;
+        return config('commerce.models.order', Order::class);
     }
 
-    public static function orderLine(): OrderLine
+    /** @return class-string<OrderLine> */
+    public static function orderLine(): string
     {
-        $class = config('commerce.models.order_line', OrderLine::class);
-
-        return new $class;
+        return config('commerce.models.order_line', OrderLine::class);
     }
 }

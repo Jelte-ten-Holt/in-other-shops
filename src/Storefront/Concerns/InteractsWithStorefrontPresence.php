@@ -6,7 +6,7 @@ namespace InOtherShops\Storefront\Concerns;
 
 use Illuminate\Database\Eloquent\Builder;
 
-trait IsBrowsable
+trait InteractsWithStorefrontPresence
 {
     public function getBrowsableName(): string
     {

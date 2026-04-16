@@ -4,16 +4,16 @@ declare(strict_types=1);
 
 namespace InOtherShops\Payment\Actions;
 
-use InOtherShops\Payment\Contracts\PaymentGateway;
 use InOtherShops\Payment\Enums\PaymentStatus;
 use InOtherShops\Payment\Events\PaymentRefunded;
 use InOtherShops\Payment\Models\Payment;
+use InOtherShops\Payment\PaymentGatewayManager;
 use InvalidArgumentException;
 
 final class RefundPayment
 {
     public function __construct(
-        private readonly PaymentGateway $gateway,
+        private readonly PaymentGatewayManager $gateways,
     ) {}
 
     public function __invoke(Payment $payment, ?int $amount = null): Payment
@@ -68,7 +68,8 @@ final class RefundPayment
 
     private function processRefund(Payment $payment, int $amount): void
     {
-        $this->gateway->refund($payment, $amount);
+        $gateway = $this->gateways->gateway($payment->gateway);
+        $gateway->refund($payment, $amount);
     }
 
     private function updatePaymentRecord(Payment $payment, int $refundAmount): void

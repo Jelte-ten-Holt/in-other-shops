@@ -16,8 +16,8 @@ trait InteractsWithMedia
         $mediaModel = Media::media();
         $mediableModel = Media::mediable();
 
-        return $this->morphToMany($mediaModel::class, 'mediable')
-            ->using($mediableModel::class)
+        return $this->morphToMany($mediaModel, 'mediable')
+            ->using($mediableModel)
             ->withPivot('collection', 'position')
             ->withTimestamps()
             ->orderByPivot('position');

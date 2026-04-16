@@ -19,7 +19,7 @@ final class MediaServiceProvider extends ServiceProvider
         $this->loadMigrationsFrom(__DIR__.'/Database/Migrations');
 
         Relation::morphMap([
-            'media' => Media::media()::class,
+            'media' => Media::media(),
         ]);
     }
 }

@@ -67,7 +67,10 @@ class Voucher extends Model
     {
         return match ($this->type) {
             VoucherType::Fixed => min($this->amount, $subtotal),
-            VoucherType::Percentage => (int) floor($subtotal * $this->amount / 100),
+            // Percentage vouchers store the rate in basis points (1000 = 10%),
+            // matching the tax domain's convention. Round half-up for parity
+            // with CalculateTax so a 10% voucher on €50.00 is exactly €5.00.
+            VoucherType::Percentage => (int) round($subtotal * $this->amount / 10000),
         };
     }
 

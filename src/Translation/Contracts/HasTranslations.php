@@ -6,7 +6,7 @@ namespace InOtherShops\Translation\Contracts;
 
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 
-interface Translatable
+interface HasTranslations
 {
     /** @return array<string> */
     public function translatableFields(): array;

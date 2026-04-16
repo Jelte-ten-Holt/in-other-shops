@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace InOtherShops\Storefront\Actions;
 
 use InOtherShops\Storefront\Concerns\ResolvesEagerLoading;
-use InOtherShops\Storefront\Contracts\Browsable;
+use InOtherShops\Storefront\Contracts\HasStorefrontPresence;
 use InOtherShops\Taxonomy\Contracts\HasCategories;
 use InOtherShops\Taxonomy\Contracts\HasTags;
 use InOtherShops\Taxonomy\Taxonomy;
@@ -18,7 +18,7 @@ final class ListBrowsables
     use ResolvesEagerLoading;
 
     /**
-     * @param  class-string<Browsable>  $modelClass
+     * @param  class-string<HasStorefrontPresence>  $modelClass
      */
     public function __invoke(string $modelClass, Request $request): LengthAwarePaginator
     {

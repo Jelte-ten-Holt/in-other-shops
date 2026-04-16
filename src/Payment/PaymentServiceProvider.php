@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace InOtherShops\Payment;
 
-use InOtherShops\Payment\Contracts\PaymentGateway;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\ServiceProvider;
 
@@ -14,15 +13,7 @@ final class PaymentServiceProvider extends ServiceProvider
     {
         $this->mergeConfigFrom(__DIR__.'/config/payment.php', 'payment');
 
-        $this->app->bind(PaymentGateway::class, function () {
-            $gateway = config('payment.gateway');
-
-            if ($gateway === null) {
-                throw new \RuntimeException('No payment gateway configured. Set PAYMENT_GATEWAY in your .env file.');
-            }
-
-            return $this->app->make($gateway);
-        });
+        $this->app->singleton(PaymentGatewayManager::class);
     }
 
     public function boot(): void
@@ -30,8 +21,8 @@ final class PaymentServiceProvider extends ServiceProvider
         $this->loadMigrationsFrom(__DIR__.'/Database/Migrations');
 
         Relation::morphMap([
-            'payment' => Payment::payment()::class,
-            'payment_profile' => Payment::paymentProfile()::class,
+            'payment' => Payment::payment(),
+            'payment_profile' => Payment::paymentProfile(),
         ]);
 
         $this->publishes([

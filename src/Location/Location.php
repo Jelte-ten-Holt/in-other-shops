@@ -8,10 +8,9 @@ use InOtherShops\Location\Models\Address;
 
 final class Location
 {
-    public static function address(): Address
+    /** @return class-string<Address> */
+    public static function address(): string
     {
-        $class = config('location.models.address', Address::class);
-
-        return new $class;
+        return config('location.models.address', Address::class);
     }
 }

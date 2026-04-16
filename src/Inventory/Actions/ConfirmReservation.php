@@ -37,7 +37,7 @@ final class ConfirmReservation
      */
     private function confirmPending(Model $reference, ?string $description): Collection
     {
-        $model = Inventory::stockReservation()::class;
+        $model = Inventory::stockReservation();
 
         /** @var Collection<int, StockReservation> $reservations */
         $reservations = $model::query()

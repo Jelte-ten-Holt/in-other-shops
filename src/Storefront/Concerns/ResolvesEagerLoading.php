@@ -9,7 +9,7 @@ use InOtherShops\Media\Contracts\HasMedia;
 use InOtherShops\Pricing\Contracts\HasPrices;
 use InOtherShops\Taxonomy\Contracts\HasCategories;
 use InOtherShops\Taxonomy\Contracts\HasTags;
-use InOtherShops\Translation\Contracts\Translatable;
+use InOtherShops\Translation\Contracts\HasTranslations;
 use Illuminate\Database\Eloquent\Builder;
 
 trait ResolvesEagerLoading
@@ -35,7 +35,7 @@ trait ResolvesEagerLoading
         $relations = [];
         $locale = app()->getLocale();
 
-        if (is_subclass_of($modelClass, Translatable::class)) {
+        if (is_subclass_of($modelClass, HasTranslations::class)) {
             $relations['translations'] = fn ($q) => $q->where('locale', $locale);
         }
 

@@ -19,8 +19,8 @@ final class TaxonomyServiceProvider extends ServiceProvider
         $this->loadMigrationsFrom(__DIR__.'/Database/Migrations');
 
         Relation::morphMap([
-            'category' => Taxonomy::category()::class,
-            'tag' => Taxonomy::tag()::class,
+            'category' => Taxonomy::category(),
+            'tag' => Taxonomy::tag(),
         ]);
     }
 }

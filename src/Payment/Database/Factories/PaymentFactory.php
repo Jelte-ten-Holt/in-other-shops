@@ -17,7 +17,7 @@ final class PaymentFactory extends Factory
 {
     public function modelName(): string
     {
-        return Payment::payment()::class;
+        return Payment::payment();
     }
 
     public function definition(): array

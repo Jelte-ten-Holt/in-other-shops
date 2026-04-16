@@ -13,6 +13,6 @@ trait InteractsWithCustomers
     {
         $model = Commerce::customer();
 
-        return $this->morphOne($model::class, 'authenticatable');
+        return $this->morphOne($model, 'authenticatable');
     }
 }

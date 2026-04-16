@@ -8,7 +8,7 @@ use InOtherShops\Storefront\Controllers\CategoryListController;
 use InOtherShops\Storefront\Controllers\CategoryShowController;
 use Illuminate\Support\Facades\Route;
 
-// Browsable model routes — registered dynamically from config('storefront.models')
+// HasStorefrontPresence model routes — registered dynamically from config('storefront.models')
 foreach (config('storefront.models', []) as $key => $modelClass) {
     Route::get($key, BrowsableListController::class)
         ->name("storefront.{$key}.index")

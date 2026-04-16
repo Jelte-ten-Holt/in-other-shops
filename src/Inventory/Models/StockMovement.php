@@ -43,7 +43,7 @@ class StockMovement extends Model
 
     public function stockItem(): BelongsTo
     {
-        return $this->belongsTo(Inventory::stockItem()::class);
+        return $this->belongsTo(Inventory::stockItem());
     }
 
     /**

@@ -6,7 +6,7 @@ Hierarchical categories and flat typed tags, attachable to any model via polymor
 
 ### Category Model
 
-Hierarchical via self-referential `parent_id`. Implements `Translatable` — `name` and `description` are stored in the Translation domain's `translations` table.
+Hierarchical via self-referential `parent_id`. Implements `HasTranslations` — `name` and `description` are stored in the Translation domain's `translations` table.
 
 **`categories` table:**
 
@@ -25,7 +25,7 @@ Index on `[parent_id, position]`.
 
 ### Tag Model
 
-Flat (no hierarchy). Optional `type` column for grouping (e.g., `color`, `material`, `season`). Implements `Translatable` — `name` is stored in the translations table.
+Flat (no hierarchy). Optional `type` column for grouping (e.g., `color`, `material`, `season`). Implements `HasTranslations` — `name` is stored in the translations table.
 
 **`tags` table:**
 
@@ -69,7 +69,7 @@ interface HasTags
 
 ## Dependencies
 
-- **Translation** — Category and Tag models implement `Translatable` for multilingual name/description
+- **Translation** — Category and Tag models implement `HasTranslations` for multilingual name/description
 
 ## Future
 

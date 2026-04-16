@@ -9,17 +9,15 @@ use InOtherShops\Taxonomy\Models\Tag;
 
 final class Taxonomy
 {
-    public static function category(): Category
+    /** @return class-string<Category> */
+    public static function category(): string
     {
-        $class = config('taxonomy.models.category', Category::class);
-
-        return new $class;
+        return config('taxonomy.models.category', Category::class);
     }
 
-    public static function tag(): Tag
+    /** @return class-string<Tag> */
+    public static function tag(): string
     {
-        $class = config('taxonomy.models.tag', Tag::class);
-
-        return new $class;
+        return config('taxonomy.models.tag', Tag::class);
     }
 }

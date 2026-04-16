@@ -13,6 +13,6 @@ trait InteractsWithTags
     {
         $model = Taxonomy::tag();
 
-        return $this->morphToMany($model::class, 'taggable')->withTimestamps();
+        return $this->morphToMany($model, 'taggable')->withTimestamps();
     }
 }

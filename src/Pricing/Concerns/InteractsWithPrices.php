@@ -17,7 +17,7 @@ trait InteractsWithPrices
     {
         $model = Pricing::price();
 
-        return $this->morphMany($model::class, 'priceable');
+        return $this->morphMany($model, 'priceable');
     }
 
     public function priceFor(Currency $currency, ?PriceList $priceList = null): ?Price

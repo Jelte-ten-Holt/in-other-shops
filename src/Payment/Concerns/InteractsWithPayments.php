@@ -16,7 +16,7 @@ trait InteractsWithPayments
     {
         $model = Payment::payment();
 
-        return $this->morphMany($model::class, 'payable');
+        return $this->morphMany($model, 'payable');
     }
 
     public function latestPayment(): ?PaymentModel

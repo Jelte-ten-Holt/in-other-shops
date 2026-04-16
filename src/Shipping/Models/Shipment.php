@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace InOtherShops\Shipping\Models;
 
+use InOtherShops\Currency\Enums\Currency;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 
@@ -15,6 +16,7 @@ class Shipment extends Model
     {
         return [
             'cost' => 'integer',
+            'currency' => Currency::class,
         ];
     }
 

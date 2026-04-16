@@ -17,7 +17,7 @@ final class VoucherFactory extends Factory
 {
     public function modelName(): string
     {
-        return Pricing::voucher()::class;
+        return Pricing::voucher();
     }
 
     public function definition(): array
@@ -40,7 +40,9 @@ final class VoucherFactory extends Factory
     {
         return $this->state(fn () => [
             'type' => VoucherType::Percentage,
-            'amount' => $percent,
+            // Argument is admin-friendly percent (10 = 10%);
+            // stored as basis points (1000 = 10%).
+            'amount' => $percent * 100,
             'currency' => null,
         ]);
     }
