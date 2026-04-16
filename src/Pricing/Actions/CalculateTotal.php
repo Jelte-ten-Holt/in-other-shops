@@ -14,7 +14,7 @@ final class CalculateTotal
 {
     public function __construct(
         private readonly ResolvePrice $resolvePrice,
-        private readonly ApplyVoucher $applyVoucher,
+        private readonly CalculateVoucherDiscount $calculateVoucherDiscount,
         private readonly CalculateTax $calculateTax,
     ) {}
 
@@ -73,7 +73,7 @@ final class CalculateTotal
             return 0;
         }
 
-        return ($this->applyVoucher)($subtotal, $voucherCode, $currency);
+        return ($this->calculateVoucherDiscount)($subtotal, $voucherCode, $currency);
     }
 
     private function computeTax(int $subtotal, int $discount, int $taxRate): int

@@ -62,9 +62,15 @@ interface HasPrices
 ### Actions
 
 - **`ResolvePrice`** — finds the best matching price for a priceable, currency, quantity, and optional price list. Falls back from specific price list to default.
-- **`ApplyVoucher`** — validates a voucher code (existence, active, expiry, minimum order, currency match) and returns the discount amount.
+- **`CalculateVoucherDiscount`** — pure calculation. Validates a voucher code (existence, active, expiry, minimum order, currency match) and returns the discount amount. **Does not record usage.** Safe to call repeatedly (cart total displays, checkout review).
+- **`ApplyVoucher`** — records a voucher use. Acquires `SELECT ... FOR UPDATE` on the voucher row, re-validates, and increments `times_used` atomically. Throws on race-loss or invalid voucher. Returns the locked `Voucher`. Dispatches `VoucherApplied`. Call at order-commit time inside the same outer transaction as the order-creation action so a failed order rolls back the increment too.
 - **`CalculateTax`** — calculates tax in basis points (default 2100 = 21%).
-- **`CalculateTotal`** — orchestrates the full price breakdown: builds line items, applies voucher discount, computes tax, returns a `PriceBreakdown` DTO.
+- **`CalculateTotal`** — orchestrates the full price breakdown: builds line items, applies voucher discount via `CalculateVoucherDiscount` (no usage recorded — that's the order-commit's job), computes tax, returns a `PriceBreakdown` DTO.
+
+### Events
+
+- **`PriceCreated` / `PriceUpdated` / `PriceDeleted`** — price CRUD.
+- **`VoucherApplied`** — fired after `ApplyVoucher` increments usage successfully (after the transaction commits).
 
 ### DTOs
 

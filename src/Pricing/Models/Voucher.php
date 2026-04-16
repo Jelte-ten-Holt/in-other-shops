@@ -5,12 +5,22 @@ declare(strict_types=1);
 namespace InOtherShops\Pricing\Models;
 
 use InOtherShops\Currency\Enums\Currency;
+use InOtherShops\Pricing\Database\Factories\VoucherFactory;
 use InOtherShops\Pricing\Enums\VoucherType;
+use Illuminate\Database\Eloquent\Factories\Factory;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class Voucher extends Model
 {
+    use HasFactory;
+
     protected $guarded = [];
+
+    protected static function newFactory(): Factory
+    {
+        return new VoucherFactory;
+    }
 
     protected function casts(): array
     {
