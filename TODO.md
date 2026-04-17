@@ -30,7 +30,7 @@ Prior to building checkout in the `in-other-worlds` consumer project, a critical
 
 - [x] **B1. PHPUnit inside the package** — `phpunit.xml`, `tests/TestCase.php` (Orchestra Testbench), `composer test` runs it. MySQL test DB `in_other_shops_testing` with a dedicated `in_other_shops` user (production dialect parity). CLAUDE.md updated.
 - [x] **B3. Testbench service provider** — `TestCase::getPackageProviders` registers all 13 domain providers. `defineEnvironment()` configures the MySQL connection.
-- [ ] **B2. Factories ship in the package** — pattern established with `StockItemFactory` + `StockMovementFactory` in `src/Inventory/Database/Factories/`, models use `HasFactory` + `newFactory()` override resolving the model class via the domain registry. Remaining: sweep the other domains (Commerce, Pricing, Payment, Location, Media, Taxonomy, Translation) and backfill factories when their tests land or consumer factories need to move over.
+- [x] **B2. Factories ship in the package** — pattern established with `StockItemFactory` + `StockMovementFactory` in `src/Inventory/Database/Factories/`, models use `HasFactory` + `newFactory()` override resolving the model class via the domain registry. Factories now ship for: Inventory (StockItem, StockMovement, StockReservation), Pricing (Price, PriceList, Voucher), Payment (Payment), Commerce (Cart, Order, OrderLine, Customer), Location (Address), Taxonomy (Category, Tag), Media (Media), Shipping (Shipment). Remaining: Commerce (CustomerGroup), Payment (PaymentProfile, WebhookEvent), Translation (Translation) — backfill when tests for those models land.
 
 ### Phase C — API & extension-point fixes
 
@@ -80,11 +80,11 @@ Subscribers live in `src/{Domain}/Listeners/` and are explicitly registered via 
 
 ## Open — API / Route hygiene
 
-- [ ] **`payment.webhook_tolerance` config unused** — defined in `payment.php` and documented in the README, but no code reads it. The Stripe gateway passes the entire webhook body to `Webhook::constructEvent()` without a tolerance argument (Stripe default 300s). Either wire it in or remove it.
+- [x] **`payment.webhook_tolerance` wired into Stripe gateway** — `StripePaymentGateway` now accepts `webhookTolerance` (from config) and passes it to `Webhook::constructEvent()`. Config default remains 300s.
 - [ ] **`UpdateCartItemRequest` allows `quantity: 0` → silent deletion** — PATCH request silently deletes a resource. More REST-conventional: enforce `min:1` on PATCH, require DELETE for removal. Low severity but surprising API semantics.
-- [ ] **Storefront routes always registered when `storefront.models` is empty** — category routes (`GET api/storefront/categories`, `GET api/storefront/categories/{slug}`) are always live. Gate behind a config check.
+- [x] **Storefront routes gated behind config** — `StorefrontServiceProvider` only registers routes when `storefront.models` is non-empty. Empty-config consumers no longer get orphan category routes.
 - [ ] **Cart API enabled by default** — `commerce.cart.api.enabled` defaults to `true`. Conventional default for opt-in APIs is `false`. Breaking-change-level, so decide deliberately.
-- [ ] **`Navigation` and `Option` autoload entries with no code** — PSR-4 namespaces are registered but directories only contain READMEs. Dead weight — remove from autoload until code lands.
+- [x] **`Navigation` and `Option` autoload entries removed** — PSR-4 namespaces removed from `composer.json` until those domains have code.
 
 ## Deferred / Watch
 
@@ -96,6 +96,6 @@ Subscribers live in `src/{Domain}/Listeners/` and are explicitly registered via 
 - 💭 **FlowChain `runId` on events** — add for cross-event correlation when observability needs it.
 - 💭 **Registry model swap consistency** — several actions (`ApplyVoucher`, `HandlePaymentWebhook`, `AddToCart`, `ResolveCart`) query concrete models instead of the registry. Fix in a sweep once C5 lands.
 - 💭 **Order `tax_rate` snapshot** — if statutory rate changes, old orders re-render at new rate. Snapshot when VAT work starts.
-- 💭 **Inventory schedule gated** — `InventoryServiceProvider` schedules `inventory:release-expired` every 5min unconditionally + registers a Livewire component without declaring the dep. Gate behind config + `class_exists` check.
+- ~~**Inventory schedule gated**~~ — done. `inventory.schedule.enabled` config key gates the scheduler registration. Livewire component was already gated behind `$this->app->bound('livewire')`.
 - 💭 **`OrderFailed` event never dispatched** — the event is defined and subscribed in `CommerceLogSubscriber`, but nothing in the package dispatches it. `CreateOrder` doesn't fire it on exception — the exception just propagates. Consumer checkout FlowChain steps would need to dispatch it manually. Ship a helper or document the pattern.
 - 💭 **Test coverage** — package ships 47 tests but core actions like `CreateOrder`, `AddToCart`, `RemoveFromCart`, `UpdateCartItemQuantity`, `ClaimCart`, `InitiatePayment`, `HandlePaymentWebhook`, `RefundPayment`, `CalculateTotal`, `ResolvePrice` have no package-level tests. B2 factory sweep is a prerequisite for many of these.

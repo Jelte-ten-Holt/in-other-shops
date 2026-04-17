@@ -40,10 +40,12 @@ final class InventoryServiceProvider extends ServiceProvider
             __DIR__.'/config/inventory.php' => config_path('inventory.php'),
         ], 'inventory-config');
 
-        $this->app->booted(function () {
-            $schedule = $this->app->make(Schedule::class);
-            $schedule->command('inventory:release-expired')->everyFiveMinutes();
-        });
+        if (config('inventory.schedule.enabled', true)) {
+            $this->app->booted(function () {
+                $schedule = $this->app->make(Schedule::class);
+                $schedule->command('inventory:release-expired')->everyFiveMinutes();
+            });
+        }
 
         Event::subscribe(InventoryLogSubscriber::class);
     }

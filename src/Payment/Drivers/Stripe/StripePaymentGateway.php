@@ -35,6 +35,7 @@ final class StripePaymentGateway implements ManagesCustomers, PaymentGateway
     public function __construct(
         private readonly StripeClient $client,
         private readonly string $webhookSecret,
+        private readonly int $webhookTolerance = 300,
     ) {}
 
     public function identifier(): string
@@ -70,6 +71,7 @@ final class StripePaymentGateway implements ManagesCustomers, PaymentGateway
                 $request->getContent(),
                 $request->header('Stripe-Signature', ''),
                 $this->webhookSecret,
+                $this->webhookTolerance,
             );
         } catch (SignatureVerificationException $e) {
             throw new RuntimeException('Stripe webhook signature verification failed.', previous: $e);
@@ -82,6 +84,7 @@ final class StripePaymentGateway implements ManagesCustomers, PaymentGateway
             $request->getContent(),
             $request->header('Stripe-Signature', ''),
             $this->webhookSecret,
+            $this->webhookTolerance,
         );
 
         $this->verifiedEvent = null;

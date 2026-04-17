@@ -35,6 +35,21 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Scheduled Commands
+    |--------------------------------------------------------------------------
+    |
+    | When enabled, the package registers `inventory:release-expired` on the
+    | Laravel scheduler (every 5 minutes). Disable this if you prefer to
+    | manage scheduling yourself.
+    |
+    */
+
+    'schedule' => [
+        'enabled' => env('INVENTORY_SCHEDULE_ENABLED', true),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Models
     |--------------------------------------------------------------------------
     |

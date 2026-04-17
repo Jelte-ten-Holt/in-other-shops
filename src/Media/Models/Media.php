@@ -4,8 +4,9 @@ declare(strict_types=1);
 
 namespace InOtherShops\Media\Models;
 
+use InOtherShops\Media\Database\Factories\MediaFactory;
 use InOtherShops\Media\Enums\MediaType;
-use Database\Factories\MediaFactory;
+use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Storage;
@@ -17,9 +18,9 @@ class Media extends Model
 
     protected $table = 'media';
 
-    protected static function newFactory(): MediaFactory
+    protected static function newFactory(): Factory
     {
-        return MediaFactory::new();
+        return new MediaFactory;
     }
 
     protected $guarded = [];

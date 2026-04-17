@@ -33,9 +33,12 @@ final class StripeGatewayServiceProvider extends ServiceProvider
 
         $manager = $this->app->make(PaymentGatewayManager::class);
 
+        $tolerance = (int) config('payment.webhook_tolerance', 300);
+
         $manager->extend('stripe', fn (): StripePaymentGateway => new StripePaymentGateway(
             client: new StripeClient($secret),
             webhookSecret: $webhookSecret,
+            webhookTolerance: $tolerance,
         ));
     }
 }

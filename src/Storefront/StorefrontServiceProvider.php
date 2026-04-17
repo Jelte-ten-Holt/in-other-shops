@@ -17,7 +17,14 @@ final class StorefrontServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
-        $this->registerRoutes();
+        if ($this->hasStorefrontModels()) {
+            $this->registerRoutes();
+        }
+    }
+
+    private function hasStorefrontModels(): bool
+    {
+        return config('storefront.models', []) !== [];
     }
 
     private function registerRoutes(): void
