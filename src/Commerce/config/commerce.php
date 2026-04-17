@@ -55,7 +55,7 @@ return [
 
     'cart' => [
         'api' => [
-            'enabled' => true,
+            'enabled' => false,
             'prefix' => 'api/cart',
             'middleware' => ['web'],
             'default_currency' => 'EUR',
