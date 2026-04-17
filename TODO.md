@@ -4,6 +4,12 @@ Package-level work, typically surfaced by consuming projects. Completed items ha
 
 ---
 
+## Open
+
+- [ ] **`CreateOrder` customer parameter is a raw `Model`** — the `$customer` param accepts any `Model` and blindly sets `customer_id` from `getKey()`. If a consumer passes a `User` instead of a `Customer`, the FK violates. Either type-hint to the `Customer` model (via registry), add a `resolveCustomer(Model)` hook that consumers can override, or document that the param must be a `Customer` (not a `User`).
+
+---
+
 ## Deferred / Watch
 
 - 💭 **Split `OrderStatus`** into fulfillment status + derive payment status from `payments` — review called for this, but it's a clean follow-up, not a foundation fix. Revisit once checkout is live.
