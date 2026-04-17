@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace InOtherShops\Commerce\Listeners;
 
+use InOtherShops\Commerce\Cart\Events\CartClaimed;
+use InOtherShops\Commerce\Cart\Events\CartCleared;
+use InOtherShops\Commerce\Cart\Events\CartUpdated;
 use InOtherShops\Commerce\Order\Events\OrderCreated;
 use InOtherShops\Commerce\Order\Events\OrderFailed;
 use InOtherShops\Commerce\Order\Events\OrderStatusChanged;
@@ -24,10 +27,47 @@ final class CommerceLogSubscriber
     public function subscribe(Dispatcher $events): array
     {
         return [
+            CartUpdated::class => 'handleCartUpdated',
+            CartClaimed::class => 'handleCartClaimed',
+            CartCleared::class => 'handleCartCleared',
             OrderCreated::class => 'handleOrderCreated',
             OrderFailed::class => 'handleOrderFailed',
             OrderStatusChanged::class => 'handleOrderStatusChanged',
         ];
+    }
+
+    public function handleCartUpdated(CartUpdated $event): void
+    {
+        $this->dispatcher->log(new LogEntry(
+            level: LogLevel::Info,
+            channel: self::CHANNEL,
+            message: 'Cart updated.',
+            context: $this->cartContext($event->cart),
+        ));
+    }
+
+    public function handleCartClaimed(CartClaimed $event): void
+    {
+        $this->dispatcher->log(new LogEntry(
+            level: LogLevel::Info,
+            channel: self::CHANNEL,
+            message: 'Cart claimed.',
+            context: [
+                ...$this->cartContext($event->cart),
+                'new_owner_type' => $event->owner->getMorphClass(),
+                'new_owner_id' => $event->owner->getKey(),
+            ],
+        ));
+    }
+
+    public function handleCartCleared(CartCleared $event): void
+    {
+        $this->dispatcher->log(new LogEntry(
+            level: LogLevel::Info,
+            channel: self::CHANNEL,
+            message: 'Cart cleared.',
+            context: $this->cartContext($event->cart),
+        ));
     }
 
     public function handleOrderCreated(OrderCreated $event): void
@@ -72,5 +112,16 @@ final class CommerceLogSubscriber
                 'to' => $event->to->value,
             ],
         ));
+    }
+
+    /** @return array<string, mixed> */
+    private function cartContext(\InOtherShops\Commerce\Cart\Models\Cart $cart): array
+    {
+        return [
+            'cart_id' => $cart->id,
+            'owner_type' => $cart->owner_type,
+            'owner_id' => $cart->owner_id,
+            'item_count' => $cart->items()->count(),
+        ];
     }
 }

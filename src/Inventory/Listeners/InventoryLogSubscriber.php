@@ -9,6 +9,7 @@ use InOtherShops\Inventory\Events\ReservationCreated;
 use InOtherShops\Inventory\Events\ReservationReleased;
 use InOtherShops\Inventory\Events\StockAdjusted;
 use InOtherShops\Inventory\Events\StockReleased;
+use InOtherShops\Inventory\Events\StockReservationFailed;
 use InOtherShops\Logging\DTOs\LogEntry;
 use InOtherShops\Logging\Enums\LogLevel;
 use InOtherShops\Logging\LogDispatcher;
@@ -28,6 +29,7 @@ final class InventoryLogSubscriber
         return [
             StockAdjusted::class => 'handleStockAdjusted',
             StockReleased::class => 'handleStockReleased',
+            StockReservationFailed::class => 'handleStockReservationFailed',
             ReservationCreated::class => 'handleReservationCreated',
             ReservationConfirmed::class => 'handleReservationConfirmed',
             ReservationReleased::class => 'handleReservationReleased',
@@ -63,6 +65,21 @@ final class InventoryLogSubscriber
                 'reserve_movement_id' => $event->reservation->reserve_movement_id,
                 'release_movement_id' => $event->releaseMovement->id,
                 'quantity_released' => $event->releaseMovement->quantity,
+            ],
+        ));
+    }
+
+    public function handleStockReservationFailed(StockReservationFailed $event): void
+    {
+        $this->dispatcher->log(new LogEntry(
+            level: LogLevel::Warning,
+            channel: self::CHANNEL,
+            message: "Reservation failed: requested {$event->requestedQuantity}, only {$event->availableQuantity} available.",
+            context: [
+                'stockable_type' => $event->stockable->getMorphClass(),
+                'stockable_id' => $event->stockable->getKey(),
+                'requested_quantity' => $event->requestedQuantity,
+                'available_quantity' => $event->availableQuantity,
             ],
         ));
     }

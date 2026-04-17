@@ -75,8 +75,8 @@ Subscribers live in `src/{Domain}/Listeners/` and are explicitly registered via 
 
 ## Open — Logging gaps
 
-- [ ] **`StockReservationFailed` not subscribed in `InventoryLogSubscriber`** — the event is dispatched in `ReserveStock` when oversell is rejected (E2), but the subscriber doesn't handle it. Failed reservations — arguably the most important inventory event to log — are silently dropped. Should be logged at Warning or Error level.
-- [ ] **`CommerceLogSubscriber` missing Cart events** — `CartUpdated`, `CartClaimed`, `CartCleared` are dispatched but never subscribed. Cart activity is central to e-commerce observability.
+- [x] **`StockReservationFailed` subscribed in `InventoryLogSubscriber`** — logged at Warning level with stockable type/id, requested quantity, and available quantity.
+- [x] **`CommerceLogSubscriber` handles Cart events** — `CartUpdated`, `CartClaimed`, `CartCleared` now logged at Info level with cart id, owner, and item count.
 
 ## Open — API / Route hygiene
 
