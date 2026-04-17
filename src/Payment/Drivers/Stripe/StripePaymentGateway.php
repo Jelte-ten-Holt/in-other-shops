@@ -13,6 +13,7 @@ use InOtherShops\Payment\Enums\PaymentStatus;
 use InOtherShops\Payment\Models\Payment;
 use Illuminate\Http\Request;
 use RuntimeException;
+use Stripe\Event;
 use Stripe\Exception\SignatureVerificationException;
 use Stripe\PaymentIntent;
 use Stripe\Refund;
@@ -29,6 +30,8 @@ use Stripe\Webhook;
  */
 final class StripePaymentGateway implements ManagesCustomers, PaymentGateway
 {
+    private ?Event $verifiedEvent = null;
+
     public function __construct(
         private readonly StripeClient $client,
         private readonly string $webhookSecret,
@@ -63,7 +66,7 @@ final class StripePaymentGateway implements ManagesCustomers, PaymentGateway
     public function verifyWebhookSignature(Request $request): void
     {
         try {
-            Webhook::constructEvent(
+            $this->verifiedEvent = Webhook::constructEvent(
                 $request->getContent(),
                 $request->header('Stripe-Signature', ''),
                 $this->webhookSecret,
@@ -75,11 +78,13 @@ final class StripePaymentGateway implements ManagesCustomers, PaymentGateway
 
     public function parseWebhook(Request $request): WebhookPayload
     {
-        $event = Webhook::constructEvent(
+        $event = $this->verifiedEvent ?? Webhook::constructEvent(
             $request->getContent(),
             $request->header('Stripe-Signature', ''),
             $this->webhookSecret,
         );
+
+        $this->verifiedEvent = null;
 
         /** @var PaymentIntent $intent */
         $intent = $event->data->object;

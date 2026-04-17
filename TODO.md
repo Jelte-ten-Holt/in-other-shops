@@ -73,6 +73,19 @@ Subscribers live in `src/{Domain}/Listeners/` and are explicitly registered via 
 
 ---
 
+## Open — Logging gaps
+
+- [ ] **`StockReservationFailed` not subscribed in `InventoryLogSubscriber`** — the event is dispatched in `ReserveStock` when oversell is rejected (E2), but the subscriber doesn't handle it. Failed reservations — arguably the most important inventory event to log — are silently dropped. Should be logged at Warning or Error level.
+- [ ] **`CommerceLogSubscriber` missing Cart events** — `CartUpdated`, `CartClaimed`, `CartCleared` are dispatched but never subscribed. Cart activity is central to e-commerce observability.
+
+## Open — API / Route hygiene
+
+- [ ] **`payment.webhook_tolerance` config unused** — defined in `payment.php` and documented in the README, but no code reads it. The Stripe gateway passes the entire webhook body to `Webhook::constructEvent()` without a tolerance argument (Stripe default 300s). Either wire it in or remove it.
+- [ ] **`UpdateCartItemRequest` allows `quantity: 0` → silent deletion** — PATCH request silently deletes a resource. More REST-conventional: enforce `min:1` on PATCH, require DELETE for removal. Low severity but surprising API semantics.
+- [ ] **Storefront routes always registered when `storefront.models` is empty** — category routes (`GET api/storefront/categories`, `GET api/storefront/categories/{slug}`) are always live. Gate behind a config check.
+- [ ] **Cart API enabled by default** — `commerce.cart.api.enabled` defaults to `true`. Conventional default for opt-in APIs is `false`. Breaking-change-level, so decide deliberately.
+- [ ] **`Navigation` and `Option` autoload entries with no code** — PSR-4 namespaces are registered but directories only contain READMEs. Dead weight — remove from autoload until code lands.
+
 ## Deferred / Watch
 
 - 💭 **Split `OrderStatus`** into fulfillment status + derive payment status from `payments` — review called for this, but it's a clean follow-up, not a foundation fix. Revisit once checkout is live.
@@ -84,3 +97,5 @@ Subscribers live in `src/{Domain}/Listeners/` and are explicitly registered via 
 - 💭 **Registry model swap consistency** — several actions (`ApplyVoucher`, `HandlePaymentWebhook`, `AddToCart`, `ResolveCart`) query concrete models instead of the registry. Fix in a sweep once C5 lands.
 - 💭 **Order `tax_rate` snapshot** — if statutory rate changes, old orders re-render at new rate. Snapshot when VAT work starts.
 - 💭 **Inventory schedule gated** — `InventoryServiceProvider` schedules `inventory:release-expired` every 5min unconditionally + registers a Livewire component without declaring the dep. Gate behind config + `class_exists` check.
+- 💭 **`OrderFailed` event never dispatched** — the event is defined and subscribed in `CommerceLogSubscriber`, but nothing in the package dispatches it. `CreateOrder` doesn't fire it on exception — the exception just propagates. Consumer checkout FlowChain steps would need to dispatch it manually. Ship a helper or document the pattern.
+- 💭 **Test coverage** — package ships 47 tests but core actions like `CreateOrder`, `AddToCart`, `RemoveFromCart`, `UpdateCartItemQuantity`, `ClaimCart`, `InitiatePayment`, `HandlePaymentWebhook`, `RefundPayment`, `CalculateTotal`, `ResolvePrice` have no package-level tests. B2 factory sweep is a prerequisite for many of these.

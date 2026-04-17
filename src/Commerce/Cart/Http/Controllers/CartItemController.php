@@ -31,23 +31,23 @@ final class CartItemController
 
     public function update(
         UpdateCartItemRequest $request,
-        CartItem $item,
+        CartItem $cartItem,
         UpdateCartItemQuantity $updateQuantity,
     ): CartResource {
-        $this->ensureItemBelongsToCurrentCart($item);
+        $this->ensureItemBelongsToCurrentCart($cartItem);
 
-        $updateQuantity($item, $request->quantity());
+        $updateQuantity($cartItem, $request->quantity());
 
         $cart = ($this->resolveCurrentCart)();
 
         return new CartResource($cart->refresh()->load('items.cartable'));
     }
 
-    public function destroy(CartItem $item, RemoveFromCart $removeFromCart): CartResource
+    public function destroy(CartItem $cartItem, RemoveFromCart $removeFromCart): CartResource
     {
-        $this->ensureItemBelongsToCurrentCart($item);
+        $this->ensureItemBelongsToCurrentCart($cartItem);
 
-        $removeFromCart($item);
+        $removeFromCart($cartItem);
 
         $cart = ($this->resolveCurrentCart)();
 

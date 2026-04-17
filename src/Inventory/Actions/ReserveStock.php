@@ -36,12 +36,8 @@ final class ReserveStock
     ): StockReservation {
         $quantity = abs($quantity);
 
-        if ($rejectOversell) {
-            $this->assertAvailable($stockable, $quantity);
-        }
-
         $reservation = DB::transaction(
-            fn (): StockReservation => $this->reserve($stockable, $quantity, $description, $reference, $source, $reservedUntil),
+            fn (): StockReservation => $this->reserve($stockable, $quantity, $description, $reference, $source, $reservedUntil, $rejectOversell),
         );
 
         ReservationCreated::dispatch($reservation);
@@ -50,15 +46,23 @@ final class ReserveStock
     }
 
     /**
+     * Verify that the stock level hasn't gone negative after the adjustment.
+     * Called while the FOR UPDATE lock is held so no concurrent writer can
+     * interleave. If the level is negative, the surrounding transaction
+     * rolls back, undoing the movement.
+     *
      * @param  Model&HasStock  $stockable
      */
-    private function assertAvailable(Model $stockable, int $quantity): void
+    private function assertNotOversold(Model $stockable, int $quantity): void
     {
-        $available = $stockable->stockLevel();
+        $stockable->unsetRelation('stockItem');
+        $currentLevel = $stockable->stockLevel();
 
-        if ($available >= $quantity) {
+        if ($currentLevel >= 0) {
             return;
         }
+
+        $available = $currentLevel + $quantity;
 
         StockReservationFailed::dispatch($stockable, $quantity, $available);
 
@@ -77,7 +81,14 @@ final class ReserveStock
         ?Model $reference,
         ?string $source,
         ?CarbonInterface $reservedUntil,
+        bool $rejectOversell = true,
     ): StockReservation {
+        // AdjustStock acquires a FOR UPDATE lock on the stock_items row,
+        // so the availability check MUST happen after it — otherwise two
+        // concurrent reservations can both pass the check before either
+        // acquires the lock. We adjust first, then verify the resulting
+        // stock level is non-negative. If it went negative, the whole
+        // transaction rolls back.
         $movement = ($this->adjustStock)(
             stockable: $stockable,
             quantity: -$quantity,
@@ -86,6 +97,10 @@ final class ReserveStock
             reference: $reference,
             source: $source,
         );
+
+        if ($rejectOversell) {
+            $this->assertNotOversold($stockable, $quantity);
+        }
 
         $model = Inventory::stockReservation();
 

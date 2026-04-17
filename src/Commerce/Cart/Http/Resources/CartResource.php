@@ -42,13 +42,17 @@ final class CartResource extends JsonResource
         $total = 0;
 
         foreach ($items as $item) {
-            $cartable = $item->cartable;
+            $unitPrice = $item->unit_price;
 
-            if (! $cartable instanceof HasCart) {
-                continue;
+            if ($unitPrice === null) {
+                $cartable = $item->cartable;
+
+                if (! $cartable instanceof HasCart) {
+                    continue;
+                }
+
+                $unitPrice = $cartable->getCartableUnitPrice($currency);
             }
-
-            $unitPrice = $cartable->getCartableUnitPrice($currency);
 
             if ($unitPrice === null) {
                 continue;

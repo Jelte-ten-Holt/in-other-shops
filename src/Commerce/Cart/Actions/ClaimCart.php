@@ -75,6 +75,8 @@ final class ClaimCart
                 'cartable_type' => $guestItem->cartable_type,
                 'cartable_id' => $guestItem->cartable_id,
                 'quantity' => $guestItem->quantity,
+                'unit_price' => $guestItem->unit_price,
+                'currency' => $guestItem->currency,
             ]);
         }
 

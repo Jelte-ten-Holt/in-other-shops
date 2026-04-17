@@ -44,6 +44,10 @@ final class CartItemResource extends JsonResource
 
     private function resolveCurrency(): Currency
     {
+        if ($this->resource->currency instanceof Currency) {
+            return $this->resource->currency;
+        }
+
         $cart = $this->resource->cart;
         if ($cart && $cart->currency instanceof Currency) {
             return $cart->currency;
@@ -54,6 +58,10 @@ final class CartItemResource extends JsonResource
 
     private function resolveUnitPrice(mixed $cartable, Currency $currency): ?int
     {
+        if ($this->resource->unit_price !== null) {
+            return $this->resource->unit_price;
+        }
+
         if (! $cartable instanceof HasCart) {
             return null;
         }
