@@ -12,7 +12,7 @@ final class TaxonomySchema
     {
         return Select::make($relationship)
             ->relationship($relationship)
-            ->getOptionLabelFromRecordUsing(fn ($record) => $record->translated('name'))
+            ->getOptionLabelFromRecordUsing(fn ($record) => $record->translated('name') ?? $record->slug)
             ->multiple()
             ->searchable()
             ->preload();
@@ -22,7 +22,7 @@ final class TaxonomySchema
     {
         return Select::make($relationship)
             ->relationship($relationship)
-            ->getOptionLabelFromRecordUsing(fn ($record) => $record->translated('name'))
+            ->getOptionLabelFromRecordUsing(fn ($record) => $record->translated('name') ?? $record->slug)
             ->multiple()
             ->searchable()
             ->preload();

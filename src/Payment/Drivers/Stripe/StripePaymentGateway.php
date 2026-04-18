@@ -45,17 +45,22 @@ final class StripePaymentGateway implements ManagesCustomers, PaymentGateway
 
     public function createSession(Payment $payment, string $returnUrl, string $cancelUrl, ?string $gatewayCustomerId = null): PaymentSession
     {
-        $intent = $this->client->paymentIntents->create([
+        $params = [
             'amount' => $payment->amount,
             'currency' => strtolower($payment->currency->value),
-            'customer' => $gatewayCustomerId,
             'automatic_payment_methods' => ['enabled' => true],
             'metadata' => [
                 'payment_id' => (string) $payment->id,
                 'payable_type' => $payment->payable_type ?? '',
                 'payable_id' => (string) ($payment->payable_id ?? ''),
             ],
-        ]);
+        ];
+
+        if ($gatewayCustomerId !== null) {
+            $params['customer'] = $gatewayCustomerId;
+        }
+
+        $intent = $this->client->paymentIntents->create($params);
 
         return new PaymentSession(
             gatewayReference: $intent->id,
