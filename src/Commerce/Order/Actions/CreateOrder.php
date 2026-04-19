@@ -6,6 +6,7 @@ namespace InOtherShops\Commerce\Order\Actions;
 
 use InOtherShops\Commerce\Cart\Models\Cart;
 use InOtherShops\Commerce\Commerce;
+use InOtherShops\Commerce\Customer\Models\Customer;
 use InOtherShops\Commerce\Order\Contracts\HasOrders;
 use InOtherShops\Commerce\Order\Contracts\OrderNumberGenerator;
 use InOtherShops\Commerce\Order\Enums\OrderStatus;
@@ -45,7 +46,7 @@ final class CreateOrder
         PriceBreakdown $breakdown,
         array $billingAddress,
         ?array $shippingAddress = null,
-        ?Model $customer = null,
+        ?Customer $customer = null,
         ?string $guestEmail = null,
     ): Order {
         $order = DB::transaction(fn (): Order => $this->build($cart, $breakdown, $billingAddress, $shippingAddress, $customer, $guestEmail));
@@ -59,7 +60,7 @@ final class CreateOrder
      * @param  array<string, mixed>  $billingAddress
      * @param  array<string, mixed>|null  $shippingAddress
      */
-    private function build(Cart $cart, PriceBreakdown $breakdown, array $billingAddress, ?array $shippingAddress, ?Model $customer, ?string $guestEmail): Order
+    private function build(Cart $cart, PriceBreakdown $breakdown, array $billingAddress, ?array $shippingAddress, ?Customer $customer, ?string $guestEmail): Order
     {
         $this->commitVoucherUsage($breakdown);
 
@@ -88,7 +89,7 @@ final class CreateOrder
         );
     }
 
-    private function createOrderRecord(PriceBreakdown $breakdown, ?Model $customer, ?string $guestEmail): Order
+    private function createOrderRecord(PriceBreakdown $breakdown, ?Customer $customer, ?string $guestEmail): Order
     {
         /** @var Order */
         return Commerce::order()::query()->create([
@@ -135,7 +136,7 @@ final class CreateOrder
     }
 
     /**
-     * @return array{description: string, sku: string|null, currency: string, unit_price: int}
+     * @return array{description: string, sku: string|null, currency: string, unit_price: int, is_pre_order?: bool}
      */
     private function resolveLineData(mixed $cartable, string $currencyCode, int $quantity, ?int $snapshotUnitPrice): array
     {
