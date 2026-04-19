@@ -31,6 +31,7 @@ class OrderLine extends Model
             'unit_price' => 'integer',
             'quantity' => 'integer',
             'line_total' => 'integer',
+            'is_pre_order' => 'boolean',
         ];
     }
 

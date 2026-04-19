@@ -6,7 +6,9 @@ Package-level work, typically surfaced by consuming projects. Completed items ha
 
 ## Open
 
-- [ ] **`CreateOrder` customer parameter is a raw `Model`** — the `$customer` param accepts any `Model` and blindly sets `customer_id` from `getKey()`. If a consumer passes a `User` instead of a `Customer`, the FK violates. Either type-hint to the `Customer` model (via registry), add a `resolveCustomer(Model)` hook that consumers can override, or document that the param must be a `Customer` (not a `User`).
+- [x] **Embed media support in MediaSchema** — `MediaType::Embed` wired into form (URL input + iframe preview for YouTube/Vimeo), `createMedia`, `updateExistingMedia`, and `fillFormData`. Consumers add an `embed` collection to their `media.collections` config.
+- [x] **Pre-order flag on order lines** — `is_pre_order` boolean (default false) added to `order_lines` migration, cast on OrderLine, docblock on `HasOrders::toOrderLineData()` return shape.
+- [ ] **Missing factories** — CartItem, CustomerGroup, Translation, WebhookEvent, PaymentProfile, Mediable lack factories. Convention says every model with a factory ships one.
 
 ---
 

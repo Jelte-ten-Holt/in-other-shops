@@ -13,7 +13,7 @@ interface HasOrders
      * be supplied by the action that creates the order line.
      *
      * @param  string  $currencyCode  ISO 4217 currency code (e.g. 'EUR', 'USD')
-     * @return array{description: string, sku: string|null, currency: string, unit_price: int}
+     * @return array{description: string, sku: string|null, currency: string, unit_price: int, is_pre_order?: bool}
      */
     public function toOrderLineData(string $currencyCode): array;
 

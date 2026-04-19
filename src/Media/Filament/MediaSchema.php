@@ -36,6 +36,7 @@ final class MediaSchema
                     ->options([
                         MediaType::Upload->value => 'Upload',
                         MediaType::External->value => 'External URL',
+                        MediaType::Embed->value => 'Embed',
                     ])
                     ->default(MediaType::Upload->value)
                     ->required()
@@ -54,11 +55,14 @@ final class MediaSchema
                     ->url()
                     ->live(onBlur: true)
                     ->columnSpanFull()
-                    ->visible(fn ($get) => $get('type') === MediaType::External->value),
+                    ->visible(fn ($get) => in_array($get('type'), [MediaType::External->value, MediaType::Embed->value], true)),
                 Html::make(fn ($get) => new HtmlString(
                     '<img src="'.e($get('url')).'" style="max-height: 150px; border-radius: 0.5rem;" />',
                 ))
                     ->visible(fn ($get) => $get('type') === MediaType::External->value && filled($get('url')))
+                    ->columnSpanFull(),
+                Html::make(fn ($get) => self::embedPreview($get('url')))
+                    ->visible(fn ($get) => $get('type') === MediaType::Embed->value && filled($get('url')))
                     ->columnSpanFull(),
                 TextInput::make('alt')
                     ->maxLength(255),
@@ -162,7 +166,7 @@ final class MediaSchema
 
         $type = MediaType::tryFrom($item['type'] ?? '') ?? MediaType::Upload;
 
-        if ($type === MediaType::External) {
+        if ($type === MediaType::External || $type === MediaType::Embed) {
             $updates['url'] = $item['url'] ?? null;
         }
 
@@ -181,7 +185,7 @@ final class MediaSchema
         return match ($type) {
             MediaType::Upload => self::createUploadMedia($item),
             MediaType::External => self::createExternalMedia($item),
-            default => null,
+            MediaType::Embed => self::createEmbedMedia($item),
         };
     }
 
@@ -222,6 +226,48 @@ final class MediaSchema
             'url' => $url,
             'alt' => $item['alt'] ?? null,
         ]);
+    }
+
+    private static function createEmbedMedia(array $item): ?Media
+    {
+        if (empty($item['url'])) {
+            return null;
+        }
+
+        return Media::create([
+            'type' => MediaType::Embed,
+            'filename' => 'embed',
+            'mime_type' => 'text/html',
+            'size' => 0,
+            'url' => $item['url'],
+            'alt' => $item['alt'] ?? null,
+        ]);
+    }
+
+    private static function embedPreview(string $url): HtmlString
+    {
+        $embedUrl = self::toEmbedUrl($url);
+
+        if ($embedUrl === null) {
+            return new HtmlString('<p style="color: #6b7280; font-size: 0.875rem;">Paste a YouTube or Vimeo URL above.</p>');
+        }
+
+        return new HtmlString(
+            '<iframe src="'.e($embedUrl).'" style="width: 100%; aspect-ratio: 16/9; border-radius: 0.5rem; border: none;" allowfullscreen></iframe>',
+        );
+    }
+
+    private static function toEmbedUrl(string $url): ?string
+    {
+        if (preg_match('/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]+)/', $url, $m)) {
+            return 'https://www.youtube-nocookie.com/embed/'.$m[1];
+        }
+
+        if (preg_match('/vimeo\.com\/(\d+)/', $url, $m)) {
+            return 'https://player.vimeo.com/video/'.$m[1];
+        }
+
+        return null;
     }
 
     private static function removeOrphanedMedia(
