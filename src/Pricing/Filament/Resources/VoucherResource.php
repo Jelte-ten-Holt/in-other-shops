@@ -27,7 +27,7 @@ final class VoucherResource extends Resource
 
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-ticket';
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Pricing';
+    protected static string|\UnitEnum|null $navigationGroup = 'Shop';
 
     public static function form(Schema $schema): Schema
     {

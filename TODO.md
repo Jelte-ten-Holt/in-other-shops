@@ -8,7 +8,7 @@ Package-level work, typically surfaced by consuming projects. Completed items ha
 
 - [x] **Embed media support in MediaSchema** — `MediaType::Embed` wired into form (URL input + iframe preview for YouTube/Vimeo), `createMedia`, `updateExistingMedia`, and `fillFormData`. Consumers add an `embed` collection to their `media.collections` config.
 - [x] **Pre-order flag on order lines** — `is_pre_order` boolean (default false) added to `order_lines` migration, cast on OrderLine, docblock on `HasOrders::toOrderLineData()` return shape.
-- [ ] **Missing factories** — CartItem, CustomerGroup, Translation, WebhookEvent, PaymentProfile, Mediable lack factories. Convention says every model with a factory ships one.
+- [x] **Missing factories** — CartItem, CustomerGroup, Translation, WebhookEvent, PaymentProfile, Mediable now ship factories. `HasFactory` + `newFactory()` added to each model.
 
 ---
 
