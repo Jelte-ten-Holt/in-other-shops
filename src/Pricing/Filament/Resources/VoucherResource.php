@@ -4,11 +4,6 @@ declare(strict_types=1);
 
 namespace InOtherShops\Pricing\Filament\Resources;
 
-use InOtherShops\Currency\Enums\Currency;
-use InOtherShops\Pricing\Enums\VoucherType;
-use InOtherShops\Pricing\Filament\PricingSchema;
-use InOtherShops\Pricing\Filament\Resources\VoucherResource\Pages;
-use InOtherShops\Pricing\Models\Voucher;
 use Filament\Actions;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Select;
@@ -20,6 +15,11 @@ use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
+use InOtherShops\Currency\Enums\Currency;
+use InOtherShops\Pricing\Enums\VoucherType;
+use InOtherShops\Pricing\Filament\PricingSchema;
+use InOtherShops\Pricing\Filament\Resources\VoucherResource\Pages;
+use InOtherShops\Pricing\Models\Voucher;
 
 final class VoucherResource extends Resource
 {
@@ -82,14 +82,11 @@ final class VoucherResource extends Resource
                             ->placeholder('No start date'),
                         DateTimePicker::make('valid_until')
                             ->placeholder('No expiry'),
+                        Toggle::make('is_active')
+                            ->default(true)
+                            ->columnSpanFull(),
                     ])
                     ->columns(2),
-
-                Section::make('Status')
-                    ->schema([
-                        Toggle::make('is_active')
-                            ->default(true),
-                    ]),
             ]);
     }
 

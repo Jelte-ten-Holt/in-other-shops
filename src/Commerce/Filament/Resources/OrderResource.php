@@ -4,12 +4,6 @@ declare(strict_types=1);
 
 namespace InOtherShops\Commerce\Filament\Resources;
 
-use InOtherShops\Commerce\Filament\CommerceSchema;
-use InOtherShops\Commerce\Filament\Resources\OrderResource\Pages;
-use InOtherShops\Commerce\Order\Actions\UpdateOrderStatus;
-use InOtherShops\Commerce\Order\Enums\OrderStatus;
-use InOtherShops\Commerce\Order\Models\Order;
-use InOtherShops\Location\Filament\LocationSchema;
 use Filament\Actions;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Select;
@@ -18,12 +12,21 @@ use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Schemas\Components\Component;
-use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Tabs;
+use Filament\Schemas\Components\Tabs\Tab;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
+use InOtherShops\Commerce\Filament\CommerceSchema;
+use InOtherShops\Commerce\Filament\Resources\OrderResource\Pages;
+use InOtherShops\Commerce\Order\Actions\UpdateOrderStatus;
+use InOtherShops\Commerce\Order\Contracts\HasOrders;
+use InOtherShops\Commerce\Order\Enums\OrderStatus;
+use InOtherShops\Commerce\Order\Models\Order;
+use InOtherShops\Location\Filament\LocationSchema;
+use InOtherShops\Payment\Filament\RelationManagers\PaymentsRelationManager;
 
 class OrderResource extends Resource
 {
@@ -37,22 +40,26 @@ class OrderResource extends Resource
     {
         return $schema
             ->schema([
-                Section::make('Order Details')
-                    ->schema(static::orderDetailFields()),
-                Section::make('Addresses')
-                    ->schema([
-                        LocationSchema::addressRepeater(),
-                    ]),
-                Section::make('Order Lines')
-                    ->schema([
-                        CommerceSchema::orderLinesRepeater(
-                            orderableModels: static::orderableModels(),
-                            currencyOptions: static::currencyOptions(),
-                        )
-                            ->live()
-                            ->afterStateUpdated(function (Set $set, Get $get): void {
-                                static::recalculateOrderTotals($set, $get);
-                            }),
+                Tabs::make('order')
+                    ->columnSpanFull()
+                    ->tabs([
+                        Tab::make('Details')
+                            ->schema(static::orderDetailFields()),
+                        Tab::make('Order Lines')
+                            ->schema([
+                                CommerceSchema::orderLinesRepeater(
+                                    orderableModels: static::orderableModels(),
+                                    currencyOptions: static::currencyOptions(),
+                                )
+                                    ->live()
+                                    ->afterStateUpdated(function (Set $set, Get $get): void {
+                                        static::recalculateOrderTotals($set, $get);
+                                    }),
+                            ]),
+                        Tab::make('Addresses')
+                            ->schema([
+                                LocationSchema::addressRepeater(),
+                            ]),
                     ]),
             ]);
     }
@@ -107,7 +114,7 @@ class OrderResource extends Resource
     public static function getRelations(): array
     {
         return [
-            \InOtherShops\Payment\Filament\RelationManagers\PaymentsRelationManager::class,
+            PaymentsRelationManager::class,
         ];
     }
 
@@ -123,7 +130,7 @@ class OrderResource extends Resource
     /**
      * Override in your project to register orderable models.
      *
-     * @return array<string, class-string<\InOtherShops\Commerce\Order\Contracts\HasOrders>>
+     * @return array<string, class-string<HasOrders>>
      */
     protected static function orderableModels(): array
     {

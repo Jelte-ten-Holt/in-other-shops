@@ -4,9 +4,6 @@ declare(strict_types=1);
 
 namespace InOtherShops\Taxonomy\Filament\Resources;
 
-use InOtherShops\Taxonomy\Filament\Resources\CategoryResource\Pages;
-use InOtherShops\Taxonomy\Models\Category;
-use InOtherShops\Translation\Filament\TranslationSchema;
 use Filament\Actions;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -18,6 +15,9 @@ use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use InOtherShops\Taxonomy\Filament\Resources\CategoryResource\Pages;
+use InOtherShops\Taxonomy\Models\Category;
+use InOtherShops\Translation\Filament\TranslationSchema;
 
 final class CategoryResource extends Resource
 {
@@ -56,9 +56,6 @@ final class CategoryResource extends Resource
                             ->numeric()
                             ->default(0)
                             ->minValue(0),
-                    ]),
-                Section::make('Status')
-                    ->schema([
                         Toggle::make('is_active')
                             ->label('Active')
                             ->default(true),

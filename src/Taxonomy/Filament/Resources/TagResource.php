@@ -4,9 +4,6 @@ declare(strict_types=1);
 
 namespace InOtherShops\Taxonomy\Filament\Resources;
 
-use InOtherShops\Taxonomy\Filament\Resources\TagResource\Pages;
-use InOtherShops\Taxonomy\Models\Tag;
-use InOtherShops\Translation\Filament\TranslationSchema;
 use Filament\Actions;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
@@ -16,6 +13,9 @@ use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use InOtherShops\Taxonomy\Filament\Resources\TagResource\Pages;
+use InOtherShops\Taxonomy\Models\Tag;
+use InOtherShops\Translation\Filament\TranslationSchema;
 
 final class TagResource extends Resource
 {
@@ -49,9 +49,6 @@ final class TagResource extends Resource
                             ->numeric()
                             ->default(0)
                             ->minValue(0),
-                    ]),
-                Section::make('Status')
-                    ->schema([
                         Toggle::make('is_active')
                             ->label('Active')
                             ->default(true),
