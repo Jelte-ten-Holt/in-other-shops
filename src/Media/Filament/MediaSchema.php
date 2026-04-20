@@ -4,9 +4,6 @@ declare(strict_types=1);
 
 namespace InOtherShops\Media\Filament;
 
-use InOtherShops\Media\Contracts\HasMedia;
-use InOtherShops\Media\Enums\MediaType;
-use InOtherShops\Media\Models\Media;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Repeater;
@@ -16,6 +13,9 @@ use Filament\Schemas\Components\Html;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\HtmlString;
+use InOtherShops\Media\Contracts\HasMedia;
+use InOtherShops\Media\Enums\MediaType;
+use InOtherShops\Media\Models\Media;
 use InvalidArgumentException;
 
 final class MediaSchema
@@ -30,6 +30,7 @@ final class MediaSchema
 
         return Repeater::make("_media.{$collection}")
             ->label($label)
+            ->defaultItems(0)
             ->schema([
                 Hidden::make('media_id'),
                 Select::make('type')
