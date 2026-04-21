@@ -20,10 +20,16 @@ final class PricingSchema
                 TextInput::make('amount')
                     ->required()
                     ->numeric()
-                    ->minValue(0),
+                    ->step(0.01)
+                    ->minValue(0)
+                    ->formatStateUsing(fn ($state) => $state !== null ? number_format((int) $state / 100, 2, '.', '') : null)
+                    ->dehydrateStateUsing(fn ($state) => $state !== null && $state !== '' ? (int) round((float) $state * 100) : null),
                 TextInput::make('compare_at_amount')
                     ->numeric()
-                    ->minValue(0),
+                    ->step(0.01)
+                    ->minValue(0)
+                    ->formatStateUsing(fn ($state) => $state !== null ? number_format((int) $state / 100, 2, '.', '') : null)
+                    ->dehydrateStateUsing(fn ($state) => $state !== null && $state !== '' ? (int) round((float) $state * 100) : null),
                 Select::make('price_list_id')
                     ->relationship('priceList', 'name')
                     ->searchable()
