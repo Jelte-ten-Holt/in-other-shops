@@ -1,6 +1,6 @@
 # In Other Shops
 
-Modular e-commerce domain packages for Laravel 12, bundled as a single Composer package.
+Modular e-commerce domain packages for Laravel 12+, bundled as a single Composer package.
 
 ## Architecture
 
@@ -40,9 +40,10 @@ Adding a dependency between domains is a significant decision — it means those
 - **Contract + Concern:** Each domain ships `Contracts/Has{X}` and `Concerns/InteractsWith{X}`. Project models implement the contract and use the trait. Contracts always use the `Has*` prefix for capability contracts (no `*able` suffix — see Naming).
 - **Filament Schema classes:** Domains ship `Filament/{Domain}Schema.php` with static factory methods returning preconfigured Filament form components.
 - **Domain events:** State changes dispatch events (past tense: `StockAdjusted`, `MediaStored`). Reads and calculations do not.
-- **Domain log subscribers:** Each domain that dispatches events also ships a `Listeners/{Domain}LogSubscriber.php` auto-discovered by Laravel 11+. Subscribers route domain events through `LogDispatcher` to per-domain Monolog channels. Consumers override channels/handlers via config; they do not re-implement subscribers. Logging is package functionality, not a consumer concern.
+- **Domain log subscribers:** Domains with audit-relevant events ship a `Listeners/{Domain}LogSubscriber.php` auto-discovered by Laravel 11+. Subscribers route domain events through `LogDispatcher` to per-domain Monolog channels. Consumers override channels/handlers via config; they do not re-implement subscribers. Logging is package functionality, not a consumer concern. Note: Media and Taxonomy dispatch events but intentionally have no LogSubscriber yet — admin-activity logging is deferred until multi-user.
 - **Config-driven models:** Every domain config includes a `models` key. The registry resolves classes through this config.
 - **Factories ship with the domain:** every model with a factory ships that factory in `src/{Domain}/Database/Factories/`. `newFactory()` on the model points into the package namespace. Tests — both the package's own PHPUnit suite and consumer tests — rely on the package's factories.
+- **FlowChain error semantics:** steps signal failure by throwing. `FlowChain` wraps the run in a DB transaction; any exception triggers `FlowChainRollbackSignal`, rolls back the transaction, and is converted into a failed `FlowChainResult`. Steps do not return errors — they throw, and FlowChain handles the rest. See `src/FlowChain/README.md` for the full contract.
 
 ### What Does NOT Belong in This Package
 
@@ -70,13 +71,8 @@ Adding a dependency between domains is a significant decision — it means those
 
 The package runs its own PHPUnit suite (Orchestra Testbench) — `composer test`. Consuming projects can run their own tests on top; they should not be the only safety net.
 
-The package does not ship application-level CLI commands. Exception: inventory housekeeping (`inventory:release-expired`) which is gated behind config.
+The package does not ship application-level CLI commands. Exceptions: inventory housekeeping (`inventory:release-expired`, gated behind config) and cart cleanup (`commerce:prune-carts`, prunes expired guest carts).
 
 ## Adding a New Domain
 
-1. Create `src/{Domain}/` with: service provider, config (with `models` key), contracts, concerns, models, migrations
-2. Add the PSR-4 namespace to `composer.json` autoload
-3. Add the service provider to `composer.json` `extra.laravel.providers`
-4. Add a `README.md` to the domain directory
-5. Update the dependency table in both this file and `README.md`
-6. Ship a `Filament/{Domain}Schema.php` if the domain has form components
+Checklist moved to [docs/adding-a-new-domain.md](docs/adding-a-new-domain.md).
