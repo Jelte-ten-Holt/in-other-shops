@@ -30,19 +30,12 @@ abstract class TestCase extends Orchestra
 {
     protected function defineEnvironment($app): void
     {
-        $app['config']->set('database.default', 'mysql');
-        $app['config']->set('database.connections.mysql', [
-            'driver' => 'mysql',
-            'host' => env('DB_HOST', '127.0.0.1'),
-            'port' => env('DB_PORT', '3306'),
-            'database' => env('DB_DATABASE', 'in_other_shops_testing'),
-            'username' => env('DB_USERNAME', 'in_other_shops'),
-            'password' => env('DB_PASSWORD', 'secret'),
-            'charset' => 'utf8mb4',
-            'collation' => 'utf8mb4_unicode_ci',
+        $app['config']->set('database.default', 'sqlite');
+        $app['config']->set('database.connections.sqlite', [
+            'driver' => 'sqlite',
+            'database' => ':memory:',
             'prefix' => '',
-            'strict' => true,
-            'engine' => 'InnoDB',
+            'foreign_key_constraints' => true,
         ]);
 
         Relation::morphMap([
