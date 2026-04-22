@@ -2,7 +2,14 @@
 
 declare(strict_types=1);
 
+use InOtherShops\Agent\Tools\BrowseCatalog;
+use InOtherShops\Agent\Tools\GetStockLevel;
+use InOtherShops\Agent\Tools\ListCategories;
+use InOtherShops\Agent\Tools\ListOrders;
+use InOtherShops\Agent\Tools\ListTags;
 use InOtherShops\Agent\Tools\Ping;
+use InOtherShops\Agent\Tools\ShowBrowsable;
+use InOtherShops\Agent\Tools\ShowOrder;
 
 return [
 
@@ -19,6 +26,13 @@ return [
 
     'tools' => [
         Ping::class,
+        BrowseCatalog::class,
+        ShowBrowsable::class,
+        ListCategories::class,
+        ListTags::class,
+        ListOrders::class,
+        ShowOrder::class,
+        GetStockLevel::class,
     ],
 
     /*

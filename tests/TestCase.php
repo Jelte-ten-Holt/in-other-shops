@@ -17,6 +17,7 @@ use InOtherShops\Pricing\PricingServiceProvider;
 use InOtherShops\Shipping\ShippingServiceProvider;
 use InOtherShops\Storefront\StorefrontServiceProvider;
 use InOtherShops\Taxonomy\TaxonomyServiceProvider;
+use InOtherShops\Tests\Stubs\TestBrowsable;
 use InOtherShops\Tests\Stubs\TestCartable;
 use InOtherShops\Tests\Stubs\TestPayable;
 use InOtherShops\Tests\Stubs\TestStockable;
@@ -48,6 +49,7 @@ abstract class TestCase extends Orchestra
             'test_stockable' => TestStockable::class,
             'test_payable' => TestPayable::class,
             'test_cartable' => TestCartable::class,
+            'test_browsable' => TestBrowsable::class,
         ]);
     }
 
