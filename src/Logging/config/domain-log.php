@@ -38,6 +38,9 @@ return [
         'payment' => [
             ['handler' => FileLogHandler::class, 'with' => ['channel' => 'payment']],
         ],
+        'agent' => [
+            ['handler' => FileLogHandler::class, 'with' => ['channel' => 'agent']],
+        ],
     ],
 
     /*

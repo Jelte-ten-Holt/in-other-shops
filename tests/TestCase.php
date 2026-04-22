@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace InOtherShops\Tests;
 
+use InOtherShops\Agent\AgentServiceProvider;
 use InOtherShops\Commerce\CommerceServiceProvider;
 use InOtherShops\Currency\CurrencyServiceProvider;
 use InOtherShops\FlowChain\FlowChainServiceProvider;
@@ -21,6 +22,7 @@ use InOtherShops\Tests\Stubs\TestPayable;
 use InOtherShops\Tests\Stubs\TestStockable;
 use InOtherShops\Translation\TranslationServiceProvider;
 use Illuminate\Database\Eloquent\Relations\Relation;
+use OPGG\LaravelMcpServer\LaravelMcpServerServiceProvider;
 use Orchestra\Testbench\TestCase as Orchestra;
 
 abstract class TestCase extends Orchestra
@@ -70,6 +72,8 @@ abstract class TestCase extends Orchestra
             CommerceServiceProvider::class,
             FlowChainServiceProvider::class,
             StorefrontServiceProvider::class,
+            LaravelMcpServerServiceProvider::class,
+            AgentServiceProvider::class,
         ];
     }
 }
