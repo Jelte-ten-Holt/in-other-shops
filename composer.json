@@ -12,10 +12,12 @@
     "require-dev": {
         "orchestra/testbench": "^10.0 || ^11.0",
         "phpunit/phpunit": "^11.0 || ^12.0",
-        "mockery/mockery": "^1.6"
+        "mockery/mockery": "^1.6",
+        "laravel/passport": "^13.0"
     },
     "suggest": {
-        "stripe/stripe-php": "Install to enable the Stripe payment gateway driver (^15.0 || ^16.0)."
+        "stripe/stripe-php": "Install to enable the Stripe payment gateway driver (^15.0 || ^16.0).",
+        "laravel/passport": "Required when agent.auth.oauth.enabled is true — powers the Passport authorization server that backs the MCP connector's OAuth flow (^13.0)."
     },
     "autoload": {
         "psr-4": {

@@ -7,7 +7,8 @@ namespace InOtherShops\Agent;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
-use InOtherShops\Agent\Http\Middleware\AuthenticateAgentBearer;
+use InOtherShops\Agent\Http\Middleware\AuthenticateAgent;
+use InOtherShops\Agent\Http\Middleware\EnforceResourceParameter;
 use InOtherShops\Agent\Listeners\AgentLogSubscriber;
 use InOtherShops\Agent\Support\ToolRegistry;
 
@@ -18,6 +19,20 @@ final class AgentServiceProvider extends ServiceProvider
         $this->mergeConfigFrom(__DIR__.'/config/agent.php', 'agent');
 
         $this->app->singleton(ToolRegistry::class);
+
+        if ((bool) config('agent.auth.oauth.enabled', false)) {
+            // Attach our RFC 8707 resource-parameter validator to every
+            // Passport route (/oauth/authorize, /oauth/token, etc.).
+            // Passport reads `passport.middleware` when it registers its
+            // routes in its own boot(); our register runs first under the
+            // default alphabetical discovery order, so this push is in
+            // place by the time Passport needs it.
+            $existing = (array) config('passport.middleware', []);
+            if (! in_array(EnforceResourceParameter::class, $existing, true)) {
+                $existing[] = EnforceResourceParameter::class;
+            }
+            config(['passport.middleware' => $existing]);
+        }
     }
 
     public function boot(): void
@@ -30,16 +45,25 @@ final class AgentServiceProvider extends ServiceProvider
         // consuming app — registering directly in boot() would race the macro.
         $this->app->booted(function (): void {
             if (config('agent.route.enabled', true)) {
-                $this->registerRoute();
+                $this->registerMcpRoute();
+            }
+
+            if ((bool) config('agent.auth.oauth.enabled', false)) {
+                $this->registerOauthRoutes();
             }
         });
 
         Event::subscribe(AgentLogSubscriber::class);
     }
 
-    private function registerRoute(): void
+    private function registerMcpRoute(): void
     {
-        Route::middleware([AuthenticateAgentBearer::class])
+        Route::middleware([AuthenticateAgent::class])
             ->group(__DIR__.'/Routes/mcp.php');
+    }
+
+    private function registerOauthRoutes(): void
+    {
+        Route::group([], __DIR__.'/Routes/oauth.php');
     }
 }

@@ -35,13 +35,24 @@ interface AgentToolContract
 
 ### Route
 
-`AgentServiceProvider::boot()` registers one route: `Route::mcp(config('agent.route.path'))` wrapped in the `AuthenticateAgentBearer` middleware group. The route is mounted at the app root — no `/api` prefix, no `api` middleware group. Tools go through the library's `Route::mcp(...)->tools([...])` registration, which resolves each class through the container.
+`AgentServiceProvider::boot()` registers `Route::mcp(config('agent.route.path'))` wrapped in the `AuthenticateAgent` middleware group. The route is mounted at the app root — no `/api` prefix, no `api` middleware group. Tools go through the library's `Route::mcp(...)->tools([...])` registration, which resolves each class through the container.
+
+When `agent.auth.oauth.enabled` is true, the provider also mounts (again at app root):
+
+- `GET /.well-known/oauth-protected-resource` — RFC 9728 metadata for the /mcp resource.
+- `GET /.well-known/oauth-authorization-server` — RFC 8414 metadata for the in-process Passport authorization server.
+- `POST /oauth/register` — RFC 7591 Dynamic Client Registration, rate-limited.
 
 ### Authentication
 
-`AuthenticateAgentBearer` compares the request bearer against `config('agent.auth.bearer_token')` via `hash_equals`. Empty token → 401 (fail-closed — never allow-all). The short SHA-256 prefix of the bearer is stashed on the request for log correlation.
+`AuthenticateAgent` resolves in two steps:
 
-OAuth/DCR for Anthropic Co-work acceptance arrives in a follow-up PR and extends, not replaces, this path.
+1. **OAuth access token** — if `agent.auth.oauth.enabled`, the middleware checks `Auth::guard('api')` (Passport). Tokens must carry the `agent` scope. Audience binding against `agent.canonical_url` is enforced by the token issuer (see OAuth section below).
+2. **Static bearer** — `config('agent.auth.bearer_token')`, compared via `hash_equals`. Empty token → that path fails closed.
+
+Both paths populate the `agent.bearer_hash` request attribute (short SHA-256 prefix) for log correlation. For OAuth tokens the hash is of the token id, not the access token string.
+
+On 401 the response carries `WWW-Authenticate: Bearer resource_metadata="..."` per RFC 9728 §5.1, pointing at the protected-resource-metadata endpoint so an OAuth-capable client can discover how to obtain a token.
 
 ### Audit logging
 
@@ -52,11 +63,24 @@ OAuth/DCR for Anthropic Co-work acceptance arrives in a follow-up PR and extends
 `config/agent.php`:
 
 ```php
-'tools'  => [/* consumer tools — package tools ship in ToolRegistry::PACKAGE_TOOLS */],
-'route'  => ['enabled' => true, 'path' => '/mcp'],
-'server' => ['name' => 'In Other Shops Agent', 'version' => '0.1.0'],
-'auth'   => ['bearer_token' => env('AGENT_BEARER_TOKEN')],
+'tools'         => [/* consumer tools — package tools ship in ToolRegistry::PACKAGE_TOOLS */],
+'route'         => ['enabled' => true, 'path' => '/mcp'],
+'server'        => ['name' => 'In Other Shops Agent', 'version' => '0.1.0'],
+'canonical_url' => env('AGENT_CANONICAL_URL'),
+'auth' => [
+    'bearer_token' => env('AGENT_BEARER_TOKEN'),
+    'oauth' => [
+        'enabled' => (bool) env('AGENT_OAUTH_ENABLED', false),
+        'scope'   => env('AGENT_OAUTH_SCOPE', 'agent'),
+        'dcr' => [
+            'enabled'    => (bool) env('AGENT_DCR_ENABLED', true),
+            'rate_limit' => env('AGENT_DCR_RATE_LIMIT', '5,1'),
+        ],
+    ],
+],
 ```
+
+`canonical_url` is the stable, externally-reachable URL of the consumer's `/mcp` endpoint — used as the RFC 9728 resource identifier and the RFC 8707 audience. When OAuth is enabled it should be set to the consumer's production DNS or named-tunnel hostname; for local dev it can be blank and falls back to `url(config('agent.route.path'))`.
 
 ## Dependencies
 

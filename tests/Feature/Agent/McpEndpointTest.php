@@ -60,6 +60,28 @@ final class McpEndpointTest extends TestCase
         $this->assertContains('ping', $toolNames);
     }
 
+    #[Test]
+    public function it_returns_a_plain_www_authenticate_header_when_oauth_is_disabled(): void
+    {
+        $this->postJson('/mcp', $this->toolsListPayload())
+            ->assertStatus(401)
+            ->assertHeader('WWW-Authenticate', 'Bearer');
+    }
+
+    #[Test]
+    public function it_advertises_the_resource_metadata_url_when_oauth_is_enabled(): void
+    {
+        config()->set('agent.auth.oauth.enabled', true);
+        config()->set('agent.canonical_url', 'https://agent.example.test/mcp');
+
+        $this->postJson('/mcp', $this->toolsListPayload())
+            ->assertStatus(401)
+            ->assertHeader(
+                'WWW-Authenticate',
+                'Bearer resource_metadata="https://agent.example.test/.well-known/oauth-protected-resource"',
+            );
+    }
+
     /** @return array<string, mixed> */
     private function toolsListPayload(): array
     {

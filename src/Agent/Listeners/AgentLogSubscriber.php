@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace InOtherShops\Agent\Listeners;
 
 use Illuminate\Contracts\Events\Dispatcher;
+use InOtherShops\Agent\Events\DynamicClientRegistered;
 use InOtherShops\Agent\Events\ToolInvocationFailed;
 use InOtherShops\Agent\Events\ToolInvoked;
 use InOtherShops\Logging\DTOs\LogEntry;
@@ -25,6 +26,7 @@ final class AgentLogSubscriber
         return [
             ToolInvoked::class => 'handleToolInvoked',
             ToolInvocationFailed::class => 'handleToolInvocationFailed',
+            DynamicClientRegistered::class => 'handleDynamicClientRegistered',
         ];
     }
 
@@ -59,6 +61,21 @@ final class AgentLogSubscriber
                 'error' => $invocation->error,
                 'duration_ms' => round($invocation->durationMs, 2),
                 'bearer_hash' => $invocation->bearerHash,
+            ],
+        ));
+    }
+
+    public function handleDynamicClientRegistered(DynamicClientRegistered $event): void
+    {
+        $this->dispatcher->log(new LogEntry(
+            level: LogLevel::Notice,
+            channel: self::CHANNEL,
+            message: "Dynamic client registered: {$event->clientName}.",
+            context: [
+                'client_id' => $event->clientId,
+                'client_name' => $event->clientName,
+                'redirect_uris' => $event->redirectUris,
+                'confidential' => $event->isConfidential,
             ],
         ));
     }
