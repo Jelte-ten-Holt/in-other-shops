@@ -2,40 +2,30 @@
 
 declare(strict_types=1);
 
-use InOtherShops\Agent\Tools\AdjustStock;
-use InOtherShops\Agent\Tools\BrowseCatalog;
-use InOtherShops\Agent\Tools\GetStockLevel;
-use InOtherShops\Agent\Tools\ListCategories;
-use InOtherShops\Agent\Tools\ListOrders;
-use InOtherShops\Agent\Tools\ListTags;
-use InOtherShops\Agent\Tools\Ping;
-use InOtherShops\Agent\Tools\ShowBrowsable;
-use InOtherShops\Agent\Tools\ShowOrder;
-
 return [
 
     /*
     |--------------------------------------------------------------------------
-    | Registered Tools
+    | Consumer-Contributed Tools
     |--------------------------------------------------------------------------
     |
-    | Class-string list of AgentToolContract implementations. The package seeds
-    | generic shop tools; consuming projects append project-specific tools via
-    | their own config/agent.php (Laravel merges the arrays).
+    | Class-string list of AgentToolContract implementations shipped by the
+    | consuming application. These are concatenated onto the package's own
+    | default tools (declared in `ToolRegistry::PACKAGE_TOOLS`) — the package
+    | list cannot be wiped from here, because Laravel's `mergeConfigFrom` is
+    | a shallow array_merge and would let a consumer's `tools` key silently
+    | replace the package list. Keeping the defaults in PHP avoids that trap.
+    |
+    | Consuming apps publish their own `config/agent.php` and add their tools:
+    |
+    |     'tools' => [
+    |         App\Project\AgentTools\SearchContent::class,
+    |         // ...
+    |     ],
     |
     */
 
-    'tools' => [
-        Ping::class,
-        BrowseCatalog::class,
-        ShowBrowsable::class,
-        ListCategories::class,
-        ListTags::class,
-        ListOrders::class,
-        ShowOrder::class,
-        GetStockLevel::class,
-        AdjustStock::class,
-    ],
+    'tools' => [],
 
     /*
     |--------------------------------------------------------------------------

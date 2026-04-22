@@ -1,6 +1,6 @@
 # Agent Domain
 
-Bearer-gated MCP (Streamable HTTP) endpoint for locally-run Claude clients. Ships a `ToolRegistry`, library-adapter base class, audit log subscriber, and a seed `ping` tool. Consuming projects append their own tools via `config/agent.php`.
+Bearer-gated MCP (Streamable HTTP) endpoint for locally-run Claude clients. Ships a `ToolRegistry`, library-adapter base class, audit log subscriber, and nine generic shop tools (ping, catalog, taxonomy, orders, stock). Consuming projects append their own tools via `config/agent.php`.
 
 **Writing a new tool? Read [docs/agent-tool-conventions.md](../../docs/agent-tool-conventions.md) first.** It defines the input, output, and error conventions every tool — package or project — must follow.
 
@@ -31,7 +31,7 @@ interface AgentToolContract
 
 ### Registry
 
-`ToolRegistry` is a singleton constructed from `config('agent.tools', [])` — a flat class-string array. Package seeds generic shop tools; consumers append project tools via their own `config/agent.php` (Laravel's config merge).
+`ToolRegistry` is a singleton. Its class list is `ToolRegistry::PACKAGE_TOOLS` (the nine generic shop tools) concatenated with `config('agent.tools', [])` (the consumer's own tools). The package list is kept in PHP rather than in `config/agent.php` because `mergeConfigFrom` is a shallow array merge — a consumer that publishes a `config/agent.php` with its own `tools` key would otherwise wipe the package defaults silently. Consumers add to the list, they do not replace it.
 
 ### Route
 
@@ -52,7 +52,7 @@ OAuth/DCR for Anthropic Co-work acceptance arrives in a follow-up PR and extends
 `config/agent.php`:
 
 ```php
-'tools'  => [Ping::class, /* ...project tools */],
+'tools'  => [/* consumer tools — package tools ship in ToolRegistry::PACKAGE_TOOLS */],
 'route'  => ['enabled' => true, 'path' => '/mcp'],
 'server' => ['name' => 'In Other Shops Agent', 'version' => '0.1.0'],
 'auth'   => ['bearer_token' => env('AGENT_BEARER_TOKEN')],

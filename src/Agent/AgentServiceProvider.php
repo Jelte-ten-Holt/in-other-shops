@@ -22,9 +22,17 @@ final class AgentServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
-        if (config('agent.route.enabled', true)) {
-            $this->registerRoute();
-        }
+        // Route registration is deferred to `app.booted` because the `/mcp`
+        // route file calls the `Route::mcp(...)` macro from opgginc/laravel-
+        // -mcp-server, and that macro is installed in the opgginc provider's
+        // own `boot()`. Composer package-discovery boot order is alphabetical,
+        // so `jelte-ten-holt/in-other-shops` boots before `opgginc/*` in any
+        // consuming app — registering directly in boot() would race the macro.
+        $this->app->booted(function (): void {
+            if (config('agent.route.enabled', true)) {
+                $this->registerRoute();
+            }
+        });
 
         Event::subscribe(AgentLogSubscriber::class);
     }
