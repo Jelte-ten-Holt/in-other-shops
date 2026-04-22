@@ -31,6 +31,7 @@ final class BrowseCatalogToolTest extends TestCase
 
         $result = app(BrowseCatalog::class)(['type' => 'browsable']);
 
+        $this->assertTrue($result['ok']);
         $this->assertCount(3, $result['data']);
         $this->assertSame(1, $result['meta']['current_page']);
         $this->assertSame(3, $result['meta']['total']);
@@ -45,6 +46,7 @@ final class BrowseCatalogToolTest extends TestCase
 
         $result = app(BrowseCatalog::class)(['type' => 'browsable', 'per_page' => 2]);
 
+        $this->assertTrue($result['ok']);
         $this->assertCount(2, $result['data']);
         $this->assertSame(2, $result['meta']['per_page']);
         $this->assertSame(3, $result['meta']['last_page']);
@@ -58,6 +60,7 @@ final class BrowseCatalogToolTest extends TestCase
 
         $result = app(BrowseCatalog::class)(['type' => 'browsable', 'search' => 'Alpha']);
 
+        $this->assertTrue($result['ok']);
         $this->assertCount(1, $result['data']);
         $this->assertSame('alpha', $result['data'][0]['slug']);
     }

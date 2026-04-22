@@ -55,21 +55,27 @@ final class GetStockLevel extends AgentTool
             ->where((new $modelClass)->getBrowsableRouteKeyName(), $slug)
             ->first();
 
+        $target = ['type' => $type, 'slug' => $slug];
+
         if ($model === null) {
             return [
-                'found' => false,
-                'type' => $type,
-                'slug' => $slug,
+                'ok' => false,
+                'target' => $target,
+                'error' => [
+                    'code' => 'not_found',
+                    'message' => "No {$type} with slug '{$slug}'.",
+                ],
             ];
         }
 
         /** @var HasStock $model */
         return [
-            'found' => true,
-            'type' => $type,
-            'slug' => $slug,
-            'stock_level' => $model->stockLevel(),
-            'in_stock' => $model->isInStock(),
+            'ok' => true,
+            'target' => $target,
+            'data' => [
+                'stock_level' => $model->stockLevel(),
+                'in_stock' => $model->isInStock(),
+            ],
         ];
     }
 

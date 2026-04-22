@@ -2,6 +2,8 @@
 
 Bearer-gated MCP (Streamable HTTP) endpoint for locally-run Claude clients. Ships a `ToolRegistry`, library-adapter base class, audit log subscriber, and a seed `ping` tool. Consuming projects append their own tools via `config/agent.php`.
 
+**Writing a new tool? Read [docs/agent-tool-conventions.md](../../docs/agent-tool-conventions.md) first.** It defines the input, output, and error conventions every tool — package or project — must follow.
+
 ## Architecture
 
 ### AgentToolContract

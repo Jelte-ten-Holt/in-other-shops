@@ -25,7 +25,8 @@ final class ShowOrderToolTest extends TestCase
 
         $result = app(ShowOrder::class)(['id' => $order->id]);
 
-        $this->assertTrue($result['found']);
+        $this->assertTrue($result['ok']);
+        $this->assertSame(['id' => $order->id], $result['target']);
         $this->assertSame($order->id, $result['data']['id']);
         $this->assertCount(2, $result['data']['lines']);
         $this->assertSame(2, $result['data']['payments']['count']);
@@ -38,7 +39,8 @@ final class ShowOrderToolTest extends TestCase
     {
         $result = app(ShowOrder::class)(['id' => 999999]);
 
-        $this->assertFalse($result['found']);
-        $this->assertSame(999999, $result['id']);
+        $this->assertFalse($result['ok']);
+        $this->assertSame(['id' => 999999], $result['target']);
+        $this->assertSame('not_found', $result['error']['code']);
     }
 }

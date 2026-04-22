@@ -57,16 +57,22 @@ final class ShowBrowsable extends AgentTool
 
         $model = ($this->showBrowsable)($modelClass, $slug);
 
+        $target = ['type' => $type, 'slug' => $slug];
+
         if ($model === null) {
             return [
-                'found' => false,
-                'type' => $type,
-                'slug' => $slug,
+                'ok' => false,
+                'target' => $target,
+                'error' => [
+                    'code' => 'not_found',
+                    'message' => "No {$type} with slug '{$slug}'.",
+                ],
             ];
         }
 
         return [
-            'found' => true,
+            'ok' => true,
+            'target' => $target,
             'data' => (new BrowsableResource($model))->toArray(Request::create('/', 'GET')),
         ];
     }

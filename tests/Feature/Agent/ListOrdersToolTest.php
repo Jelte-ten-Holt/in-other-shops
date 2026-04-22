@@ -24,6 +24,7 @@ final class ListOrdersToolTest extends TestCase
 
         $result = app(ListOrders::class)([]);
 
+        $this->assertTrue($result['ok']);
         $this->assertCount(2, $result['data']);
         $this->assertSame($newer->id, $result['data'][0]['id']);
         $this->assertSame($older->id, $result['data'][1]['id']);

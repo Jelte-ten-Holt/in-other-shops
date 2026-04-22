@@ -49,15 +49,22 @@ final class ShowOrder extends AgentTool
             ->with(['lines', 'payments'])
             ->find($id);
 
+        $target = ['id' => $id];
+
         if ($order === null) {
             return [
-                'found' => false,
-                'id' => $id,
+                'ok' => false,
+                'target' => $target,
+                'error' => [
+                    'code' => 'not_found',
+                    'message' => "No order with id {$id}.",
+                ],
             ];
         }
 
         return [
-            'found' => true,
+            'ok' => true,
+            'target' => $target,
             'data' => $this->shapeOrder($order),
         ];
     }

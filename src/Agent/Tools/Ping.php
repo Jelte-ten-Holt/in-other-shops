@@ -40,11 +40,14 @@ final class Ping extends AgentTool
     public function __invoke(array $arguments): array
     {
         return [
-            'pong' => true,
-            'at' => now()->toIso8601String(),
-            'echo' => isset($arguments['echo']) && is_string($arguments['echo'])
-                ? $arguments['echo']
-                : null,
+            'ok' => true,
+            'data' => [
+                'pong' => true,
+                'at' => now()->toIso8601String(),
+                'echo' => isset($arguments['echo']) && is_string($arguments['echo'])
+                    ? $arguments['echo']
+                    : null,
+            ],
         ];
     }
 }

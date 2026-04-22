@@ -78,6 +78,7 @@ final class ListOrders extends AgentTool
         $paginator = $query->paginate(perPage: $perPage, page: $page);
 
         return [
+            'ok' => true,
             'data' => $paginator->getCollection()
                 ->map(fn (Model $order) => $this->summariseOrder($order))
                 ->all(),

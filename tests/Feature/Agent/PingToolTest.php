@@ -17,9 +17,10 @@ final class PingToolTest extends TestCase
     {
         $result = (new Ping)([]);
 
-        $this->assertTrue($result['pong']);
-        $this->assertIsString($result['at']);
-        $this->assertNull($result['echo']);
+        $this->assertTrue($result['ok']);
+        $this->assertTrue($result['data']['pong']);
+        $this->assertIsString($result['data']['at']);
+        $this->assertNull($result['data']['echo']);
     }
 
     #[Test]
@@ -27,7 +28,8 @@ final class PingToolTest extends TestCase
     {
         $result = (new Ping)(['echo' => 'hello']);
 
-        $this->assertSame('hello', $result['echo']);
+        $this->assertTrue($result['ok']);
+        $this->assertSame('hello', $result['data']['echo']);
     }
 
     #[Test]

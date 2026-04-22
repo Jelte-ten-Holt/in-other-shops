@@ -62,6 +62,7 @@ final class ListTags extends AgentTool
         $request = Request::create('/', 'GET');
 
         return [
+            'ok' => true,
             'data' => $tags
                 ->map(fn ($tag) => (new TagResource($tag))->toArray($request))
                 ->all(),

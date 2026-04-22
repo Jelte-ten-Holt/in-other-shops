@@ -31,7 +31,8 @@ final class ShowBrowsableToolTest extends TestCase
 
         $result = app(ShowBrowsable::class)(['type' => 'browsable', 'slug' => 'the-one']);
 
-        $this->assertTrue($result['found']);
+        $this->assertTrue($result['ok']);
+        $this->assertSame(['type' => 'browsable', 'slug' => 'the-one'], $result['target']);
         $this->assertSame('the-one', $result['data']['slug']);
     }
 
@@ -40,8 +41,9 @@ final class ShowBrowsableToolTest extends TestCase
     {
         $result = app(ShowBrowsable::class)(['type' => 'browsable', 'slug' => 'missing']);
 
-        $this->assertFalse($result['found']);
-        $this->assertSame('missing', $result['slug']);
+        $this->assertFalse($result['ok']);
+        $this->assertSame(['type' => 'browsable', 'slug' => 'missing'], $result['target']);
+        $this->assertSame('not_found', $result['error']['code']);
     }
 
     #[Test]

@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use InOtherShops\Agent\Tools\AdjustStock;
 use InOtherShops\Agent\Tools\BrowseCatalog;
 use InOtherShops\Agent\Tools\GetStockLevel;
 use InOtherShops\Agent\Tools\ListCategories;
@@ -33,6 +34,7 @@ return [
         ListOrders::class,
         ShowOrder::class,
         GetStockLevel::class,
+        AdjustStock::class,
     ],
 
     /*

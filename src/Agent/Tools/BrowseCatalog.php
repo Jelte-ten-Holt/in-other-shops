@@ -123,6 +123,7 @@ final class BrowseCatalog extends AgentTool
             ->all();
 
         return [
+            'ok' => true,
             'data' => $data,
             'meta' => [
                 'current_page' => $paginator->currentPage(),

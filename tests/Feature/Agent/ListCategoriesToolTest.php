@@ -25,6 +25,7 @@ final class ListCategoriesToolTest extends TestCase
 
         $result = app(ListCategories::class)([]);
 
+        $this->assertTrue($result['ok']);
         $this->assertCount(1, $result['data']);
         $this->assertSame('root-cat', $result['data'][0]['slug']);
         $this->assertSame('Root', $result['data'][0]['name']);

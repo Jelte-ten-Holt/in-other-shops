@@ -18,6 +18,7 @@ return [
         'dashboard' => 'Dashboard',
         'checkout' => 'Checkout',
         'import' => 'Import',
+        'agent' => 'Agent API',
     ],
 
     /*

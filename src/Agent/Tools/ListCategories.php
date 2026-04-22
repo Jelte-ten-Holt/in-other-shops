@@ -61,6 +61,7 @@ final class ListCategories extends AgentTool
         $request = Request::create('/', 'GET');
 
         return [
+            'ok' => true,
             'data' => $categories
                 ->map(fn ($category) => (new CategoryResource($category))->toArray($request))
                 ->all(),

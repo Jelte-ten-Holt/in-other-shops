@@ -38,9 +38,10 @@ final class GetStockLevelToolTest extends TestCase
 
         $result = app(GetStockLevel::class)(['type' => 'browsable', 'slug' => 'stocked-thing']);
 
-        $this->assertTrue($result['found']);
-        $this->assertSame(7, $result['stock_level']);
-        $this->assertTrue($result['in_stock']);
+        $this->assertTrue($result['ok']);
+        $this->assertSame(['type' => 'browsable', 'slug' => 'stocked-thing'], $result['target']);
+        $this->assertSame(7, $result['data']['stock_level']);
+        $this->assertTrue($result['data']['in_stock']);
     }
 
     #[Test]
@@ -50,9 +51,9 @@ final class GetStockLevelToolTest extends TestCase
 
         $result = app(GetStockLevel::class)(['type' => 'browsable', 'slug' => 'unlinked-thing']);
 
-        $this->assertTrue($result['found']);
-        $this->assertSame(0, $result['stock_level']);
-        $this->assertFalse($result['in_stock']);
+        $this->assertTrue($result['ok']);
+        $this->assertSame(0, $result['data']['stock_level']);
+        $this->assertFalse($result['data']['in_stock']);
     }
 
     #[Test]
@@ -60,7 +61,9 @@ final class GetStockLevelToolTest extends TestCase
     {
         $result = app(GetStockLevel::class)(['type' => 'browsable', 'slug' => 'missing']);
 
-        $this->assertFalse($result['found']);
+        $this->assertFalse($result['ok']);
+        $this->assertSame(['type' => 'browsable', 'slug' => 'missing'], $result['target']);
+        $this->assertSame('not_found', $result['error']['code']);
     }
 
     #[Test]

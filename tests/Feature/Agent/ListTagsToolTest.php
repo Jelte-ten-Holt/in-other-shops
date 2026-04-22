@@ -25,6 +25,7 @@ final class ListTagsToolTest extends TestCase
 
         $result = app(ListTags::class)([]);
 
+        $this->assertTrue($result['ok']);
         $slugs = array_column($result['data'], 'slug');
         $this->assertContains('featured-tag', $slugs);
         $this->assertContains('hidden-tag', $slugs);
