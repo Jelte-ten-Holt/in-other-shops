@@ -6,7 +6,7 @@ Package-level work, typically surfaced by consuming projects. Completed items ha
 
 ## Open
 
-- [ ] **Publish to Packagist (`v0.1.0`)** — required for in-other-worlds staging deploy (Coolify builder has no sibling path). Tag a `0.1.x-dev` branch alias in `composer.json` so the local path repo still satisfies `^0.1` in consumers during dev. Context: [in-other-worlds/docs/briefs/staging-deployment-brief.md](../in-other-worlds/docs/briefs/staging-deployment-brief.md) §Architectural decisions.
+- [x] **Publish to Packagist (`v0.1.0`)** — shipped 2026-04-23. `0.1.0` tagged at `c632b36` (post Agent domain merge), indexed at https://packagist.org/packages/jelte-ten-holt/in-other-shops, auto-sync webhook installed. Branch-alias `dev-main → 0.1.x-dev` set on the package; consumers using the path repo alongside `^0.1` must run on `main` for the alias to apply (consumer also needs `minimum-stability: dev` to accept the dev-aliased version).
 - [x] **Embed media support in MediaSchema** — `MediaType::Embed` wired into form (URL input + iframe preview for YouTube/Vimeo), `createMedia`, `updateExistingMedia`, and `fillFormData`. Consumers add an `embed` collection to their `media.collections` config.
 - [x] **Pre-order flag on order lines** — `is_pre_order` boolean (default false) added to `order_lines` migration, cast on OrderLine, docblock on `HasOrders::toOrderLineData()` return shape.
 - [x] **Missing factories** — CartItem, CustomerGroup, Translation, WebhookEvent, PaymentProfile, Mediable now ship factories. `HasFactory` + `newFactory()` added to each model.
