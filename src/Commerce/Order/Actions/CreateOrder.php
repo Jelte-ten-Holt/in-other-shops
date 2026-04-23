@@ -4,22 +4,24 @@ declare(strict_types=1);
 
 namespace InOtherShops\Commerce\Order\Actions;
 
+use Illuminate\Contracts\Container\Container;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
 use InOtherShops\Commerce\Cart\Models\Cart;
 use InOtherShops\Commerce\Commerce;
 use InOtherShops\Commerce\Customer\Models\Customer;
 use InOtherShops\Commerce\Order\Contracts\HasOrders;
 use InOtherShops\Commerce\Order\Contracts\OrderNumberGenerator;
+use InOtherShops\Commerce\Order\DTOs\ShippingSnapshot;
+use InOtherShops\Commerce\Order\DTOs\TaxSnapshot;
 use InOtherShops\Commerce\Order\Enums\OrderStatus;
 use InOtherShops\Commerce\Order\Events\OrderCreated;
 use InOtherShops\Commerce\Order\Models\Order;
-use InOtherShops\Commerce\Order\Models\OrderLine;
+use InOtherShops\Commerce\Order\Support\RandomOrderNumberGenerator;
 use InOtherShops\Location\Enums\AddressType;
 use InOtherShops\Location\Models\Address;
 use InOtherShops\Pricing\Actions\ApplyVoucher;
 use InOtherShops\Pricing\DTOs\PriceBreakdown;
-use Illuminate\Contracts\Container\Container;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\DB;
 
 /**
  * Create an Order with snapshotted pricing, order lines, and addresses,
@@ -48,8 +50,10 @@ final class CreateOrder
         ?array $shippingAddress = null,
         ?Customer $customer = null,
         ?string $guestEmail = null,
+        ?TaxSnapshot $taxSnapshot = null,
+        ?ShippingSnapshot $shippingSnapshot = null,
     ): Order {
-        $order = DB::transaction(fn (): Order => $this->build($cart, $breakdown, $billingAddress, $shippingAddress, $customer, $guestEmail));
+        $order = DB::transaction(fn (): Order => $this->build($cart, $breakdown, $billingAddress, $shippingAddress, $customer, $guestEmail, $taxSnapshot, $shippingSnapshot));
 
         OrderCreated::dispatch($order);
 
@@ -60,11 +64,11 @@ final class CreateOrder
      * @param  array<string, mixed>  $billingAddress
      * @param  array<string, mixed>|null  $shippingAddress
      */
-    private function build(Cart $cart, PriceBreakdown $breakdown, array $billingAddress, ?array $shippingAddress, ?Customer $customer, ?string $guestEmail): Order
+    private function build(Cart $cart, PriceBreakdown $breakdown, array $billingAddress, ?array $shippingAddress, ?Customer $customer, ?string $guestEmail, ?TaxSnapshot $taxSnapshot, ?ShippingSnapshot $shippingSnapshot): Order
     {
         $this->commitVoucherUsage($breakdown);
 
-        $order = $this->createOrderRecord($breakdown, $customer, $guestEmail);
+        $order = $this->createOrderRecord($breakdown, $customer, $guestEmail, $taxSnapshot, $shippingSnapshot);
 
         $this->attachLines($order, $cart, $breakdown);
         $this->attachAddress($order, $billingAddress, $shippingAddress === null ? AddressType::ShippingAndBilling : AddressType::Billing);
@@ -89,7 +93,7 @@ final class CreateOrder
         );
     }
 
-    private function createOrderRecord(PriceBreakdown $breakdown, ?Customer $customer, ?string $guestEmail): Order
+    private function createOrderRecord(PriceBreakdown $breakdown, ?Customer $customer, ?string $guestEmail, ?TaxSnapshot $taxSnapshot, ?ShippingSnapshot $shippingSnapshot): Order
     {
         /** @var Order */
         return Commerce::order()::query()->create([
@@ -98,8 +102,13 @@ final class CreateOrder
             'currency' => $breakdown->currency,
             'subtotal' => $breakdown->subtotal,
             'tax' => $breakdown->tax,
+            'tax_rate_bps' => $taxSnapshot?->rateBps,
+            'tax_rate_country_code' => $taxSnapshot?->countryCode,
             'discount' => $breakdown->discount,
             'total' => $breakdown->total,
+            'shipping_method_identifier' => $shippingSnapshot?->methodIdentifier,
+            'shipping_cost' => $shippingSnapshot?->cost ?? 0,
+            'shipping_cost_currency' => $shippingSnapshot?->currency,
             'customer_id' => $customer?->getKey(),
             'email' => $guestEmail,
         ]);
@@ -111,7 +120,7 @@ final class CreateOrder
         /** @var class-string<OrderNumberGenerator> */
         return config(
             'commerce.order.number_generator',
-            \InOtherShops\Commerce\Order\Support\RandomOrderNumberGenerator::class,
+            RandomOrderNumberGenerator::class,
         );
     }
 

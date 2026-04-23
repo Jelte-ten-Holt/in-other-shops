@@ -1,8 +1,7 @@
 <?php
 
 declare(strict_types=1);
-use InOtherShops\Shipping\Models\Shipment;
-use InOtherShops\Shipping\Models\ShippingMethod;
+use InOtherShops\Tax\Models\TaxRate;
 
 return [
     /*
@@ -10,13 +9,12 @@ return [
     | Models
     |--------------------------------------------------------------------------
     |
-    | Override the default models used by the Shipping domain. Each value
+    | Override the default models used by the Tax domain. Each value
     | must be a class that extends the corresponding base model.
     |
     */
 
     'models' => [
-        'shipment' => Shipment::class,
-        'shipping_method' => ShippingMethod::class,
+        'tax_rate' => TaxRate::class,
     ],
 ];

@@ -53,6 +53,7 @@
             "InOtherShops\\Shipping\\": "src/Shipping/",
             "InOtherShops\\Agent\\": "src/Agent/",
             "InOtherShops\\Storefront\\": "src/Storefront/",
+            "InOtherShops\\Tax\\": "src/Tax/",
             "InOtherShops\\Taxonomy\\": "src/Taxonomy/",
             "InOtherShops\\Translation\\": "src/Translation/"
         }
@@ -80,6 +81,7 @@
                 "InOtherShops\\Taxonomy\\TaxonomyServiceProvider",
                 "InOtherShops\\Pricing\\PricingServiceProvider",
                 "InOtherShops\\Inventory\\InventoryServiceProvider",
+                "InOtherShops\\Tax\\TaxServiceProvider",
                 "InOtherShops\\Shipping\\ShippingServiceProvider",
                 "InOtherShops\\Payment\\PaymentServiceProvider",
                 "InOtherShops\\Payment\\Drivers\\Stripe\\StripeGatewayServiceProvider",

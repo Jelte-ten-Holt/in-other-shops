@@ -4,6 +4,12 @@ declare(strict_types=1);
 
 namespace InOtherShops\Commerce\Order\Models;
 
+use Illuminate\Database\Eloquent\Factories\Factory;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use InOtherShops\Commerce\Commerce;
 use InOtherShops\Commerce\Database\Factories\OrderFactory;
 use InOtherShops\Commerce\Order\Enums\OrderStatus;
@@ -15,12 +21,6 @@ use InOtherShops\Payment\Concerns\InteractsWithPayments;
 use InOtherShops\Payment\Contracts\HasPayments;
 use InOtherShops\Shipping\Concerns\InteractsWithShipment;
 use InOtherShops\Shipping\Contracts\HasShipment;
-use Illuminate\Database\Eloquent\Factories\Factory;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Relations\MorphMany;
 
 class Order extends Model implements HasAddresses, HasPayments, HasShipment
 {
@@ -43,8 +43,10 @@ class Order extends Model implements HasAddresses, HasPayments, HasShipment
             'currency' => Currency::class,
             'subtotal' => 'integer',
             'tax' => 'integer',
+            'tax_rate_bps' => 'integer',
             'discount' => 'integer',
             'total' => 'integer',
+            'shipping_cost' => 'integer',
         ];
     }
 

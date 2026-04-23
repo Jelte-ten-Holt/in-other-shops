@@ -4,16 +4,13 @@ declare(strict_types=1);
 
 namespace InOtherShops\Shipping\Actions;
 
-use InOtherShops\Currency\Enums\Currency;
-use InOtherShops\Shipping\DTOs\ShippingCost;
+use InOtherShops\Location\Models\Address;
+use InOtherShops\Shipping\Models\ShippingMethod;
 
 final class CalculateShippingCost
 {
-    public function __invoke(Currency $currency): ShippingCost
+    public function __invoke(ShippingMethod $method, ?Address $address = null): int
     {
-        return new ShippingCost(
-            amount: (int) config('shipping.flat_rate', 0),
-            currency: $currency,
-        );
+        return (int) $method->base_cost;
     }
 }

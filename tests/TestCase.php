@@ -16,6 +16,7 @@ use InOtherShops\Payment\PaymentServiceProvider;
 use InOtherShops\Pricing\PricingServiceProvider;
 use InOtherShops\Shipping\ShippingServiceProvider;
 use InOtherShops\Storefront\StorefrontServiceProvider;
+use InOtherShops\Tax\TaxServiceProvider;
 use InOtherShops\Taxonomy\TaxonomyServiceProvider;
 use InOtherShops\Tests\Stubs\TestBrowsable;
 use InOtherShops\Tests\Stubs\TestCartable;
@@ -62,6 +63,7 @@ abstract class TestCase extends Orchestra
             TaxonomyServiceProvider::class,
             PricingServiceProvider::class,
             InventoryServiceProvider::class,
+            TaxServiceProvider::class,
             ShippingServiceProvider::class,
             PaymentServiceProvider::class,
             CommerceServiceProvider::class,

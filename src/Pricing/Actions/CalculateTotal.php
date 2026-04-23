@@ -25,6 +25,7 @@ final class CalculateTotal
         array $items,
         Currency $currency,
         int $taxRate,
+        int $shippingCost = 0,
         ?PriceList $priceList = null,
         ?string $voucherCode = null,
     ): PriceBreakdown {
@@ -32,7 +33,7 @@ final class CalculateTotal
         $discount = $this->applyDiscount($voucherCode, $subtotal, $currency);
         $tax = $this->computeTax($subtotal, $discount, $taxRate);
 
-        return $this->buildBreakdown($subtotal, $discount, $tax, $currency, $lines, $voucherCode);
+        return $this->buildBreakdown($subtotal, $discount, $tax, $shippingCost, $currency, $lines, $voucherCode);
     }
 
     /**
@@ -88,6 +89,7 @@ final class CalculateTotal
         int $subtotal,
         int $discount,
         int $tax,
+        int $shippingCost,
         Currency $currency,
         array $lines,
         ?string $voucherCode,
@@ -96,7 +98,8 @@ final class CalculateTotal
             subtotal: $subtotal,
             discount: $discount,
             tax: $tax,
-            total: $subtotal - $discount + $tax,
+            shippingCost: $shippingCost,
+            total: $subtotal - $discount + $tax + $shippingCost,
             currency: $currency,
             lines: $lines,
             voucherCode: $voucherCode,

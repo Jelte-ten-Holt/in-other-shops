@@ -15,6 +15,7 @@ final readonly class PriceBreakdown
         public int $subtotal,
         public int $discount,
         public int $tax,
+        public int $shippingCost,
         public int $total,
         public Currency $currency,
         public array $lines,
