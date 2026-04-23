@@ -69,6 +69,21 @@ final class StripePaymentGateway implements ManagesCustomers, PaymentGateway
         );
     }
 
+    public function retrieveSession(Payment $payment): PaymentSession
+    {
+        if ($payment->gateway_reference === null) {
+            throw new RuntimeException("Cannot retrieve Stripe session: payment {$payment->id} has no gateway reference.");
+        }
+
+        $intent = $this->client->paymentIntents->retrieve($payment->gateway_reference);
+
+        return new PaymentSession(
+            gatewayReference: $intent->id,
+            clientSecret: $intent->client_secret,
+            gatewayData: ['payment_intent_status' => $intent->status],
+        );
+    }
+
     public function verifyWebhookSignature(Request $request): void
     {
         try {

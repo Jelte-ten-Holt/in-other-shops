@@ -14,6 +14,18 @@ interface PaymentGateway
     public function createSession(Payment $payment, string $returnUrl, string $cancelUrl, ?string $gatewayCustomerId = null): PaymentSession;
 
     /**
+     * Retrieve a live session for an existing payment. Used when a buyer
+     * revisits a payment page (reload, deep-link, tab restore) and the
+     * frontend needs the current `clientSecret` / `redirectUrl` without
+     * creating a new gateway session.
+     *
+     * Gateways whose session is inherently single-use should still return
+     * the current reference — the caller decides whether the payment state
+     * allows continuation.
+     */
+    public function retrieveSession(Payment $payment): PaymentSession;
+
+    /**
      * Throw when the signature does not verify. Called before `parseWebhook`
      * so the parser can assume the payload is authentic.
      */

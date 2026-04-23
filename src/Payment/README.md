@@ -65,6 +65,7 @@ final class Customer extends Model implements HasPaymentProfiles
 The domain ships a `PaymentGateway` interface. Projects implement it per provider:
 
 - `createSession(Payment, returnUrl, cancelUrl, ?gatewayCustomerId)` → `PaymentSession` (redirect URL + reference)
+- `retrieveSession(Payment)` → `PaymentSession` (current redirect URL / clientSecret for an existing payment — used on reload, tab restore, deep-link)
 - `parseWebhook(Request)` → `WebhookPayload` (validated, parsed status)
 - `refund(Payment, ?amount)` → void (full or partial)
 - `identifier()` → string (e.g. `stripe`)
@@ -100,6 +101,10 @@ Profile resolution flow:
 1. If profileable has an existing profile for this gateway → use its `gateway_customer_id`
 2. If no profile and gateway implements `ManagesCustomers` and customerData provided → call `createCustomer()`, store new `PaymentProfile`
 3. Pass `gateway_customer_id` (if any) to `createSession()`
+
+### RetrievePaymentSession
+
+Asks the payment's gateway for its current `PaymentSession` (clientSecret / redirectUrl). Used when re-rendering a payment page on reload, tab restore, or deep-link — no new gateway session is created. Does not modify the Payment record.
 
 ### HandlePaymentWebhook
 
