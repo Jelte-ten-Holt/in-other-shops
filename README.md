@@ -1,6 +1,6 @@
 # In Other Shops
 
-Modular e-commerce domain packages for Laravel 12.
+Modular e-commerce domain packages for Laravel 12+.
 
 ## Installation
 
@@ -29,6 +29,7 @@ Each domain under `src/` is a self-contained package with its own service provid
 | **Payment** | Gateway-agnostic payments, refunds, webhooks | Currency |
 | **Commerce** | Cart, Order, Customer lifecycle | Location, Currency, Payment, Shipping |
 | **Storefront** | Read-only API layer for browsable catalog | Currency, Pricing, Taxonomy, Translation, Media, Inventory |
+| **Agent** | MCP Streamable HTTP endpoint for locally-run Claudes (bearer or OAuth 2.1 + DCR) | — |
 | **Navigation** | Configurable menus | Planned |
 | **Option** | Product options/variants | Planned |
 

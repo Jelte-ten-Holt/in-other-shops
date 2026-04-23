@@ -3,6 +3,26 @@
     "description": "Modular e-commerce domain packages for Laravel",
     "license": "MIT",
     "type": "library",
+    "keywords": [
+        "laravel",
+        "ecommerce",
+        "shop",
+        "commerce",
+        "cart",
+        "filament",
+        "modular",
+        "domain-driven"
+    ],
+    "authors": [
+        {
+            "name": "Jelte ten Holt",
+            "email": "inotherwords@gmail.com"
+        }
+    ],
+    "support": {
+        "issues": "https://github.com/Jelte-ten-Holt/in-other-shops/issues",
+        "source": "https://github.com/Jelte-ten-Holt/in-other-shops"
+    },
     "require": {
         "php": "^8.3",
         "laravel/framework": "^12.0 || ^13.0",
@@ -47,6 +67,9 @@
         "test:coverage": "vendor/bin/phpunit --coverage-text"
     },
     "extra": {
+        "branch-alias": {
+            "dev-main": "0.1.x-dev"
+        },
         "laravel": {
             "providers": [
                 "InOtherShops\\Currency\\CurrencyServiceProvider",

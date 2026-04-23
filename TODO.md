@@ -6,6 +6,7 @@ Package-level work, typically surfaced by consuming projects. Completed items ha
 
 ## Open
 
+- [ ] **Publish to Packagist (`v0.1.0`)** — required for in-other-worlds staging deploy (Coolify builder has no sibling path). Tag a `0.1.x-dev` branch alias in `composer.json` so the local path repo still satisfies `^0.1` in consumers during dev. Context: [in-other-worlds/docs/briefs/staging-deployment-brief.md](../in-other-worlds/docs/briefs/staging-deployment-brief.md) §Architectural decisions.
 - [x] **Embed media support in MediaSchema** — `MediaType::Embed` wired into form (URL input + iframe preview for YouTube/Vimeo), `createMedia`, `updateExistingMedia`, and `fillFormData`. Consumers add an `embed` collection to their `media.collections` config.
 - [x] **Pre-order flag on order lines** — `is_pre_order` boolean (default false) added to `order_lines` migration, cast on OrderLine, docblock on `HasOrders::toOrderLineData()` return shape.
 - [x] **Missing factories** — CartItem, CustomerGroup, Translation, WebhookEvent, PaymentProfile, Mediable now ship factories. `HasFactory` + `newFactory()` added to each model.
