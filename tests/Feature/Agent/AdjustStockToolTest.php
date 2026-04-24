@@ -28,6 +28,13 @@ final class AdjustStockToolTest extends TestCase
         ]);
     }
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        request()->attributes->set('agent.is_admin', true);
+    }
+
     #[Test]
     public function it_adds_stock_and_returns_movement_detail(): void
     {
@@ -160,5 +167,24 @@ final class AdjustStockToolTest extends TestCase
             'slug' => 'whatever',
             'delta' => 1,
         ]);
+    }
+
+    #[Test]
+    public function non_admin_caller_is_forbidden(): void
+    {
+        TestBrowsable::factory()->create(['slug' => 'thing']);
+
+        request()->attributes->set('agent.is_admin', false);
+
+        $result = app(AdjustStock::class)([
+            'type' => 'browsable',
+            'slug' => 'thing',
+            'delta' => 1,
+        ]);
+
+        $this->assertFalse($result['ok']);
+        $this->assertSame('forbidden', $result['error']['code']);
+        $this->assertSame(['type' => 'browsable', 'slug' => 'thing'], $result['target']);
+        $this->assertSame(0, StockMovement::query()->count());
     }
 }

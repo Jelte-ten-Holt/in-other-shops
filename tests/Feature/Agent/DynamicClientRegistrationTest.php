@@ -167,4 +167,69 @@ final class DynamicClientRegistrationTest extends TestCase
                 'error' => 'invalid_client_metadata',
             ]);
     }
+
+    #[Test]
+    public function it_rejects_registration_without_the_initial_access_token_when_one_is_required(): void
+    {
+        config()->set('agent.auth.oauth.dcr.initial_access_token', 'iat-secret');
+
+        $this->postJson('/oauth/register', [
+            'client_name' => 'Unauthorized caller',
+            'redirect_uris' => ['https://claude.ai/callback'],
+        ])->assertStatus(401)
+            ->assertJson(['error' => 'invalid_token'])
+            ->assertHeader('WWW-Authenticate', 'Bearer');
+
+        $this->assertSame(0, Client::query()->count());
+    }
+
+    #[Test]
+    public function it_rejects_registration_when_the_initial_access_token_does_not_match(): void
+    {
+        config()->set('agent.auth.oauth.dcr.initial_access_token', 'iat-secret');
+
+        $this->postJson('/oauth/register', [
+            'client_name' => 'Wrong token',
+            'redirect_uris' => ['https://claude.ai/callback'],
+        ], [
+            'Authorization' => 'Bearer not-the-real-token',
+        ])->assertStatus(401)
+            ->assertJson(['error' => 'invalid_token']);
+
+        $this->assertSame(0, Client::query()->count());
+    }
+
+    #[Test]
+    public function it_registers_when_the_initial_access_token_matches(): void
+    {
+        config()->set('agent.auth.oauth.dcr.initial_access_token', 'iat-secret');
+
+        $this->postJson('/oauth/register', [
+            'client_name' => 'Authorized caller',
+            'redirect_uris' => ['https://claude.ai/callback'],
+        ], [
+            'Authorization' => 'Bearer iat-secret',
+        ])->assertStatus(201);
+
+        $this->assertSame(1, Client::query()->count());
+    }
+
+    #[Test]
+    public function it_rejects_registration_when_the_client_cap_is_reached(): void
+    {
+        config()->set('agent.auth.oauth.dcr.max_clients', 1);
+
+        $this->postJson('/oauth/register', [
+            'client_name' => 'First',
+            'redirect_uris' => ['https://claude.ai/callback'],
+        ])->assertStatus(201);
+
+        $this->postJson('/oauth/register', [
+            'client_name' => 'Second',
+            'redirect_uris' => ['https://claude.ai/callback'],
+        ])->assertStatus(429)
+            ->assertJson(['error' => 'too_many_clients']);
+
+        $this->assertSame(1, Client::query()->count());
+    }
 }

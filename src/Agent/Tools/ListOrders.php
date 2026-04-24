@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace InOtherShops\Agent\Tools;
 
 use InOtherShops\Agent\AgentTool;
+use InOtherShops\Agent\Support\ResolveCallerCustomerId;
 use InOtherShops\Commerce\Commerce;
 use InOtherShops\Commerce\Order\Enums\OrderStatus;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use InvalidArgumentException;
 
@@ -71,6 +73,7 @@ final class ListOrders extends AgentTool
             ->withCount('lines')
             ->orderByDesc('created_at');
 
+        $this->scopeToCaller($query);
         $this->applyStatusFilter($query, $arguments);
         $this->applyDateRange($query, $arguments);
 
@@ -89,6 +92,23 @@ final class ListOrders extends AgentTool
                 'total' => $paginator->total(),
             ],
         ];
+    }
+
+    private function scopeToCaller(Builder $query): void
+    {
+        if ($this->isAdmin()) {
+            return;
+        }
+
+        $customerId = (new ResolveCallerCustomerId)($this->currentUser());
+
+        if ($customerId === null) {
+            $query->whereRaw('1 = 0');
+
+            return;
+        }
+
+        $query->where('customer_id', $customerId);
     }
 
     /** @param array<string, mixed> $arguments */

@@ -5,8 +5,11 @@ declare(strict_types=1);
 namespace InOtherShops\Tests\Feature\Agent;
 
 use InOtherShops\Agent\Tools\ListOrders;
+use InOtherShops\Commerce\Commerce;
+use InOtherShops\Commerce\Customer\Contracts\HasCustomer;
 use InOtherShops\Commerce\Order\Enums\OrderStatus;
 use InOtherShops\Commerce\Order\Models\Order;
+use InOtherShops\Tests\Support\AgentTestUser;
 use InOtherShops\Tests\TestCase;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use InvalidArgumentException;
@@ -15,6 +18,13 @@ use PHPUnit\Framework\Attributes\Test;
 final class ListOrdersToolTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        request()->attributes->set('agent.is_admin', true);
+    }
 
     #[Test]
     public function it_returns_orders_paginated_newest_first(): void
@@ -81,5 +91,40 @@ final class ListOrdersToolTest extends TestCase
         $this->expectException(InvalidArgumentException::class);
 
         app(ListOrders::class)(['status' => 'not-a-status']);
+    }
+
+    #[Test]
+    public function non_admin_with_customer_sees_only_their_own_orders(): void
+    {
+        $alice = Commerce::customer()::factory()->create();
+        $bob = Commerce::customer()::factory()->create();
+
+        $aliceOrder = Order::factory()->create(['customer_id' => $alice->id]);
+        Order::factory()->create(['customer_id' => $bob->id]);
+        Order::factory()->create(['customer_id' => null]);
+
+        request()->attributes->set('agent.is_admin', false);
+        request()->attributes->set('agent.user', new AgentTestUser($alice));
+
+        $result = app(ListOrders::class)([]);
+
+        $this->assertTrue($result['ok']);
+        $this->assertCount(1, $result['data']);
+        $this->assertSame($aliceOrder->id, $result['data'][0]['id']);
+    }
+
+    #[Test]
+    public function non_admin_without_customer_sees_no_orders(): void
+    {
+        Order::factory()->count(3)->create();
+
+        request()->attributes->set('agent.is_admin', false);
+        request()->attributes->set('agent.user', null);
+
+        $result = app(ListOrders::class)([]);
+
+        $this->assertTrue($result['ok']);
+        $this->assertSame([], $result['data']);
+        $this->assertSame(0, $result['meta']['total']);
     }
 }

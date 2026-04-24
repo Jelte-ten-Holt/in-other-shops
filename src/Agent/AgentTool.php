@@ -75,6 +75,30 @@ abstract class AgentTool implements AgentToolContract, ToolInterface
         return $arguments;
     }
 
+    /**
+     * The user resolved by AuthenticateAgent, or null when the request was
+     * authenticated via the static bearer (no user context) or when the
+     * tool is invoked outside the /mcp middleware (in-process callers).
+     * Returned as `?object` so consumer tests and duck-typed callers can
+     * stamp any user-shaped value without depending on Authenticatable.
+     */
+    protected function currentUser(): ?object
+    {
+        $user = request()?->attributes->get('agent.user');
+
+        return is_object($user) ? $user : null;
+    }
+
+    /**
+     * True when the current caller holds the admin scope or the static
+     * bearer. Fails closed when the middleware hasn't stamped anything —
+     * in-process callers must opt-in by stamping `agent.is_admin` themselves.
+     */
+    protected function isAdmin(): bool
+    {
+        return (bool) request()?->attributes->get('agent.is_admin', false);
+    }
+
     private function elapsedMs(int $startHrtime): float
     {
         return (hrtime(true) - $startHrtime) / 1_000_000;

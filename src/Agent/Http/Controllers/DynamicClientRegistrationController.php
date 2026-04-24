@@ -35,6 +35,21 @@ final class DynamicClientRegistrationController
 
     public function __invoke(Request $request): JsonResponse
     {
+        if (! $this->hasValidInitialAccessToken($request)) {
+            return response()->json(
+                $this->error('invalid_token', 'Initial access token is required.'),
+                401,
+                ['WWW-Authenticate' => 'Bearer'],
+            );
+        }
+
+        if ($this->clientCapReached()) {
+            return response()->json(
+                $this->error('too_many_clients', 'The maximum number of dynamically-registered clients has been reached.'),
+                429,
+            );
+        }
+
         $validated = $this->validateRegistration($request);
 
         if (isset($validated['error'])) {
@@ -58,6 +73,36 @@ final class DynamicClientRegistrationController
             $this->registrationResponse($client, $validated),
             201,
         );
+    }
+
+    /**
+     * When `agent.auth.oauth.dcr.initial_access_token` is set, RFC 7591 §3
+     * authenticated registration is enforced. Empty config = open
+     * registration (backwards-compatible default). A non-empty expected
+     * value is compared in constant time.
+     */
+    private function hasValidInitialAccessToken(Request $request): bool
+    {
+        $expected = (string) config('agent.auth.oauth.dcr.initial_access_token', '');
+
+        if ($expected === '') {
+            return true;
+        }
+
+        $presented = (string) $request->bearerToken();
+
+        return $presented !== '' && hash_equals($expected, $presented);
+    }
+
+    private function clientCapReached(): bool
+    {
+        $cap = (int) config('agent.auth.oauth.dcr.max_clients', 0);
+
+        if ($cap <= 0) {
+            return false;
+        }
+
+        return Client::query()->count() >= $cap;
     }
 
     /**

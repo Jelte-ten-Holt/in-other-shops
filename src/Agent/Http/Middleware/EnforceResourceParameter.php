@@ -17,10 +17,13 @@ use Symfony\Component\HttpFoundation\Response;
  * server a token is destined for. We accept only the canonical URL of
  * this consumer's /mcp endpoint; anything else is `invalid_target`.
  *
- * Absent `resource` is tolerated — clients that pre-date RFC 8707, or
- * single-resource setups that don't need it, still work. Tokens issued
- * without `resource` are implicitly bound to this AS because the AS is
- * in-process with exactly one protected resource.
+ * Tolerance for missing `resource` is controlled by
+ * `agent.auth.oauth.require_resource`:
+ *   - false (default): absent `resource` is accepted. Single-resource AS
+ *     shortcut — tokens issued without `resource` are implicitly bound
+ *     to this AS because it has exactly one protected resource.
+ *   - true: absent `resource` is rejected as `invalid_target`. Production
+ *     setups with more than one MCP endpoint should flip this on.
  */
 final class EnforceResourceParameter
 {
@@ -31,24 +34,32 @@ final class EnforceResourceParameter
         }
 
         $resource = $request->input('resource');
+        $expected = CanonicalUrl::resource();
 
         if ($resource === null || $resource === '') {
+            if ((bool) config('agent.auth.oauth.require_resource', false)) {
+                return $this->invalidTarget($expected);
+            }
+
             return $next($request);
         }
-
-        $expected = CanonicalUrl::resource();
 
         $candidates = is_array($resource) ? $resource : [$resource];
 
         foreach ($candidates as $candidate) {
             if (! is_string($candidate) || rtrim($candidate, '/') !== $expected) {
-                return response()->json([
-                    'error' => 'invalid_target',
-                    'error_description' => "The requested resource is not served by this authorization server. Expected: {$expected}.",
-                ], 400);
+                return $this->invalidTarget($expected);
             }
         }
 
         return $next($request);
+    }
+
+    private function invalidTarget(string $expected): Response
+    {
+        return response()->json([
+            'error' => 'invalid_target',
+            'error_description' => "The requested resource is not served by this authorization server. Expected: {$expected}.",
+        ], 400);
     }
 }

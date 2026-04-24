@@ -81,6 +81,19 @@ final class AdjustStock extends AgentTool
     {
         $type = (string) ($arguments['type'] ?? '');
         $slug = (string) ($arguments['slug'] ?? '');
+        $target = ['type' => $type, 'slug' => $slug];
+
+        if (! $this->isAdmin()) {
+            return [
+                'ok' => false,
+                'target' => $target,
+                'error' => [
+                    'code' => 'forbidden',
+                    'message' => 'adjust_stock requires the admin scope or the operator bearer token.',
+                ],
+            ];
+        }
+
         $delta = (int) ($arguments['delta'] ?? 0);
         $reason = $this->resolveReason($arguments['reason'] ?? null);
         $description = $this->resolveDescription($arguments['description'] ?? null);
@@ -88,8 +101,6 @@ final class AdjustStock extends AgentTool
         $this->guardDelta($delta);
 
         $modelClass = $this->resolveStockableClass($type);
-
-        $target = ['type' => $type, 'slug' => $slug];
 
         $model = $modelClass::browseQuery()
             ->where((new $modelClass)->getBrowsableRouteKeyName(), $slug)

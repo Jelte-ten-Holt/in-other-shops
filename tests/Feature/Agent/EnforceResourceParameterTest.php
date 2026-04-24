@@ -75,4 +75,23 @@ final class EnforceResourceParameterTest extends TestCase
         $this->postJson('/test/resource-echo', ['resource' => 'https://evil.example.test/mcp'])
             ->assertStatus(200);
     }
+
+    #[Test]
+    public function it_rejects_a_missing_resource_when_require_resource_is_on(): void
+    {
+        config()->set('agent.auth.oauth.require_resource', true);
+
+        $this->postJson('/test/resource-echo', [])
+            ->assertStatus(400)
+            ->assertJson(['error' => 'invalid_target']);
+    }
+
+    #[Test]
+    public function it_still_allows_the_exact_resource_when_require_resource_is_on(): void
+    {
+        config()->set('agent.auth.oauth.require_resource', true);
+
+        $this->postJson('/test/resource-echo', ['resource' => 'https://agent.example.test/mcp'])
+            ->assertStatus(200);
+    }
 }

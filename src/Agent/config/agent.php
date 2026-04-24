@@ -102,15 +102,36 @@ return [
         'oauth' => [
             'enabled' => (bool) env('AGENT_OAUTH_ENABLED', false),
 
-            // Scope required on every access token. Single scope is
-            // deliberate — per-tool permissions are out of scope for v1.
+            // Base scope granted to every access token that reaches /mcp.
+            // Customer-scoped tools (ListOrders, ShowOrder) filter by the
+            // authenticated user's customer. The static bearer bypasses
+            // scope checks entirely — it's the operator credential.
             'scope' => env('AGENT_OAUTH_SCOPE', 'agent'),
+
+            // Elevated scope that unlocks admin-only tools (AdjustStock)
+            // and un-scoped reads. Not grantable via DCR — provision
+            // admin clients through Passport directly. Set to null to
+            // disable admin OAuth entirely; admin stays reachable via
+            // the static bearer in that case.
+            'admin_scope' => env('AGENT_OAUTH_ADMIN_SCOPE', 'agent.admin'),
+
+            // Reject OAuth requests that omit the RFC 8707 `resource`
+            // parameter. Off by default to preserve the "single-resource
+            // AS" shortcut; turn on in production once every known client
+            // has been upgraded to send it.
+            'require_resource' => (bool) env('AGENT_OAUTH_REQUIRE_RESOURCE', false),
 
             // RFC 7591 Dynamic Client Registration endpoint. `rate_limit` is
             // "requests,minutes" — clients registering too fast get a 429.
+            // `initial_access_token`, when non-empty, flips DCR from open
+            // to authenticated — callers must present the matching bearer.
+            // `max_clients` caps the total number of DCR-registered clients
+            // to bound table growth; registrations 429 once the cap is hit.
             'dcr' => [
                 'enabled' => (bool) env('AGENT_DCR_ENABLED', true),
                 'rate_limit' => env('AGENT_DCR_RATE_LIMIT', '5,1'),
+                'initial_access_token' => env('AGENT_DCR_INITIAL_ACCESS_TOKEN'),
+                'max_clients' => (int) env('AGENT_DCR_MAX_CLIENTS', 50),
             ],
         ],
 

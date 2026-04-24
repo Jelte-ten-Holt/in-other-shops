@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace InOtherShops\Agent\Tools;
 
 use InOtherShops\Agent\AgentTool;
+use InOtherShops\Agent\Support\ResolveCallerCustomerId;
 use InOtherShops\Commerce\Commerce;
 use Illuminate\Database\Eloquent\Model;
 
@@ -44,14 +45,13 @@ final class ShowOrder extends AgentTool
     public function __invoke(array $arguments): array
     {
         $id = (int) ($arguments['id'] ?? 0);
+        $target = ['id' => $id];
 
         $order = Commerce::order()::query()
             ->with(['lines', 'payments'])
             ->find($id);
 
-        $target = ['id' => $id];
-
-        if ($order === null) {
+        if ($order === null || ! $this->callerCanSee($order)) {
             return [
                 'ok' => false,
                 'target' => $target,
@@ -67,6 +67,18 @@ final class ShowOrder extends AgentTool
             'target' => $target,
             'data' => $this->shapeOrder($order),
         ];
+    }
+
+    private function callerCanSee(Model $order): bool
+    {
+        if ($this->isAdmin()) {
+            return true;
+        }
+
+        $customerId = (new ResolveCallerCustomerId)($this->currentUser());
+
+        return $customerId !== null
+            && (int) $order->getAttribute('customer_id') === (int) $customerId;
     }
 
     private function shapeOrder(Model $order): array
