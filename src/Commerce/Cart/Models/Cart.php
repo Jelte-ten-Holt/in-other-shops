@@ -7,6 +7,7 @@ namespace InOtherShops\Commerce\Cart\Models;
 use InOtherShops\Commerce\Commerce;
 use InOtherShops\Commerce\Database\Factories\CartFactory;
 use InOtherShops\Currency\Enums\Currency;
+use InOtherShops\Shipping\Contracts\HasShippability;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -40,5 +41,18 @@ class Cart extends Model
     public function items(): HasMany
     {
         return $this->hasMany(Commerce::cartItem());
+    }
+
+    public function requiresShipping(): bool
+    {
+        $this->loadMissing('items.cartable');
+
+        return $this->items->contains(function (CartItem $item): bool {
+            $cartable = $item->cartable;
+
+            return $cartable instanceof HasShippability
+                ? $cartable->requiresShipping()
+                : true;
+        });
     }
 }

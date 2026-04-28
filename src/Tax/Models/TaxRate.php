@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use InOtherShops\Tax\Database\Factories\TaxRateFactory;
+use InOtherShops\Tax\Enums\TaxCategory;
 
 class TaxRate extends Model
 {
@@ -25,6 +26,7 @@ class TaxRate extends Model
         return [
             'rate_bps' => 'integer',
             'is_default' => 'boolean',
+            'tax_category' => TaxCategory::class,
         ];
     }
 }

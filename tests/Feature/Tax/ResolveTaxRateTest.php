@@ -7,6 +7,7 @@ namespace InOtherShops\Tests\Feature\Tax;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use InOtherShops\Location\Models\Address;
 use InOtherShops\Tax\Actions\ResolveTaxRate;
+use InOtherShops\Tax\Enums\TaxCategory;
 use InOtherShops\Tax\Models\TaxRate;
 use InOtherShops\Tests\TestCase;
 use PHPUnit\Framework\Attributes\Test;
@@ -88,6 +89,56 @@ final class ResolveTaxRateTest extends TestCase
         $address = $this->makeAddress('US');
 
         $this->assertNull(($this->resolve)($address));
+    }
+
+    #[Test]
+    public function it_prefers_category_specific_row_over_general_row(): void
+    {
+        TaxRate::factory()->forCountry('DE', 1900, 'Germany VAT 19%')->create();
+        TaxRate::factory()
+            ->forCountry('DE', 700, 'Germany VAT 7% — books')
+            ->forCategory(TaxCategory::DigitalServices)
+            ->create();
+
+        $address = $this->makeAddress('DE');
+
+        $rate = ($this->resolve)($address, TaxCategory::DigitalServices);
+
+        $this->assertNotNull($rate);
+        $this->assertSame(700, $rate->rate_bps);
+        $this->assertSame(TaxCategory::DigitalServices, $rate->tax_category);
+    }
+
+    #[Test]
+    public function it_falls_back_to_general_row_when_category_has_no_specific_match(): void
+    {
+        TaxRate::factory()->forCountry('DE', 1900, 'Germany VAT 19%')->create();
+
+        $address = $this->makeAddress('DE');
+
+        $rate = ($this->resolve)($address, TaxCategory::DigitalServices);
+
+        $this->assertNotNull($rate);
+        $this->assertSame(1900, $rate->rate_bps);
+        $this->assertNull($rate->tax_category);
+    }
+
+    #[Test]
+    public function null_category_arg_returns_general_row_only(): void
+    {
+        TaxRate::factory()->forCountry('DE', 1900)->create();
+        TaxRate::factory()
+            ->forCountry('DE', 700)
+            ->forCategory(TaxCategory::DigitalServices)
+            ->create();
+
+        $address = $this->makeAddress('DE');
+
+        $rate = ($this->resolve)($address);
+
+        $this->assertNotNull($rate);
+        $this->assertSame(1900, $rate->rate_bps);
+        $this->assertNull($rate->tax_category);
     }
 
     private function makeAddress(string $countryCode): Address

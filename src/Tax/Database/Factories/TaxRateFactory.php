@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace InOtherShops\Tax\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
+use InOtherShops\Tax\Enums\TaxCategory;
 use InOtherShops\Tax\Models\TaxRate;
 use InOtherShops\Tax\Tax;
 
@@ -22,6 +23,7 @@ final class TaxRateFactory extends Factory
     {
         return [
             'country_code' => 'NL',
+            'tax_category' => null,
             'rate_bps' => 2100,
             'name' => 'Netherlands VAT 21%',
             'is_default' => false,
@@ -40,5 +42,10 @@ final class TaxRateFactory extends Factory
             'rate_bps' => $rateBps,
             'name' => $name ?? "{$code} rate",
         ]);
+    }
+
+    public function forCategory(TaxCategory $category): self
+    {
+        return $this->state(['tax_category' => $category->value]);
     }
 }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace InOtherShops\Tax\Filament\Resources;
 
 use Filament\Actions;
+use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Resources\Resource;
@@ -12,6 +13,7 @@ use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
+use InOtherShops\Tax\Enums\TaxCategory;
 use InOtherShops\Tax\Filament\Resources\TaxRateResource\Pages;
 use InOtherShops\Tax\Models\TaxRate;
 
@@ -39,6 +41,11 @@ final class TaxRateResource extends Resource
                             ->minLength(2)
                             ->maxLength(2)
                             ->helperText('Two-letter uppercase code, e.g. NL, DE, FR.'),
+                        Select::make('tax_category')
+                            ->label('Tax category')
+                            ->options(collect(TaxCategory::cases())->mapWithKeys(fn (TaxCategory $c) => [$c->value => $c->value])->all())
+                            ->placeholder('General — applies to any category')
+                            ->helperText('Leave blank for the country\'s general rate. Pick a category to override that rate for specific product types.'),
                         TextInput::make('rate_bps')
                             ->label('Rate (basis points)')
                             ->numeric()
@@ -59,6 +66,10 @@ final class TaxRateResource extends Resource
             ->columns([
                 Tables\Columns\TextColumn::make('name')->searchable()->sortable(),
                 Tables\Columns\TextColumn::make('country_code')->label('Country')->sortable(),
+                Tables\Columns\TextColumn::make('tax_category')
+                    ->label('Category')
+                    ->placeholder('General')
+                    ->sortable(),
                 Tables\Columns\TextColumn::make('rate_bps')
                     ->label('Rate')
                     ->formatStateUsing(fn (int $state): string => number_format($state / 100, 2).'%')

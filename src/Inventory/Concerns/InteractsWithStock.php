@@ -37,6 +37,15 @@ trait InteractsWithStock
 
     public function isInStock(): bool
     {
+        if (! $this->tracksStock()) {
+            return true;
+        }
+
         return $this->stockLevel() > 0;
+    }
+
+    public function tracksStock(): bool
+    {
+        return true;
     }
 }

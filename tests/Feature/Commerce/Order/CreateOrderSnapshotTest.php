@@ -13,7 +13,9 @@ use InOtherShops\Commerce\Order\DTOs\TaxSnapshot;
 use InOtherShops\Currency\Enums\Currency;
 use InOtherShops\Pricing\Actions\ApplyVoucher;
 use InOtherShops\Pricing\DTOs\PriceBreakdown;
+use InOtherShops\Tax\Enums\TaxCategory;
 use InOtherShops\Tests\Stubs\TestCartable;
+use InOtherShops\Tests\Stubs\TestShippableCartable;
 use InOtherShops\Tests\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 
@@ -89,6 +91,99 @@ final class CreateOrderSnapshotTest extends TestCase
         $this->assertNull($order->shipping_method_identifier);
         $this->assertSame(0, $order->shipping_cost);
         $this->assertNull($order->shipping_cost_currency);
+    }
+
+    #[Test]
+    public function it_snapshots_tax_category_and_rate_per_line(): void
+    {
+        $cart = Cart::factory()->create(['session_token' => 'test-session']);
+        ($this->addToCart)($cart, TestShippableCartable::factory()->create([
+            'tax_category' => TaxCategory::DigitalServices->value,
+        ]));
+        ($this->addToCart)($cart, TestCartable::factory()->create());
+
+        $breakdown = new PriceBreakdown(
+            subtotal: 3000,
+            discount: 0,
+            tax: 570,
+            shippingCost: 0,
+            total: 3570,
+            currency: Currency::EUR,
+            lines: [],
+        );
+
+        $order = ($this->createOrder)(
+            cart: $cart,
+            breakdown: $breakdown,
+            billingAddress: $this->billingAddress(),
+            taxSnapshot: new TaxSnapshot(rateBps: 1900, countryCode: 'DE'),
+        );
+
+        $lines = $order->lines()->get();
+
+        $this->assertCount(2, $lines);
+        $categories = $lines->map(fn ($l) => $l->tax_category)->all();
+        $this->assertContains(TaxCategory::DigitalServices, $categories);
+        $this->assertContains(TaxCategory::PhysicalGoods, $categories);
+        $this->assertSame([1900, 1900], $lines->pluck('tax_rate_bps')->all());
+    }
+
+    #[Test]
+    public function line_tax_amounts_sum_to_order_tax(): void
+    {
+        $cart = Cart::factory()->create(['session_token' => 'test-session']);
+        ($this->addToCart)($cart, TestCartable::factory()->create(), quantity: 1);
+        ($this->addToCart)($cart, TestCartable::factory()->create(), quantity: 2);
+        ($this->addToCart)($cart, TestCartable::factory()->create(), quantity: 3);
+
+        $breakdown = new PriceBreakdown(
+            subtotal: 9000,
+            discount: 0,
+            tax: 1710,
+            shippingCost: 0,
+            total: 10710,
+            currency: Currency::EUR,
+            lines: [],
+        );
+
+        $order = ($this->createOrder)(
+            cart: $cart,
+            breakdown: $breakdown,
+            billingAddress: $this->billingAddress(),
+            taxSnapshot: new TaxSnapshot(rateBps: 1900, countryCode: 'DE'),
+        );
+
+        $sum = (int) $order->lines()->sum('tax_amount');
+
+        $this->assertSame(1710, $sum);
+        $this->assertSame($order->tax, $sum);
+    }
+
+    #[Test]
+    public function default_category_is_physical_goods_when_cartable_does_not_implement_contract(): void
+    {
+        $cart = $this->cartWithItem();
+
+        $breakdown = new PriceBreakdown(
+            subtotal: 1500,
+            discount: 0,
+            tax: 285,
+            shippingCost: 0,
+            total: 1785,
+            currency: Currency::EUR,
+            lines: [],
+        );
+
+        $order = ($this->createOrder)(
+            cart: $cart,
+            breakdown: $breakdown,
+            billingAddress: $this->billingAddress(),
+            taxSnapshot: new TaxSnapshot(rateBps: 1900, countryCode: 'DE'),
+        );
+
+        $line = $order->lines()->first();
+
+        $this->assertSame(TaxCategory::PhysicalGoods, $line->tax_category);
     }
 
     private function cartWithItem(): Cart

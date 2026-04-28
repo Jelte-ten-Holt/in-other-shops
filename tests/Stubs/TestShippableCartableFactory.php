@@ -7,17 +7,17 @@ namespace InOtherShops\Tests\Stubs;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
- * @extends Factory<TestStockable>
+ * @extends Factory<TestShippableCartable>
  */
-final class TestStockableFactory extends Factory
+final class TestShippableCartableFactory extends Factory
 {
-    protected $model = TestStockable::class;
+    protected $model = TestShippableCartable::class;
 
     public function definition(): array
     {
         return [
             'name' => fake()->word(),
-            'tracks_stock' => true,
+            'description' => fake()->sentence(),
         ];
     }
 }

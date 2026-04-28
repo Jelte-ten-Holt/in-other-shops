@@ -7,6 +7,7 @@ namespace InOtherShops\Commerce\Order\Models;
 use InOtherShops\Commerce\Commerce;
 use InOtherShops\Commerce\Database\Factories\OrderLineFactory;
 use InOtherShops\Currency\Enums\Currency;
+use InOtherShops\Tax\Enums\TaxCategory;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -32,6 +33,9 @@ class OrderLine extends Model
             'quantity' => 'integer',
             'line_total' => 'integer',
             'is_pre_order' => 'boolean',
+            'tax_category' => TaxCategory::class,
+            'tax_rate_bps' => 'integer',
+            'tax_amount' => 'integer',
         ];
     }
 

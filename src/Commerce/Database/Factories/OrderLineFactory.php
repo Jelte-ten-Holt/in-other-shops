@@ -7,6 +7,7 @@ namespace InOtherShops\Commerce\Database\Factories;
 use InOtherShops\Commerce\Commerce;
 use InOtherShops\Commerce\Order\Models\OrderLine;
 use InOtherShops\Currency\Enums\Currency;
+use InOtherShops\Tax\Enums\TaxCategory;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -31,6 +32,9 @@ final class OrderLineFactory extends Factory
             'unit_price' => $unit,
             'quantity' => $qty,
             'line_total' => $unit * $qty,
+            'tax_category' => TaxCategory::PhysicalGoods->value,
+            'tax_rate_bps' => null,
+            'tax_amount' => 0,
         ];
     }
 }

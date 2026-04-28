@@ -24,4 +24,12 @@ interface HasStock
     public function stockLevel(): int;
 
     public function isInStock(): bool;
+
+    /**
+     * Whether stock movements should affect this model. Untracked items
+     * (e.g. digital products with unlimited supply) return false; callers
+     * skip reservation/decrement and `isInStock()` returns true regardless
+     * of `stockLevel()`.
+     */
+    public function tracksStock(): bool;
 }

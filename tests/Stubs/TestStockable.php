@@ -24,8 +24,15 @@ final class TestStockable extends Model implements HasStock
         return new TestStockableFactory;
     }
 
+    public function tracksStock(): bool
+    {
+        return (bool) $this->tracks_stock;
+    }
+
     protected function casts(): array
     {
-        return [];
+        return [
+            'tracks_stock' => 'boolean',
+        ];
     }
 }
