@@ -4,11 +4,16 @@ declare(strict_types=1);
 
 namespace InOtherShops\Commerce\Cart\Actions;
 
+use InOtherShops\Commerce\Cart\Contracts\HasCart;
 use InOtherShops\Commerce\Cart\Events\CartUpdated;
 use InOtherShops\Commerce\Cart\Models\CartItem;
 
 final class UpdateCartItemQuantity
 {
+    public function __construct(
+        private readonly EnsureCartableInStock $ensureCartableInStock,
+    ) {}
+
     /**
      * Set the quantity of a cart item. Removes the item if quantity is zero or less.
      *
@@ -18,6 +23,11 @@ final class UpdateCartItemQuantity
     {
         if ($quantity <= 0) {
             return $this->removeItem($item);
+        }
+
+        $cartable = $item->cartable;
+        if ($cartable instanceof HasCart) {
+            ($this->ensureCartableInStock)($cartable, $quantity);
         }
 
         return $this->updateQuantity($item, $quantity);

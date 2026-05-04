@@ -48,4 +48,9 @@ trait InteractsWithStock
     {
         return true;
     }
+
+    public function allowsBackorder(): bool
+    {
+        return (bool) ($this->allow_backorder ?? false);
+    }
 }

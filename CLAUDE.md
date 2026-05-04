@@ -28,7 +28,7 @@ FlowChain ────── (independent)
 Pricing ──────── depends on Currency
 Taxonomy ─────── depends on Translation
 Payment ──────── depends on Currency
-Commerce ─────── depends on Location, Currency, Payment, Shipping
+Commerce ─────── depends on Location, Currency, Payment, Shipping; soft-deps on Inventory (cart stock guard, opt-in via HasStock)
 Storefront ───── depends on Currency, Pricing, Taxonomy, Translation, Media, Inventory
 ```
 

@@ -32,7 +32,7 @@ final class CreateOrderSnapshotTest extends TestCase
         parent::setUp();
 
         $this->createOrder = new CreateOrder($this->app, new ApplyVoucher);
-        $this->addToCart = new AddToCart;
+        $this->addToCart = app(\InOtherShops\Commerce\Cart\Actions\AddToCart::class);
     }
 
     #[Test]

@@ -13,26 +13,38 @@ use Illuminate\Database\Eloquent\Model;
 
 final class AddToCart
 {
+    public function __construct(
+        private readonly EnsureCartableInStock $ensureCartableInStock,
+    ) {}
+
     public function __invoke(Cart $cart, HasCart&Model $cartable, int $quantity = 1): CartItem
     {
-        $item = $this->findOrCreateItem($cart, $cartable, $quantity);
+        $existing = $this->existingItem($cart, $cartable);
+        $runningQuantity = ($existing?->quantity ?? 0) + $quantity;
+
+        ($this->ensureCartableInStock)($cartable, $runningQuantity);
+
+        $item = $this->findOrCreateItem($cart, $cartable, $quantity, $existing);
 
         CartUpdated::dispatch($cart);
 
         return $item;
     }
 
-    private function findOrCreateItem(Cart $cart, HasCart&Model $cartable, int $quantity): CartItem
+    private function existingItem(Cart $cart, HasCart&Model $cartable): ?CartItem
     {
-        $item = $cart->items()
+        return $cart->items()
             ->where('cartable_type', $cartable->getMorphClass())
             ->where('cartable_id', $cartable->getKey())
             ->first();
+    }
 
-        if ($item !== null) {
-            $item->increment('quantity', $quantity);
+    private function findOrCreateItem(Cart $cart, HasCart&Model $cartable, int $quantity, ?CartItem $existing): CartItem
+    {
+        if ($existing !== null) {
+            $existing->increment('quantity', $quantity);
 
-            return $item->refresh();
+            return $existing->refresh();
         }
 
         $currency = $this->resolveCurrency($cart);

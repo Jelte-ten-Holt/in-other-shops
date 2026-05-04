@@ -25,7 +25,7 @@ final class AddToCartTest extends TestCase
     {
         parent::setUp();
 
-        $this->addToCart = new AddToCart;
+        $this->addToCart = app(\InOtherShops\Commerce\Cart\Actions\AddToCart::class);
     }
 
     #[Test]

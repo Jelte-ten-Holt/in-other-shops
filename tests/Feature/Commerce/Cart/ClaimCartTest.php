@@ -29,7 +29,7 @@ final class ClaimCartTest extends TestCase
         parent::setUp();
 
         $this->claimCart = new ClaimCart;
-        $this->addToCart = new AddToCart;
+        $this->addToCart = app(\InOtherShops\Commerce\Cart\Actions\AddToCart::class);
     }
 
     #[Test]

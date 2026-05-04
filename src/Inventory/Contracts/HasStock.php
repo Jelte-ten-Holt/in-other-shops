@@ -32,4 +32,11 @@ interface HasStock
      * of `stockLevel()`.
      */
     public function tracksStock(): bool;
+
+    /**
+     * Whether the consuming project allows this stockable to be sold past
+     * its current stock level. The Cart and Reservation actions consult
+     * this to decide whether to reject an oversell. Default: false.
+     */
+    public function allowsBackorder(): bool;
 }

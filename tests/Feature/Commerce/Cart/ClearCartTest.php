@@ -23,8 +23,8 @@ final class ClearCartTest extends TestCase
     public function it_removes_all_items(): void
     {
         $cart = Cart::factory()->create(['currency' => Currency::EUR->value]);
-        (new AddToCart)($cart, TestCartable::factory()->create());
-        (new AddToCart)($cart, TestCartable::factory()->create());
+        (app(\InOtherShops\Commerce\Cart\Actions\AddToCart::class))($cart, TestCartable::factory()->create());
+        (app(\InOtherShops\Commerce\Cart\Actions\AddToCart::class))($cart, TestCartable::factory()->create());
 
         $this->assertSame(2, $cart->items()->count());
 
@@ -39,7 +39,7 @@ final class ClearCartTest extends TestCase
         Event::fake([CartCleared::class]);
 
         $cart = Cart::factory()->create(['currency' => Currency::EUR->value]);
-        (new AddToCart)($cart, TestCartable::factory()->create());
+        (app(\InOtherShops\Commerce\Cart\Actions\AddToCart::class))($cart, TestCartable::factory()->create());
 
         (new ClearCart)($cart);
 

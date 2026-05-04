@@ -25,14 +25,14 @@ final class UpdateCartItemQuantityTest extends TestCase
     {
         parent::setUp();
 
-        $this->update = new UpdateCartItemQuantity;
+        $this->update = app(\InOtherShops\Commerce\Cart\Actions\UpdateCartItemQuantity::class);
     }
 
     #[Test]
     public function it_updates_quantity(): void
     {
         $cart = Cart::factory()->create(['currency' => Currency::EUR->value]);
-        $item = (new AddToCart)($cart, TestCartable::factory()->create());
+        $item = (app(\InOtherShops\Commerce\Cart\Actions\AddToCart::class))($cart, TestCartable::factory()->create());
 
         $result = ($this->update)($item, 5);
 
@@ -44,7 +44,7 @@ final class UpdateCartItemQuantityTest extends TestCase
     public function setting_quantity_to_zero_removes_the_item(): void
     {
         $cart = Cart::factory()->create(['currency' => Currency::EUR->value]);
-        $item = (new AddToCart)($cart, TestCartable::factory()->create());
+        $item = (app(\InOtherShops\Commerce\Cart\Actions\AddToCart::class))($cart, TestCartable::factory()->create());
 
         $result = ($this->update)($item, 0);
 
@@ -56,7 +56,7 @@ final class UpdateCartItemQuantityTest extends TestCase
     public function setting_negative_quantity_removes_the_item(): void
     {
         $cart = Cart::factory()->create(['currency' => Currency::EUR->value]);
-        $item = (new AddToCart)($cart, TestCartable::factory()->create());
+        $item = (app(\InOtherShops\Commerce\Cart\Actions\AddToCart::class))($cart, TestCartable::factory()->create());
 
         $result = ($this->update)($item, -1);
 
@@ -68,7 +68,7 @@ final class UpdateCartItemQuantityTest extends TestCase
     public function it_dispatches_cart_updated_on_quantity_change(): void
     {
         $cart = Cart::factory()->create(['currency' => Currency::EUR->value]);
-        $item = (new AddToCart)($cart, TestCartable::factory()->create());
+        $item = (app(\InOtherShops\Commerce\Cart\Actions\AddToCart::class))($cart, TestCartable::factory()->create());
 
         Event::fake([CartUpdated::class]);
 
@@ -81,7 +81,7 @@ final class UpdateCartItemQuantityTest extends TestCase
     public function it_dispatches_cart_updated_on_removal(): void
     {
         $cart = Cart::factory()->create(['currency' => Currency::EUR->value]);
-        $item = (new AddToCart)($cart, TestCartable::factory()->create());
+        $item = (app(\InOtherShops\Commerce\Cart\Actions\AddToCart::class))($cart, TestCartable::factory()->create());
 
         Event::fake([CartUpdated::class]);
 

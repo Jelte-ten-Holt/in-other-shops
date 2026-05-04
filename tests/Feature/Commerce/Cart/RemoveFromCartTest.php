@@ -24,7 +24,7 @@ final class RemoveFromCartTest extends TestCase
     {
         $cart = Cart::factory()->create(['currency' => Currency::EUR->value]);
         $cartable = TestCartable::factory()->create();
-        $item = (new AddToCart)($cart, $cartable);
+        $item = (app(\InOtherShops\Commerce\Cart\Actions\AddToCart::class))($cart, $cartable);
 
         $this->assertSame(1, $cart->items()->count());
 
@@ -38,7 +38,7 @@ final class RemoveFromCartTest extends TestCase
     {
         $cart = Cart::factory()->create(['currency' => Currency::EUR->value]);
         $cartable = TestCartable::factory()->create();
-        $item = (new AddToCart)($cart, $cartable);
+        $item = (app(\InOtherShops\Commerce\Cart\Actions\AddToCart::class))($cart, $cartable);
 
         Event::fake([CartUpdated::class]);
 
@@ -51,8 +51,8 @@ final class RemoveFromCartTest extends TestCase
     public function removing_one_item_leaves_others_intact(): void
     {
         $cart = Cart::factory()->create(['currency' => Currency::EUR->value]);
-        $itemA = (new AddToCart)($cart, TestCartable::factory()->create());
-        $itemB = (new AddToCart)($cart, TestCartable::factory()->create());
+        $itemA = (app(\InOtherShops\Commerce\Cart\Actions\AddToCart::class))($cart, TestCartable::factory()->create());
+        $itemB = (app(\InOtherShops\Commerce\Cart\Actions\AddToCart::class))($cart, TestCartable::factory()->create());
 
         (new RemoveFromCart)($itemA);
 

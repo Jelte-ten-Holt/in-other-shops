@@ -23,6 +23,7 @@ use InOtherShops\Tests\Stubs\TestCartable;
 use InOtherShops\Tests\Stubs\TestPayable;
 use InOtherShops\Tests\Stubs\TestShippableCartable;
 use InOtherShops\Tests\Stubs\TestStockable;
+use InOtherShops\Tests\Stubs\TestStockableCartable;
 use InOtherShops\Translation\TranslationServiceProvider;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use OPGG\LaravelMcpServer\LaravelMcpServerServiceProvider;
@@ -45,6 +46,7 @@ abstract class TestCase extends Orchestra
             'test_payable' => TestPayable::class,
             'test_cartable' => TestCartable::class,
             'test_shippable_cartable' => TestShippableCartable::class,
+            'test_stockable_cartable' => TestStockableCartable::class,
             'test_browsable' => TestBrowsable::class,
         ]);
     }

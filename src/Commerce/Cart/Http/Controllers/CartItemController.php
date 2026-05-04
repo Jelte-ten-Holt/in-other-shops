@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace InOtherShops\Commerce\Cart\Http\Controllers;
 
+use DomainException;
+use Illuminate\Http\JsonResponse;
 use InOtherShops\Commerce\Cart\Actions\AddToCart;
 use InOtherShops\Commerce\Cart\Actions\RemoveFromCart;
 use InOtherShops\Commerce\Cart\Actions\UpdateCartItemQuantity;
@@ -12,7 +14,6 @@ use InOtherShops\Commerce\Cart\Http\Requests\UpdateCartItemRequest;
 use InOtherShops\Commerce\Cart\Http\Resources\CartResource;
 use InOtherShops\Commerce\Cart\Http\Support\ResolveCurrentCart;
 use InOtherShops\Commerce\Cart\Models\CartItem;
-use InOtherShops\Commerce\Commerce;
 
 final class CartItemController
 {
@@ -20,11 +21,15 @@ final class CartItemController
         private readonly ResolveCurrentCart $resolveCurrentCart,
     ) {}
 
-    public function store(AddToCartRequest $request, AddToCart $addToCart): CartResource
+    public function store(AddToCartRequest $request, AddToCart $addToCart): CartResource|JsonResponse
     {
         $cart = ($this->resolveCurrentCart)();
 
-        $addToCart($cart, $request->cartable(), $request->quantity());
+        try {
+            $addToCart($cart, $request->cartable(), $request->quantity());
+        } catch (DomainException $e) {
+            return $this->cartRuleViolation($e);
+        }
 
         return new CartResource($cart->refresh()->load('items.cartable'));
     }
@@ -33,10 +38,14 @@ final class CartItemController
         UpdateCartItemRequest $request,
         CartItem $cartItem,
         UpdateCartItemQuantity $updateQuantity,
-    ): CartResource {
+    ): CartResource|JsonResponse {
         $this->ensureItemBelongsToCurrentCart($cartItem);
 
-        $updateQuantity($cartItem, $request->quantity());
+        try {
+            $updateQuantity($cartItem, $request->quantity());
+        } catch (DomainException $e) {
+            return $this->cartRuleViolation($e);
+        }
 
         $cart = ($this->resolveCurrentCart)();
 
@@ -61,5 +70,13 @@ final class CartItemController
         if ($item->cart_id !== $cart->id) {
             abort(404);
         }
+    }
+
+    private function cartRuleViolation(DomainException $e): JsonResponse
+    {
+        return response()->json([
+            'message' => $e->getMessage(),
+            'errors' => ['cart' => [$e->getMessage()]],
+        ], 422);
     }
 }
