@@ -72,7 +72,11 @@ interface HasStock
 
 ### Actions
 
-- **`AdjustStock`** — finds or creates the StockItem, writes one StockMovement, updates `stock_level`. Single DB transaction. Returns the StockMovement. Validates `source` against `config('inventory.sources')`.
+> **Stock writes go through these actions only.** Never write to `StockItem::stock_level` directly via Eloquent (`$item->stock_level = 50`), Eloquent's `update()`, raw `DB::table('stock_items')->update(...)`, or any other path. The actions are the single chokepoint that maintains the StockMovement ledger, dispatches StockAdjusted/StockReleased events, and (with the planned Stock value object) propagates writes across `LocaleGroup` siblings when `shares_inventory=true`. Bypassing them silently corrupts the audit trail and breaks shared-inventory propagation.
+>
+> **Documented exception:** seeders may create initial `StockItem` rows directly with a starting `stock_level` to avoid polluting the audit ledger with synthetic `received` movements. Anywhere outside seeders, use the actions.
+
+- **`AdjustStock`** — finds or creates the StockItem, writes one StockMovement, updates `stock_level`. Single DB transaction. Returns the StockMovement. Validates `source` against `config('inventory.sources')`. **Use this for any non-reservation stock change** (received shipment, manual correction, restock).
 - **`ReserveStock`** — inside a transaction: decrements stock via `AdjustStock` with `reason=Reserved` **and** creates a `StockReservation` row (`status=Pending`) pointing at that movement. Returns the `StockReservation`. Dispatches `ReservationCreated`.
 - **`ConfirmReservation`** — transitions all pending reservations for a given reference to `Confirmed`. **No new movement**; stock already decremented at reserve time. The original `Reserved` ledger entry stays untouched. Dispatches `ReservationConfirmed` per transition.
 - **`ReleaseReservation`** — releases a single reservation: appends a `+X Released` movement via `AdjustStock`, transitions the reservation `Pending → Released`, sets `release_movement_id`. Locked select + `status=Pending` guard makes it safe under concurrency. Dispatches `ReservationReleased` + `StockReleased`.
