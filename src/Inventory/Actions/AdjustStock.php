@@ -9,6 +9,7 @@ use InOtherShops\Inventory\Enums\StockMovementReason;
 use InOtherShops\Inventory\Events\StockAdjusted;
 use InOtherShops\Inventory\Models\StockItem;
 use InOtherShops\Inventory\Models\StockMovement;
+use InOtherShops\Translation\Contracts\HasLocaleGroup;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
@@ -29,19 +30,57 @@ final class AdjustStock
     ): StockMovement {
         $this->validateSource($source);
 
-        [$movement, $stockItem] = DB::transaction(function () use ($stockable, $quantity, $reason, $description, $reference, $source): array {
-            $stockItem = $this->findOrCreateStockItem($stockable);
+        $targets = $this->resolveTargets($stockable);
 
-            $movement = $this->createMovement($stockItem, $quantity, $reason, $description, $reference, $source);
+        $results = DB::transaction(function () use ($targets, $quantity, $reason, $description, $reference, $source): array {
+            $out = [];
+            foreach ($targets as $target) {
+                $stockItem = $this->findOrCreateStockItem($target);
+                $movement = $this->createMovement($stockItem, $quantity, $reason, $description, $reference, $source);
+                $this->updateStockLevel($stockItem, $quantity);
 
-            $this->updateStockLevel($stockItem, $quantity);
+                $out[] = [$movement, $stockItem->refresh(), $target === $targets[0]];
+            }
 
-            return [$movement, $stockItem->refresh()];
+            return $out;
         });
 
-        StockAdjusted::dispatch($movement, $stockItem);
+        $primaryMovement = null;
+        foreach ($results as [$movement, $stockItem, $isPrimary]) {
+            StockAdjusted::dispatch($movement, $stockItem);
 
-        return $movement;
+            if ($isPrimary) {
+                $primaryMovement = $movement;
+            }
+        }
+
+        /** @var StockMovement */
+        return $primaryMovement;
+    }
+
+    /**
+     * Returns the set of stockables that this adjustment should hit. When the
+     * stockable is in a LocaleGroup with shares_inventory=true, all siblings
+     * (plus self) participate atomically. Otherwise just self.
+     *
+     * @param  Model&HasStock  $stockable
+     * @return list<Model&HasStock>
+     */
+    private function resolveTargets(Model $stockable): array
+    {
+        if (! ($stockable instanceof HasLocaleGroup)) {
+            return [$stockable];
+        }
+
+        $group = $stockable->localeGroup;
+
+        if ($group === null || ! $group->shares_inventory) {
+            return [$stockable];
+        }
+
+        $siblings = $stockable->siblings()->get()->all();
+
+        return [$stockable, ...$siblings];
     }
 
     /**
