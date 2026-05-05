@@ -1,8 +1,23 @@
 # Translation Domain
 
-Centralised translation storage for all user-facing text in the system. Every translatable string — product names, category labels, option values, descriptions — lives in one table. No locale is treated as "primary"; all languages are equal citizens.
+Multilingual toolkit for the package. Ships two complementary primitives, each suited to a different shape of multilingualism:
 
-Models that need translatable text do **not** carry text columns themselves. A `categories` table has `slug`, `parent_id`, `is_active` — structural data only. The word "Boots" in English and "Laarzen" in Dutch both live in the `translations` table.
+- **Column-translations** (`HasTranslations` + `translations` table) — for short labels on a single referent. One model row, multiple locale-specific values for declared fields. Use this when the entity is a single concept that should carry multilingual labels (categories, tags, option values).
+- **Row-translations** (`HasLocaleGroup` + `locale_groups` table) — for long-form, independently-published content where each language is its own first-class row. Each translation has its own slug, draft state, and lifecycle; siblings are linked via a polymorphic group. Use this for editorial content (articles, videos, artwork) and for product editions where a German-market and English-market product are genuinely different SKUs that may share inventory.
+
+Both primitives can coexist on the same project; pick whichever fits the model. A model can in principle adopt both, but in practice each model picks one.
+
+---
+
+## When to use which
+
+| Question | Pick |
+|---|---|
+| Does each language version need its own slug, draft state, hero image? | Row-translations (`HasLocaleGroup`) |
+| Is the entity a single concept that needs multilingual labels? | Column-translations (`HasTranslations`) |
+| Do siblings need to share inventory across locales? | Row-translations (set `shares_inventory=true` on the group) |
+| Is the field a short string (name, label)? | Column-translations |
+| Is the field long-form prose (body, description)? | Row-translations preferred (each row owns its body natively); column-translations works but the row's *other* fields likely also want to vary by language |
 
 ---
 
@@ -189,6 +204,68 @@ public function scopeWithTranslations(Builder $query, ?string $locale = null): B
     return $query->with('translations');
 }
 ```
+
+---
+
+## Row-translations: `LocaleGroup` + `HasLocaleGroup`
+
+For models where each language is its own row, `LocaleGroup` is the join key linking siblings together. The group itself carries no per-locale data — meaningful fields live on member rows.
+
+### Model
+
+`LocaleGroup` has just `id`, `shares_inventory` (boolean), and timestamps. Members live on each consumer model via two columns: a nullable `locale_group_id` (FK to `locale_groups`) and a nullable `locale` string. A null group means the row is monolingual; a null locale is a backfill-transient state and should always be populated by application logic.
+
+`shares_inventory` is consulted by the Inventory domain's `AdjustStock` action: when `true`, stock writes propagate transactionally to all members of the group (used for shared-physical-item commerce — a plushy toy that's "the same product" across languages). When `false` (the default), each member's stock is independent (book editions with separate ISBNs and print runs).
+
+**Morph alias:** `'locale_group'`
+
+### Contract
+
+```php
+interface HasLocaleGroup
+{
+    public function localeGroup(): BelongsTo;
+    public function siblings(): Builder;            // same-class rows in the same group, excluding self
+    public function inLocale(string $locale): ?self;
+    public function locale(): string;
+}
+```
+
+### Trait
+
+`InteractsWithLocaleGroup` implements the contract plus two scopes:
+
+- `scopeForLocale($query, string $locale)` — filter to a single locale.
+- `scopeMonolingual($query)` — filter to ungrouped rows.
+
+### Consumer migration shape
+
+Each consumer model adds:
+
+```php
+$table->foreignId('locale_group_id')->nullable()->constrained()->nullOnDelete();
+$table->string('locale', 10)->nullable();
+$table->index(['locale_group_id', 'locale']);
+$table->unique(['locale_group_id', 'locale']);  // one row per locale per group
+```
+
+Slug uniqueness should be `unique(slug, locale)` rather than the bare `unique(slug)` so the locale prefix in URLs disambiguates same-slug translations cleanly.
+
+### Sibling resolution
+
+`siblings()` returns an Eloquent **Builder** rather than a relation, because "rows in the same group excluding self" can't be expressed as a clean `HasMany`. Call `->get()` to materialise:
+
+```php
+$translations = $content->siblings()->get();
+```
+
+For a specific locale, prefer `inLocale()`:
+
+```php
+$german = $content->inLocale('de');  // ?Content
+```
+
+Returns `$content` itself when the locale matches the row's own; returns `null` for monolingual rows when the locale differs, or for grouped rows when no sibling exists in that locale.
 
 ---
 

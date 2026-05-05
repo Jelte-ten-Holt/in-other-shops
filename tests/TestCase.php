@@ -20,6 +20,7 @@ use InOtherShops\Tax\TaxServiceProvider;
 use InOtherShops\Taxonomy\TaxonomyServiceProvider;
 use InOtherShops\Tests\Stubs\TestBrowsable;
 use InOtherShops\Tests\Stubs\TestCartable;
+use InOtherShops\Tests\Stubs\TestLocalizable;
 use InOtherShops\Tests\Stubs\TestPayable;
 use InOtherShops\Tests\Stubs\TestShippableCartable;
 use InOtherShops\Tests\Stubs\TestStockable;
@@ -48,6 +49,7 @@ abstract class TestCase extends Orchestra
             'test_shippable_cartable' => TestShippableCartable::class,
             'test_stockable_cartable' => TestStockableCartable::class,
             'test_browsable' => TestBrowsable::class,
+            'test_localizable' => TestLocalizable::class,
         ]);
     }
 

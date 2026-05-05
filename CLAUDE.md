@@ -54,7 +54,7 @@ Adding a dependency between domains is a significant decision — it means those
 
 ### Naming
 
-- **Capability contracts use `Has*`.** `HasCart`, `HasOrders`, `HasMedia`, `HasPrices`, `HasStorefrontPresence`, `HasTranslations`. No `*able` suffix — `Has*` is shorter and unambiguously marks a contract as a package capability attach-point.
+- **Capability contracts use `Has*`.** `HasCart`, `HasOrders`, `HasMedia`, `HasPrices`, `HasStorefrontPresence`, `HasTranslations`, `HasLocaleGroup`. No `*able` suffix — `Has*` is shorter and unambiguously marks a contract as a package capability attach-point.
 - **Trait companions use `InteractsWith*`.** One trait per contract; the trait implements the contract's relation methods plus thin default behaviour.
 - **Actions:** verb-noun, single responsibility, invokable. Pick a verb family per domain and stay consistent (see `TODO.md` — verb-family audit pending).
 

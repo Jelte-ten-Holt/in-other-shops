@@ -20,6 +20,7 @@ final class TranslationServiceProvider extends ServiceProvider
 
         Relation::morphMap([
             'translation' => Translation::translation(),
+            'locale_group' => Translation::localeGroup(),
         ]);
     }
 }

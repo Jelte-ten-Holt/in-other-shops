@@ -19,5 +19,6 @@ return [
 
     'models' => [
         'translation' => InOtherShops\Translation\Models\Translation::class,
+        'locale_group' => InOtherShops\Translation\Models\LocaleGroup::class,
     ],
 ];
