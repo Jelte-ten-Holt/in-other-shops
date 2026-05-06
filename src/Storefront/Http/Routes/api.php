@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-use InOtherShops\Storefront\Controllers\BrowsableListController;
-use InOtherShops\Storefront\Controllers\BrowsableShowController;
-use InOtherShops\Storefront\Controllers\CategoryListController;
-use InOtherShops\Storefront\Controllers\CategoryShowController;
+use InOtherShops\Storefront\Http\Controllers\BrowsableListController;
+use InOtherShops\Storefront\Http\Controllers\BrowsableShowController;
+use InOtherShops\Storefront\Http\Controllers\CategoryListController;
+use InOtherShops\Storefront\Http\Controllers\CategoryShowController;
 use Illuminate\Support\Facades\Route;
 
 // HasStorefrontPresence model routes — registered dynamically from config('storefront.models')

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace InOtherShops\Storefront\Middleware;
+namespace InOtherShops\Storefront\Http\Middleware;
 
 use InOtherShops\Currency\Enums\Currency;
 use InOtherShops\Storefront\DTOs\StorefrontContext;

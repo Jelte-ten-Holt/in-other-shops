@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace InOtherShops\Storefront;
 
-use InOtherShops\Storefront\Middleware\SetStorefrontContext;
+use InOtherShops\Storefront\Http\Middleware\SetStorefrontContext;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 
@@ -34,6 +34,6 @@ final class StorefrontServiceProvider extends ServiceProvider
 
         Route::prefix("api/{$prefix}")
             ->middleware([...$middleware, SetStorefrontContext::class])
-            ->group(__DIR__.'/Routes/api.php');
+            ->group(__DIR__.'/Http/Routes/api.php');
     }
 }

@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace InOtherShops\Storefront\Controllers;
+namespace InOtherShops\Storefront\Http\Controllers;
 
 use InOtherShops\Storefront\Actions\ListCategoryBrowsables;
-use InOtherShops\Storefront\Resources\BrowsableResource;
-use InOtherShops\Storefront\Resources\CategoryResource;
+use InOtherShops\Storefront\Http\Resources\BrowsableResource;
+use InOtherShops\Storefront\Http\Resources\CategoryResource;
 use InOtherShops\Taxonomy\Taxonomy;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;

@@ -7,7 +7,7 @@ namespace InOtherShops\Agent\Tools;
 use InOtherShops\Agent\AgentTool;
 use InOtherShops\Storefront\Actions\ShowBrowsable as ShowBrowsableAction;
 use InOtherShops\Storefront\Contracts\HasStorefrontPresence;
-use InOtherShops\Storefront\Resources\BrowsableResource;
+use InOtherShops\Storefront\Http\Resources\BrowsableResource;
 use Illuminate\Http\Request;
 use InvalidArgumentException;
 

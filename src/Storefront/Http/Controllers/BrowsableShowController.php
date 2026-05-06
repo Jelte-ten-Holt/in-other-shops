@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace InOtherShops\Storefront\Controllers;
+namespace InOtherShops\Storefront\Http\Controllers;
 
 use InOtherShops\Storefront\Actions\ShowBrowsable;
-use InOtherShops\Storefront\Resources\BrowsableResource;
+use InOtherShops\Storefront\Http\Resources\BrowsableResource;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 

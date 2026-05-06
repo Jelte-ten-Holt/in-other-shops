@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace InOtherShops\Storefront\Controllers;
+namespace InOtherShops\Storefront\Http\Controllers;
 
-use InOtherShops\Storefront\Resources\CategoryResource;
+use InOtherShops\Storefront\Http\Resources\CategoryResource;
 use InOtherShops\Taxonomy\Taxonomy;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 

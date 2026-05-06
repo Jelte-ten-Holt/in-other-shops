@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace InOtherShops\Agent\Tools;
 
 use InOtherShops\Agent\AgentTool;
-use InOtherShops\Storefront\Resources\CategoryResource;
+use InOtherShops\Storefront\Http\Resources\CategoryResource;
 use InOtherShops\Taxonomy\Taxonomy;
 use Illuminate\Http\Request;
 

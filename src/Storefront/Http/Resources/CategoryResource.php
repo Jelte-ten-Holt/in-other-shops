@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace InOtherShops\Storefront\Resources;
+namespace InOtherShops\Storefront\Http\Resources;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
-/** @mixin \InOtherShops\Taxonomy\Models\Tag */
-final class TagResource extends JsonResource
+/** @mixin \InOtherShops\Taxonomy\Models\Category */
+final class CategoryResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
@@ -16,7 +16,8 @@ final class TagResource extends JsonResource
             'id' => $this->id,
             'name' => $this->name,
             'slug' => $this->slug,
-            'type' => $this->type,
+            'description' => $this->description,
+            'children' => self::collection($this->whenLoaded('children')),
         ];
     }
 }
