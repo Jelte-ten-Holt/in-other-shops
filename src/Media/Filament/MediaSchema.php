@@ -11,6 +11,7 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Html;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\HtmlString;
 use InOtherShops\Media\Contracts\HasMedia;
@@ -192,7 +193,9 @@ final class MediaSchema
 
     private static function createUploadMedia(array $item): ?Media
     {
-        if (empty($item['path'])) {
+        $path = self::normalizeFileUploadPath($item['path'] ?? null);
+
+        if ($path === null) {
             return null;
         }
 
@@ -202,12 +205,32 @@ final class MediaSchema
         return Media::create([
             'type' => MediaType::Upload,
             'disk' => $disk,
-            'path' => $item['path'],
-            'filename' => basename($item['path']),
-            'mime_type' => $storage->mimeType($item['path']) ?: 'application/octet-stream',
-            'size' => $storage->size($item['path']) ?: 0,
+            'path' => $path,
+            'filename' => basename($path),
+            'mime_type' => $storage->mimeType($path) ?: 'application/octet-stream',
+            'size' => $storage->size($path) ?: 0,
             'alt' => $item['alt'] ?? null,
         ]);
+    }
+
+    /**
+     * Filament's FileUpload keeps its raw state as `array<string, string>` keyed
+     * by an internal Livewire id, even for single-file uploads (see BaseFileUpload::saveUploadedFiles).
+     * The dehydrated state collapses to a bare string, but `saveFormData` is invoked
+     * from a Filament page hook against `$this->data`, which holds the raw shape.
+     * Coerce both shapes here so the consumer doesn't have to.
+     */
+    private static function normalizeFileUploadPath(mixed $path): ?string
+    {
+        if (is_array($path)) {
+            $path = Arr::first($path);
+        }
+
+        if (! is_string($path) || $path === '') {
+            return null;
+        }
+
+        return $path;
     }
 
     private static function createExternalMedia(array $item): ?Media
