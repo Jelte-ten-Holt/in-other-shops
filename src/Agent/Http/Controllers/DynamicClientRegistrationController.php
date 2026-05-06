@@ -62,12 +62,12 @@ final class DynamicClientRegistrationController
             confidential: $validated['confidential'],
         );
 
-        event(new DynamicClientRegistered(
-            clientId: (string) $client->getKey(),
-            clientName: (string) $client->name,
-            redirectUris: $validated['redirect_uris'],
-            isConfidential: $validated['confidential'],
-        ));
+        DynamicClientRegistered::dispatch(
+            (string) $client->getKey(),
+            (string) $client->name,
+            $validated['redirect_uris'],
+            $validated['confidential'],
+        );
 
         return response()->json(
             $this->registrationResponse($client, $validated),

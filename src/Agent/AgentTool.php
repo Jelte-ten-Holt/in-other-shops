@@ -42,26 +42,26 @@ abstract class AgentTool implements AgentToolContract, ToolInterface
         try {
             $output = ($this)($arguments);
         } catch (Throwable $e) {
-            event(new ToolInvocationFailed(new ToolInvocation(
+            ToolInvocationFailed::dispatch(new ToolInvocation(
                 tool: static::identifier(),
                 redactedInput: $redacted,
                 output: null,
                 error: $e->getMessage(),
                 durationMs: $this->elapsedMs($start),
                 bearerHash: $bearerHash,
-            )));
+            ));
 
             throw $e;
         }
 
-        event(new ToolInvoked(new ToolInvocation(
+        ToolInvoked::dispatch(new ToolInvocation(
             tool: static::identifier(),
             redactedInput: $redacted,
             output: $output,
             error: null,
             durationMs: $this->elapsedMs($start),
             bearerHash: $bearerHash,
-        )));
+        ));
 
         return $output;
     }

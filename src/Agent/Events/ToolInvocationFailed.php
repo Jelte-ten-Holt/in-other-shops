@@ -5,10 +5,13 @@ declare(strict_types=1);
 namespace InOtherShops\Agent\Events;
 
 use InOtherShops\Agent\DTOs\ToolInvocation;
+use Illuminate\Foundation\Events\Dispatchable;
 
-final class ToolInvocationFailed
+final readonly class ToolInvocationFailed
 {
+    use Dispatchable;
+
     public function __construct(
-        public readonly ToolInvocation $invocation,
+        public ToolInvocation $invocation,
     ) {}
 }

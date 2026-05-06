@@ -28,7 +28,8 @@ FlowChain ────── (independent)
 Pricing ──────── depends on Currency
 Taxonomy ─────── depends on Translation
 Payment ──────── depends on Currency
-Commerce ─────── depends on Location, Currency, Payment, Shipping; soft-deps on Inventory (cart stock guard, opt-in via HasStock)
+Tax ──────────── depends on Location
+Commerce ─────── depends on Location, Currency, Payment, Shipping, Tax; soft-deps on Inventory (cart stock guard, opt-in via HasStock)
 Storefront ───── depends on Currency, Pricing, Taxonomy, Translation, Media, Inventory
 ```
 
@@ -37,13 +38,17 @@ Adding a dependency between domains is a significant decision — it means those
 ### Key Patterns
 
 - **Registry pattern:** Each domain with models has a registry class at its root (e.g., `Taxonomy.php`, `Commerce.php`). It resolves model classes via config so consuming projects can extend them.
-- **Contract + Concern:** Each domain ships `Contracts/Has{X}` and `Concerns/InteractsWith{X}`. Project models implement the contract and use the trait. Contracts always use the `Has*` prefix for capability contracts (no `*able` suffix — see Naming).
-- **Filament Schema classes:** Domains ship `Filament/{Domain}Schema.php` with static factory methods returning preconfigured Filament form components.
-- **Domain events:** State changes dispatch events (past tense: `StockAdjusted`, `MediaStored`). Reads and calculations do not.
+- **Contract + Concern:** Each domain ships `Contracts/Has{X}` plus a paired `Concerns/InteractsWith{X}` trait **when the trait carries default relations, scopes, or behavior** the consuming model can inherit. Pure-interface contracts that only declare a method the model must implement itself (e.g. `HasTaxCategory::taxCategory()`) ship without a trait — an empty trait is cargo-culting. Contracts always use the `Has*` prefix (no `*able` suffix — see Naming).
+- **Filament Schema classes:** Domains that expose form fragments meant to attach to consuming-project models (`InventorySchema::stockFields`, `MediaSchema`, `PricingSchema`, etc.) ship `Filament/{Domain}Schema.php` with static factory methods. Domains whose Filament surface is only standalone admin Resources (Tax, Shipping, Payment) do not need a Schema class.
+- **Domain events:** State changes dispatch events (past tense: `StockAdjusted`, `MediaStored`). Reads and calculations do not. Event classes are `final readonly class` and use the `Dispatchable` trait; dispatch via `EventClass::dispatch(...)`, never the `event(new EventClass(...))` helper.
 - **Domain log subscribers:** Domains with audit-relevant events ship a `Listeners/{Domain}LogSubscriber.php` auto-discovered by Laravel 11+. Subscribers route domain events through `LogDispatcher` to per-domain Monolog channels. Consumers override channels/handlers via config; they do not re-implement subscribers. Logging is package functionality, not a consumer concern. Note: Media and Taxonomy dispatch events but intentionally have no LogSubscriber yet — admin-activity logging is deferred until multi-user.
 - **Config-driven models:** Every domain config includes a `models` key. The registry resolves classes through this config.
 - **Factories ship with the domain:** every model with a factory ships that factory in `src/{Domain}/Database/Factories/`. `newFactory()` on the model points into the package namespace. Tests — both the package's own PHPUnit suite and consumer tests — rely on the package's factories.
 - **FlowChain error semantics:** steps signal failure by throwing. `FlowChain` wraps the run in a DB transaction; any exception triggers `FlowChainRollbackSignal`, rolls back the transaction, and is converted into a failed `FlowChainResult`. Steps do not return errors — they throw, and FlowChain handles the rest. See `src/FlowChain/README.md` for the full contract.
+- **HTTP layout:** Domains that expose HTTP endpoints place every HTTP-layer class under `src/{Domain}/Http/` — `Http/Controllers/`, `Http/Resources/`, `Http/Requests/`, `Http/Middleware/`, `Http/Routes/`, `Http/Support/`. Never at the domain root.
+- **Sub-namespacing:** Most domains stay flat (`Actions/`, `Models/`, `Concerns/` directly under the domain). A domain may sub-namespace into peer aggregates (e.g. Commerce: `Cart/`, `Order/`, `Customer/`, each with its own `Actions/`/`Models/`/etc.) when the aggregates have genuinely disjoint surfaces and shared parent-domain code is minimal. Promote a flat domain only when the split clarifies; if it starts feeling forced, that's the signal the domain should be extracted into separate domains instead.
+- **Exception strategy:** Domain-rule rejections throw a per-domain exception (`InOtherShops\\{Domain}\\Exceptions\\{Domain}Exception` base, or a specific subclass like `VoucherInvalidException`, `InsufficientStockException`, `RefundAmountExceededException` for outcomes a caller might branch on). The base extends `\\DomainException` (LogicException family). Reserve `\\InvalidArgumentException` for actually-malformed inputs (unknown enum values, schema-violations, type mismatches). String messages alone are not enough — the type carries the meaning.
+- **Action input DTOs:** Actions take positional parameters by default. Promote to an input DTO (`{Domain}/DTOs/{Action}Request.php`, `final readonly class`) when **either** the signature has 6+ parameters **or** the action has 3+ callsites and adding an optional param means touching every one. Output DTOs are case-by-case; multi-field result objects (`PriceBreakdown`, `InitiatePaymentResult`) wrap, single-value returns don't.
 
 ### What Does NOT Belong in This Package
 
