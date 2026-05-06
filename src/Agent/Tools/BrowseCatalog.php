@@ -38,7 +38,7 @@ final class BrowseCatalog extends AgentTool
             'properties' => [
                 'type' => [
                     'type' => 'string',
-                    'description' => 'Browsable type key from config("storefront.models"). E.g. "product", "bundle".',
+                    'description' => 'Browsable type key from config("storefront.models"). Exact key as configured by the consuming project.',
                 ],
                 'category' => [
                     'type' => 'string',
