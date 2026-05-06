@@ -8,6 +8,9 @@ use InOtherShops\Agent\Contracts\AgentToolContract;
 use InOtherShops\Agent\DTOs\ToolInvocation;
 use InOtherShops\Agent\Events\ToolInvocationFailed;
 use InOtherShops\Agent\Events\ToolInvoked;
+use InvalidArgumentException;
+use OPGG\LaravelMcpServer\Exceptions\Enums\JsonRpcErrorCode;
+use OPGG\LaravelMcpServer\Exceptions\JsonRpcErrorException;
 use OPGG\LaravelMcpServer\Services\ToolService\ToolInterface;
 use Throwable;
 
@@ -50,6 +53,19 @@ abstract class AgentTool implements AgentToolContract, ToolInterface
                 durationMs: $this->elapsedMs($start),
                 bearerHash: $bearerHash,
             ));
+
+            // Shape errors → JSON-RPC INVALID_PARAMS so the calling agent
+            // sees the actual message instead of a generic INTERNAL_ERROR.
+            // Other throwables propagate untouched (the framework wraps
+            // them as INTERNAL_ERROR, which is correct for unexpected
+            // failures). Direct PHP callers (in-process, tests) bypass
+            // execute() and still receive the original exception type.
+            if ($e instanceof InvalidArgumentException) {
+                throw new JsonRpcErrorException(
+                    message: $e->getMessage(),
+                    code: JsonRpcErrorCode::INVALID_PARAMS,
+                );
+            }
 
             throw $e;
         }

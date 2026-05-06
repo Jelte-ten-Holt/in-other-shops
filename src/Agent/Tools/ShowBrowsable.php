@@ -37,7 +37,7 @@ final class ShowBrowsable extends AgentTool
             'properties' => [
                 'type' => [
                     'type' => 'string',
-                    'description' => 'Browsable type key from config("storefront.models"). E.g. "product", "bundle".',
+                    'description' => 'Browsable type key from config("storefront.models"). Exact key as configured by the consuming project.',
                 ],
                 'slug' => [
                     'type' => 'string',
