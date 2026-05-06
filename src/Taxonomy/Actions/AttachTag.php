@@ -11,10 +11,7 @@ use Illuminate\Database\Eloquent\Model;
 
 final class AttachTag
 {
-    /**
-     * @param  Model&HasTags  $model
-     */
-    public function __invoke(Model $model, Tag $tag): void
+    public function __invoke(Model&HasTags $model, Tag $tag): void
     {
         $model->tags()->attach($tag);
 

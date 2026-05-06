@@ -22,11 +22,8 @@ final class ReserveStock
         private readonly AdjustStock $adjustStock,
     ) {}
 
-    /**
-     * @param  Model&HasStock  $stockable
-     */
     public function __invoke(
-        Model $stockable,
+        Model&HasStock $stockable,
         int $quantity,
         ?string $description = null,
         ?Model $reference = null,
@@ -50,10 +47,8 @@ final class ReserveStock
      * Called while the FOR UPDATE lock is held so no concurrent writer can
      * interleave. If the level is negative, the surrounding transaction
      * rolls back, undoing the movement.
-     *
-     * @param  Model&HasStock  $stockable
      */
-    private function assertNotOversold(Model $stockable, int $quantity): void
+    private function assertNotOversold(Model&HasStock $stockable, int $quantity): void
     {
         $stockable->unsetRelation('stockItem');
         $currentLevel = $stockable->stockLevel();
@@ -69,11 +64,8 @@ final class ReserveStock
         throw InsufficientStockException::forReservation($stockable, $quantity, $available);
     }
 
-    /**
-     * @param  Model&HasStock  $stockable
-     */
     private function reserve(
-        Model $stockable,
+        Model&HasStock $stockable,
         int $quantity,
         ?string $description,
         ?Model $reference,

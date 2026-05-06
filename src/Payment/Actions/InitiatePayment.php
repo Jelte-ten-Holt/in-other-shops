@@ -24,19 +24,17 @@ final class InitiatePayment
     ) {}
 
     /**
-     * @param  Model&HasPayments  $payable
-     * @param  (Model&HasPaymentProfiles)|null  $profileable
      * @param  array<string, mixed>  $metadata
      */
     public function __invoke(
         string $gatewayName,
-        Model $payable,
+        Model&HasPayments $payable,
         int $amount,
         Currency $currency,
         string $returnUrl,
         string $cancelUrl,
         array $metadata = [],
-        ?Model $profileable = null,
+        (Model&HasPaymentProfiles)|null $profileable = null,
         ?PaymentCustomerData $customerData = null,
     ): InitiatePaymentResult {
         $gateway = $this->gateways->gateway($gatewayName);
@@ -56,12 +54,9 @@ final class InitiatePayment
         );
     }
 
-    /**
-     * @param  (Model&HasPaymentProfiles)|null  $profileable
-     */
-    private function resolveGatewayCustomerId(PaymentGateway $gateway, ?Model $profileable, ?PaymentCustomerData $customerData): ?string
+    private function resolveGatewayCustomerId(PaymentGateway $gateway, (Model&HasPaymentProfiles)|null $profileable, ?PaymentCustomerData $customerData): ?string
     {
-        if ($profileable === null || ! $profileable instanceof HasPaymentProfiles) {
+        if ($profileable === null) {
             return null;
         }
 
@@ -86,10 +81,9 @@ final class InitiatePayment
     }
 
     /**
-     * @param  Model&HasPayments  $payable
      * @param  array<string, mixed>  $metadata
      */
-    private function createPaymentRecord(Model $payable, PaymentGateway $gateway, int $amount, Currency $currency, array $metadata): Payment
+    private function createPaymentRecord(Model&HasPayments $payable, PaymentGateway $gateway, int $amount, Currency $currency, array $metadata): Payment
     {
         return $payable->payments()->create([
             'amount' => $amount,

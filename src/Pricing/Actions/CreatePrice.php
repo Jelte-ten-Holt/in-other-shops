@@ -12,11 +12,8 @@ use Illuminate\Database\Eloquent\Model;
 
 final class CreatePrice
 {
-    /**
-     * @param  Model&HasPrices  $priceable
-     */
     public function __invoke(
-        Model $priceable,
+        Model&HasPrices $priceable,
         int $amount,
         Currency $currency,
         ?int $compareAtAmount = null,

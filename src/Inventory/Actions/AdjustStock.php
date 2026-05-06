@@ -17,11 +17,8 @@ use InvalidArgumentException;
 
 final class AdjustStock
 {
-    /**
-     * @param  Model&HasStock  $stockable
-     */
     public function __invoke(
-        Model $stockable,
+        Model&HasStock $stockable,
         int $quantity,
         StockMovementReason $reason,
         ?string $description = null,
@@ -63,10 +60,9 @@ final class AdjustStock
      * stockable is in a LocaleGroup with shares_inventory=true, all siblings
      * (plus self) participate atomically. Otherwise just self.
      *
-     * @param  Model&HasStock  $stockable
      * @return list<Model&HasStock>
      */
-    private function resolveTargets(Model $stockable): array
+    private function resolveTargets(Model&HasStock $stockable): array
     {
         if (! ($stockable instanceof HasLocaleGroup)) {
             return [$stockable];
@@ -89,10 +85,8 @@ final class AdjustStock
      * The lock serializes concurrent adjustments for the same stockable so that
      * callers doing read-then-write (e.g. availability check → reserve) see a
      * consistent stock level and cannot oversell.
-     *
-     * @param  Model&HasStock  $stockable
      */
-    private function findOrCreateStockItem(Model $stockable): StockItem
+    private function findOrCreateStockItem(Model&HasStock $stockable): StockItem
     {
         $stockItem = $stockable->stockItem()->lockForUpdate()->first();
 

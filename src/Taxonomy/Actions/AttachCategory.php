@@ -11,10 +11,7 @@ use Illuminate\Database\Eloquent\Model;
 
 final class AttachCategory
 {
-    /**
-     * @param  Model&HasCategories  $model
-     */
-    public function __invoke(Model $model, Category $category): void
+    public function __invoke(Model&HasCategories $model, Category $category): void
     {
         $model->categories()->attach($category);
 
