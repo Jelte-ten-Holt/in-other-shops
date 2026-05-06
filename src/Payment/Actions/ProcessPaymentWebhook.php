@@ -14,7 +14,7 @@ use InOtherShops\Payment\PaymentGatewayManager;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
 
-final class HandlePaymentWebhook
+final class ProcessPaymentWebhook
 {
     public function __construct(
         private readonly PaymentGatewayManager $gateways,
