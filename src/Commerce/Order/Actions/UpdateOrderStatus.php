@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace InOtherShops\Commerce\Order\Actions;
 
+use InOtherShops\Commerce\Exceptions\InvalidOrderStatusTransitionException;
 use InOtherShops\Commerce\Order\Enums\OrderStatus;
 use InOtherShops\Commerce\Order\Events\OrderStatusChanged;
 use InOtherShops\Commerce\Order\Models\Order;
-use InvalidArgumentException;
 
 final class UpdateOrderStatus
 {
@@ -27,9 +27,7 @@ final class UpdateOrderStatus
     private function validateTransition(Order $order, OrderStatus $newStatus): void
     {
         if (! $order->status->canTransitionTo($newStatus)) {
-            throw new InvalidArgumentException(
-                "Cannot transition order from {$order->status->value} to {$newStatus->value}."
-            );
+            throw InvalidOrderStatusTransitionException::between($order->status, $newStatus);
         }
     }
 }

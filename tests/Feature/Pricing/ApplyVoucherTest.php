@@ -7,12 +7,14 @@ namespace InOtherShops\Tests\Feature\Pricing;
 use InOtherShops\Currency\Enums\Currency;
 use InOtherShops\Pricing\Actions\ApplyVoucher;
 use InOtherShops\Pricing\Events\VoucherApplied;
+use InOtherShops\Pricing\Exceptions\PricingException;
+use InOtherShops\Pricing\Exceptions\VoucherInvalidException;
+use InOtherShops\Pricing\Exceptions\VoucherNotFoundException;
 use InOtherShops\Pricing\Models\Voucher;
 use InOtherShops\Tests\TestCase;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
-use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\Test;
 
 final class ApplyVoucherTest extends TestCase
@@ -44,7 +46,7 @@ final class ApplyVoucherTest extends TestCase
     {
         Voucher::factory()->withMaxUses(max: 2, used: 2)->create(['code' => 'FULL']);
 
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(VoucherInvalidException::class);
 
         ($this->apply)(5000, 'FULL', Currency::EUR);
     }
@@ -59,7 +61,7 @@ final class ApplyVoucherTest extends TestCase
 
         $this->assertSame(2, Voucher::query()->where('code', 'TWICE')->value('times_used'));
 
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(VoucherInvalidException::class);
         ($this->apply)(5000, 'TWICE', Currency::EUR);
     }
 
@@ -70,8 +72,8 @@ final class ApplyVoucherTest extends TestCase
 
         try {
             ($this->apply)(5000, 'OLD', Currency::EUR);
-            $this->fail('Expected InvalidArgumentException.');
-        } catch (InvalidArgumentException) {
+            $this->fail('Expected VoucherInvalidException.');
+        } catch (PricingException) {
             // expected
         }
 
@@ -116,7 +118,7 @@ final class ApplyVoucherTest extends TestCase
 
         try {
             ($this->apply)(5000, 'NOPE', Currency::EUR);
-        } catch (InvalidArgumentException) {
+        } catch (PricingException) {
             // expected
         }
 
@@ -126,8 +128,8 @@ final class ApplyVoucherTest extends TestCase
     #[Test]
     public function it_throws_when_voucher_does_not_exist(): void
     {
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Voucher not found.');
+        $this->expectException(VoucherNotFoundException::class);
+        $this->expectExceptionMessage('Voucher [GHOST] not found.');
 
         ($this->apply)(5000, 'GHOST', Currency::EUR);
     }

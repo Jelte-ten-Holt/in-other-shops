@@ -7,9 +7,12 @@ namespace InOtherShops\Pricing\Actions;
 use InOtherShops\Currency\Enums\Currency;
 use InOtherShops\Pricing\Enums\VoucherType;
 use InOtherShops\Pricing\Events\VoucherApplied;
+use InOtherShops\Pricing\Exceptions\VoucherCurrencyMismatchException;
+use InOtherShops\Pricing\Exceptions\VoucherInvalidException;
+use InOtherShops\Pricing\Exceptions\VoucherMinimumNotMetException;
+use InOtherShops\Pricing\Exceptions\VoucherNotFoundException;
 use InOtherShops\Pricing\Models\Voucher;
 use Illuminate\Support\Facades\DB;
-use InvalidArgumentException;
 
 /**
  * Records a voucher use. Acquires a `SELECT ... FOR UPDATE` lock on the
@@ -53,7 +56,7 @@ final class ApplyVoucher
         $voucher = Voucher::where('code', $code)->lockForUpdate()->first();
 
         if ($voucher === null) {
-            throw new InvalidArgumentException('Voucher not found.');
+            throw VoucherNotFoundException::forCode($code);
         }
 
         return $voucher;
@@ -62,15 +65,15 @@ final class ApplyVoucher
     private function validateVoucher(Voucher $voucher, int $subtotal, Currency $currency): void
     {
         if (! $voucher->isValid()) {
-            throw new InvalidArgumentException('Voucher is no longer valid.');
+            throw VoucherInvalidException::expired($voucher->code);
         }
 
         if (! $voucher->meetsMinimumOrder($subtotal)) {
-            throw new InvalidArgumentException('Order does not meet the minimum amount for this voucher.');
+            throw VoucherMinimumNotMetException::forCode($voucher->code);
         }
 
         if ($voucher->type === VoucherType::Fixed && $voucher->currency !== null && $voucher->currency !== $currency) {
-            throw new InvalidArgumentException('Voucher currency does not match order currency.');
+            throw VoucherCurrencyMismatchException::between($voucher->code, $voucher->currency, $currency);
         }
     }
 }

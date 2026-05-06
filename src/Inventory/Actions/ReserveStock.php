@@ -9,12 +9,12 @@ use InOtherShops\Inventory\Enums\ReservationStatus;
 use InOtherShops\Inventory\Enums\StockMovementReason;
 use InOtherShops\Inventory\Events\ReservationCreated;
 use InOtherShops\Inventory\Events\StockReservationFailed;
+use InOtherShops\Inventory\Exceptions\InsufficientStockException;
 use InOtherShops\Inventory\Inventory;
 use InOtherShops\Inventory\Models\StockReservation;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
-use RuntimeException;
 
 final class ReserveStock
 {
@@ -66,9 +66,7 @@ final class ReserveStock
 
         StockReservationFailed::dispatch($stockable, $quantity, $available);
 
-        throw new RuntimeException(
-            "Cannot reserve {$quantity} units of {$stockable->getMorphClass()}#{$stockable->getKey()}: only {$available} available.",
-        );
+        throw InsufficientStockException::forReservation($stockable, $quantity, $available);
     }
 
     /**

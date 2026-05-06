@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace InOtherShops\Tests\Feature\Commerce\Cart;
 
-use DomainException;
+use InOtherShops\Inventory\Exceptions\InsufficientStockException;
 use InOtherShops\Commerce\Cart\Actions\AddToCart;
 use InOtherShops\Commerce\Cart\Actions\UpdateCartItemQuantity;
 use InOtherShops\Commerce\Cart\Models\Cart;
@@ -46,7 +46,7 @@ final class EnsureCartableInStockTest extends TestCase
         ]);
         $this->stockUp($cartable, 1);
 
-        $this->expectException(DomainException::class);
+        $this->expectException(InsufficientStockException::class);
         $this->expectExceptionMessageMatches('/only 1 in stock/');
 
         ($this->addToCart)($cart, $cartable, quantity: 5);
@@ -104,7 +104,7 @@ final class EnsureCartableInStockTest extends TestCase
 
         ($this->addToCart)($cart, $cartable, quantity: 2);
 
-        $this->expectException(DomainException::class);
+        $this->expectException(InsufficientStockException::class);
         $this->expectExceptionMessageMatches('/only 3 in stock/');
 
         // Already 2 in cart; adding 2 more would request 4 against 3 available.
@@ -121,7 +121,7 @@ final class EnsureCartableInStockTest extends TestCase
             'allow_backorder' => false,
         ]);
 
-        $this->expectException(DomainException::class);
+        $this->expectException(InsufficientStockException::class);
         $this->expectExceptionMessage('Cookie for sale is out of stock.');
 
         ($this->addToCart)($cart, $cartable, quantity: 1);
@@ -139,7 +139,7 @@ final class EnsureCartableInStockTest extends TestCase
 
         $item = ($this->addToCart)($cart, $cartable, quantity: 1);
 
-        $this->expectException(DomainException::class);
+        $this->expectException(InsufficientStockException::class);
 
         ($this->update)($item, quantity: 10);
     }

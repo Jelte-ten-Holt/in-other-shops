@@ -6,6 +6,8 @@ namespace InOtherShops\Payment\Actions;
 
 use InOtherShops\Payment\Enums\PaymentStatus;
 use InOtherShops\Payment\Events\PaymentRefunded;
+use InOtherShops\Payment\Exceptions\PaymentNotRefundableException;
+use InOtherShops\Payment\Exceptions\RefundAmountExceededException;
 use InOtherShops\Payment\Models\Payment;
 use InOtherShops\Payment\PaymentGatewayManager;
 use InvalidArgumentException;
@@ -39,9 +41,7 @@ final class RefundPayment
         ];
 
         if (! in_array($payment->status, $refundable, true)) {
-            throw new InvalidArgumentException(
-                "Payment [{$payment->id}] cannot be refunded in status [{$payment->status->value}].",
-            );
+            throw PaymentNotRefundableException::inStatus($payment, $payment->status);
         }
     }
 
@@ -58,9 +58,7 @@ final class RefundPayment
         }
 
         if ($amount > $maxRefundable) {
-            throw new InvalidArgumentException(
-                "Refund amount [{$amount}] exceeds refundable amount [{$maxRefundable}].",
-            );
+            throw RefundAmountExceededException::exceeds($amount, $maxRefundable);
         }
 
         return $amount;
