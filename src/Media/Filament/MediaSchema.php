@@ -9,6 +9,7 @@ use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Html;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Arr;
@@ -68,6 +69,10 @@ final class MediaSchema
                     ->columnSpanFull(),
                 TextInput::make('alt')
                     ->maxLength(255),
+                Toggle::make('is_cover')
+                    ->label('Use as cover image')
+                    ->helperText('The cover image is used in listings and social previews. Only one row across all media collections is kept as the cover.')
+                    ->default(false),
             ])
             ->columns(1)
             ->reorderable()
@@ -95,6 +100,7 @@ final class MediaSchema
                     'path' => $media->path,
                     'url' => $media->type !== MediaType::Upload ? $media->getAttribute('url') : null,
                     'alt' => $media->alt,
+                    'is_cover' => (bool) $media->pivot->is_cover,
                 ])
                 ->all();
 
@@ -109,13 +115,37 @@ final class MediaSchema
      */
     public static function saveFormData(Model&HasMedia $record, array $data): void
     {
-        $mediaData = $data['_media'] ?? [];
+        $mediaData = self::normalizeSingleCover($data['_media'] ?? []);
 
         foreach ($mediaData as $collection => $items) {
             self::syncCollection($record, $collection, $items ?? []);
         }
 
         $record->unsetRelation('media');
+    }
+
+    /**
+     * @param  array<string, array<int, array<string, mixed>>>  $mediaData
+     * @return array<string, array<int, array<string, mixed>>>
+     */
+    private static function normalizeSingleCover(array $mediaData): array
+    {
+        $coverClaimed = false;
+
+        foreach ($mediaData as $collection => $items) {
+            foreach ($items ?? [] as $index => $item) {
+                $isCover = ! empty($item['is_cover']);
+
+                if ($isCover && ! $coverClaimed) {
+                    $mediaData[$collection][$index]['is_cover'] = true;
+                    $coverClaimed = true;
+                } else {
+                    $mediaData[$collection][$index]['is_cover'] = false;
+                }
+            }
+        }
+
+        return $mediaData;
     }
 
     /**
@@ -149,6 +179,7 @@ final class MediaSchema
                 $record->media()->attach($media->id, [
                     'collection' => $collection,
                     'position' => $position,
+                    'is_cover' => ! empty($item['is_cover']),
                 ]);
                 $keptIds[] = $media->id;
             }
@@ -177,6 +208,7 @@ final class MediaSchema
         $record->media()->updateExistingPivot($mediaId, [
             'collection' => $collection,
             'position' => $position,
+            'is_cover' => ! empty($item['is_cover']),
         ]);
     }
 

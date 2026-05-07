@@ -28,6 +28,7 @@ class Mediable extends MorphPivot
     {
         return [
             'position' => 'integer',
+            'is_cover' => 'boolean',
         ];
     }
 

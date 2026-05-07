@@ -18,7 +18,7 @@ trait InteractsWithMedia
 
         return $this->morphToMany($mediaModel, 'mediable')
             ->using($mediableModel)
-            ->withPivot('collection', 'position')
+            ->withPivot('collection', 'position', 'is_cover')
             ->withTimestamps()
             ->orderByPivot('position');
     }
@@ -44,6 +44,7 @@ trait InteractsWithMedia
 
     public function coverImage(): ?MediaModel
     {
-        return $this->firstMedia('images');
+        return $this->media()->wherePivot('is_cover', true)->first()
+            ?? $this->firstMedia('images');
     }
 }

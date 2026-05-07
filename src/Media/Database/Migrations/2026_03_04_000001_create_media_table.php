@@ -29,6 +29,7 @@ return new class extends Migration
             $table->morphs('mediable');
             $table->string('collection');
             $table->unsignedInteger('position')->default(0);
+            $table->boolean('is_cover')->default(false);
             $table->timestamps();
 
             $table->unique(['media_id', 'mediable_type', 'mediable_id', 'collection'], 'mediables_unique');
