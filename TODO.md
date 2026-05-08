@@ -6,10 +6,7 @@ Package-level work, typically surfaced by consuming projects. Completed items ha
 
 ## Open
 
-- [x] **Publish to Packagist (`v0.1.0`)** — shipped 2026-04-23. `0.1.0` tagged at `c632b36` (post Agent domain merge), indexed at https://packagist.org/packages/jelte-ten-holt/in-other-shops, auto-sync webhook installed. Branch-alias `dev-main → 0.1.x-dev` set on the package; consumers using the path repo alongside `^0.1` must run on `main` for the alias to apply (consumer also needs `minimum-stability: dev` to accept the dev-aliased version).
-- [x] **Embed media support in MediaSchema** — `MediaType::Embed` wired into form (URL input + iframe preview for YouTube/Vimeo), `createMedia`, `updateExistingMedia`, and `fillFormData`. Consumers add an `embed` collection to their `media.collections` config.
-- [x] **Pre-order flag on order lines** — `is_pre_order` boolean (default false) added to `order_lines` migration, cast on OrderLine, docblock on `HasOrders::toOrderLineData()` return shape.
-- [x] **Missing factories** — CartItem, CustomerGroup, Translation, WebhookEvent, PaymentProfile, Mediable now ship factories. `HasFactory` + `newFactory()` added to each model.
+- [ ] **`AuthenticateAgent` should log on exception, not swallow silently** — the package middleware catches `Throwable` in `authenticateViaOauth` and the `Auth::guard()` resolution branch, returning false with no log entry. This is what made the OAuth-key-perm bug take an hour to find rather than a minute. Log at `warning` level when the catch fires (message + exception class). Surfaced from in-other-worlds TODO.
 
 ---
 
