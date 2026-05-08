@@ -20,7 +20,6 @@ final class ShippingServiceProvider extends ServiceProvider
 
         Relation::morphMap([
             'shipment' => Shipping::shipment(),
-            'shipping_method' => Shipping::shippingMethod(),
         ]);
 
         $this->publishes([

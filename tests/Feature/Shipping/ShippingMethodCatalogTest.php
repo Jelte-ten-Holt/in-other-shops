@@ -4,37 +4,47 @@ declare(strict_types=1);
 
 namespace InOtherShops\Tests\Feature\Shipping;
 
-use Illuminate\Foundation\Testing\RefreshDatabase;
-use InOtherShops\Shipping\Actions\CalculateShippingCost;
 use InOtherShops\Shipping\Actions\ListAvailableShippingMethods;
-use InOtherShops\Shipping\Models\ShippingMethod;
+use InOtherShops\Shipping\ShippingConfig;
 use InOtherShops\Tests\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 
 final class ShippingMethodCatalogTest extends TestCase
 {
-    use RefreshDatabase;
-
     #[Test]
     public function it_lists_only_active_methods_in_sort_order(): void
     {
-        ShippingMethod::factory()->create(['identifier' => 'express', 'name' => 'Express', 'sort_order' => 10]);
-        ShippingMethod::factory()->create(['identifier' => 'standard', 'name' => 'Standard', 'sort_order' => 0]);
-        ShippingMethod::factory()->inactive()->create(['identifier' => 'retired', 'name' => 'Retired', 'sort_order' => 5]);
+        config()->set('shipping.zones', [
+            'de' => ['name' => 'Germany', 'currency' => 'EUR', 'countries' => ['DE']],
+        ]);
+        config()->set('shipping.methods', [
+            'express' => ['name' => 'Express', 'sort_order' => 10, 'rates' => ['de' => 999]],
+            'standard' => ['name' => 'Standard', 'sort_order' => 0, 'rates' => ['de' => 595]],
+            'retired' => ['name' => 'Retired', 'sort_order' => 5, 'is_active' => false, 'rates' => ['de' => 700]],
+        ]);
 
         $list = (new ListAvailableShippingMethods)();
 
         $this->assertCount(2, $list);
-        $this->assertSame(['standard', 'express'], $list->pluck('identifier')->all());
+        $this->assertSame(['standard', 'express'], array_map(fn ($m) => $m->identifier, $list));
     }
 
     #[Test]
-    public function calculate_returns_method_base_cost(): void
+    public function it_filters_methods_by_zone_availability(): void
     {
-        $method = ShippingMethod::factory()->create(['base_cost' => 799]);
+        config()->set('shipping.zones', [
+            'de' => ['name' => 'Germany', 'currency' => 'EUR', 'countries' => ['DE']],
+            'eu' => ['name' => 'EU', 'currency' => 'EUR', 'countries' => ['NL']],
+        ]);
+        config()->set('shipping.methods', [
+            'standard' => ['name' => 'Standard', 'sort_order' => 0, 'rates' => ['de' => 595, 'eu' => 1499]],
+            'express' => ['name' => 'Express', 'sort_order' => 10, 'rates' => ['de' => 999]],
+        ]);
 
-        $cost = (new CalculateShippingCost)($method);
+        $deList = (new ListAvailableShippingMethods)(ShippingConfig::zone('de'));
+        $euList = (new ListAvailableShippingMethods)(ShippingConfig::zone('eu'));
 
-        $this->assertSame(799, $cost);
+        $this->assertSame(['standard', 'express'], array_map(fn ($m) => $m->identifier, $deList));
+        $this->assertSame(['standard'], array_map(fn ($m) => $m->identifier, $euList));
     }
 }
