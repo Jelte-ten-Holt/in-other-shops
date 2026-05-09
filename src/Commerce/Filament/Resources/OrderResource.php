@@ -27,6 +27,7 @@ use InOtherShops\Commerce\Order\Enums\OrderStatus;
 use InOtherShops\Commerce\Order\Models\Order;
 use InOtherShops\Location\Filament\LocationSchema;
 use InOtherShops\Payment\Filament\RelationManagers\PaymentsRelationManager;
+use InOtherShops\Shipping\Filament\RelationManagers\ShipmentsRelationManager;
 
 class OrderResource extends Resource
 {
@@ -115,6 +116,7 @@ class OrderResource extends Resource
     {
         return [
             PaymentsRelationManager::class,
+            ShipmentsRelationManager::class,
         ];
     }
 
