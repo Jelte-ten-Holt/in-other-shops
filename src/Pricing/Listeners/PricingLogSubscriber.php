@@ -58,7 +58,11 @@ final class PricingLogSubscriber
             level: LogLevel::Info,
             channel: self::CHANNEL,
             message: 'Price deleted.',
-            context: $this->priceContext($event->price),
+            context: [
+                'price_id' => $event->priceId,
+                'priceable_type' => $event->priceableType,
+                'priceable_id' => $event->priceableId,
+            ],
         ));
     }
 

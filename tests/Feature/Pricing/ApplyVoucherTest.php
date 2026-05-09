@@ -52,8 +52,13 @@ final class ApplyVoucherTest extends TestCase
     }
 
     #[Test]
-    public function it_does_not_exceed_max_uses_under_sequential_applies(): void
+    public function the_third_sequential_apply_throws_after_max_uses_is_reached(): void
     {
+        // Sequential proof only — the post-validation re-check on a freshly-incremented
+        // counter rejects the third call. Whether the SELECT … FOR UPDATE actually
+        // serializes concurrent applies is NOT tested here; that requires multiple
+        // PHP processes against a real RDBMS and is a known coverage gap.
+        // See docs/writing-tests.md → "Match the test name to the test scope".
         Voucher::factory()->withMaxUses(max: 2, used: 0)->create(['code' => 'TWICE']);
 
         ($this->apply)(5000, 'TWICE', Currency::EUR);

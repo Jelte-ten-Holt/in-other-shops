@@ -58,6 +58,9 @@ final class McpEndpointTest extends TestCase
 
         $toolNames = array_column($body['result']['tools'], 'name');
         $this->assertContains('ping', $toolNames);
+        // Mutator tool must serialize over the HTTP boundary; if the endpoint
+        // ever drops it, agent admins lose stock-adjust capability silently.
+        $this->assertContains('adjust_stock', $toolNames);
     }
 
     #[Test]

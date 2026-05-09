@@ -83,19 +83,25 @@ final class AdjustStockToolTest extends TestCase
     }
 
     #[Test]
-    public function it_dispatches_stock_adjusted(): void
+    public function it_dispatches_stock_adjusted_with_the_applied_delta(): void
     {
         Event::fake([StockAdjusted::class]);
 
-        TestBrowsable::factory()->create(['slug' => 'eventing']);
+        $browsable = TestBrowsable::factory()->create(['slug' => 'eventing']);
 
         app(AdjustStock::class)([
             'type' => 'browsable',
             'slug' => 'eventing',
             'delta' => 2,
+            'reason' => 'restock',
         ]);
 
-        Event::assertDispatched(StockAdjusted::class);
+        Event::assertDispatched(
+            StockAdjusted::class,
+            fn (StockAdjusted $event) => $event->stockItem->stockable_id === $browsable->id
+                && $event->stockItem->stockable_type === 'test_browsable'
+                && $event->movement->quantity === 2,
+        );
     }
 
     #[Test]
@@ -113,60 +119,76 @@ final class AdjustStockToolTest extends TestCase
     }
 
     #[Test]
-    public function it_throws_on_zero_delta(): void
+    public function it_throws_on_zero_delta_without_writing_a_movement(): void
     {
         TestBrowsable::factory()->create(['slug' => 'thing']);
 
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessageMatches('/Delta must be >= 1/');
 
-        app(AdjustStock::class)([
-            'type' => 'browsable',
-            'slug' => 'thing',
-            'delta' => 0,
-        ]);
+        try {
+            app(AdjustStock::class)([
+                'type' => 'browsable',
+                'slug' => 'thing',
+                'delta' => 0,
+            ]);
+        } finally {
+            $this->assertSame(0, StockMovement::query()->count());
+        }
     }
 
     #[Test]
-    public function it_throws_on_negative_delta(): void
+    public function it_throws_on_negative_delta_without_writing_a_movement(): void
     {
         TestBrowsable::factory()->create(['slug' => 'thing']);
 
         $this->expectException(InvalidArgumentException::class);
 
-        app(AdjustStock::class)([
-            'type' => 'browsable',
-            'slug' => 'thing',
-            'delta' => -3,
-        ]);
+        try {
+            app(AdjustStock::class)([
+                'type' => 'browsable',
+                'slug' => 'thing',
+                'delta' => -3,
+            ]);
+        } finally {
+            $this->assertSame(0, StockMovement::query()->count());
+        }
     }
 
     #[Test]
-    public function it_throws_on_unknown_reason(): void
+    public function it_throws_on_unknown_reason_without_writing_a_movement(): void
     {
         TestBrowsable::factory()->create(['slug' => 'thing']);
 
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessageMatches('/Invalid reason "sold"/');
 
-        app(AdjustStock::class)([
-            'type' => 'browsable',
-            'slug' => 'thing',
-            'delta' => 1,
-            'reason' => 'sold',
-        ]);
+        try {
+            app(AdjustStock::class)([
+                'type' => 'browsable',
+                'slug' => 'thing',
+                'delta' => 1,
+                'reason' => 'sold',
+            ]);
+        } finally {
+            $this->assertSame(0, StockMovement::query()->count());
+        }
     }
 
     #[Test]
-    public function it_throws_on_unknown_type(): void
+    public function it_throws_on_unknown_type_without_writing_a_movement(): void
     {
         $this->expectException(InvalidArgumentException::class);
 
-        app(AdjustStock::class)([
-            'type' => 'mystery',
-            'slug' => 'whatever',
-            'delta' => 1,
-        ]);
+        try {
+            app(AdjustStock::class)([
+                'type' => 'mystery',
+                'slug' => 'whatever',
+                'delta' => 1,
+            ]);
+        } finally {
+            $this->assertSame(0, StockMovement::query()->count());
+        }
     }
 
     #[Test]

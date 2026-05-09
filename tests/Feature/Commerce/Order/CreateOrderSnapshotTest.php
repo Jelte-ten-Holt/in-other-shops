@@ -129,19 +129,33 @@ final class CreateOrderSnapshotTest extends TestCase
     }
 
     #[Test]
-    public function line_tax_amounts_sum_to_order_tax(): void
+    public function line_tax_amounts_distribute_proportionally_with_the_last_line_absorbing_rounding(): void
     {
-        $cart = Cart::factory()->create(['session_token' => 'test-session']);
-        ($this->addToCart)($cart, TestCartable::factory()->create(), quantity: 1);
-        ($this->addToCart)($cart, TestCartable::factory()->create(), quantity: 2);
-        ($this->addToCart)($cart, TestCartable::factory()->create(), quantity: 3);
+        // Non-uniform unit prices + a tax total that doesn't divide evenly
+        // across lines. The proportional shares are non-integer, so a naive
+        // (tax / line_count) distribution would fail this test, and so would
+        // an implementation that didn't reconcile rounding on the final line.
+        $cheap = TestCartable::factory()->create();
+        $cheap->testUnitPrice = 1234;
+        $mid = TestCartable::factory()->create();
+        $mid->testUnitPrice = 2345;
+        $pricey = TestCartable::factory()->create();
+        $pricey->testUnitPrice = 3456;
 
+        $cart = Cart::factory()->create(['session_token' => 'test-session']);
+        ($this->addToCart)($cart, $cheap, quantity: 1);
+        ($this->addToCart)($cart, $mid, quantity: 1);
+        ($this->addToCart)($cart, $pricey, quantity: 1);
+
+        // Subtotal: 1234 + 2345 + 3456 = 7035
+        // Tax 1711 distributed: floor(1234/7035*1711) = 300, floor(2345/7035*1711) = 570,
+        // last line absorbs: 1711 - 300 - 570 = 841 (true proportional would be ~840.58).
         $breakdown = new PriceBreakdown(
-            subtotal: 9000,
+            subtotal: 7035,
             discount: 0,
-            tax: 1710,
+            tax: 1711,
             shippingCost: 0,
-            total: 10710,
+            total: 8746,
             currency: Currency::EUR,
             lines: [],
         );
@@ -150,13 +164,20 @@ final class CreateOrderSnapshotTest extends TestCase
             cart: $cart,
             breakdown: $breakdown,
             billingAddress: $this->billingAddress(),
-            taxSnapshot: new TaxSnapshot(rateBps: 1900, countryCode: 'DE'),
+            taxSnapshot: new TaxSnapshot(rateBps: 2433, countryCode: 'DE'),
         );
 
-        $sum = (int) $order->lines()->sum('tax_amount');
+        $lineTaxes = $order->lines()
+            ->orderBy('line_total')
+            ->pluck('tax_amount')
+            ->map(fn ($v) => (int) $v)
+            ->all();
 
-        $this->assertSame(1710, $sum);
-        $this->assertSame($order->tax, $sum);
+        $this->assertSame([300, 570, 841], $lineTaxes,
+            'Each line must receive its proportional share of order tax; the most expensive line absorbs rounding.');
+        $this->assertSame(1711, array_sum($lineTaxes),
+            'Per-line tax amounts must reconcile exactly to the order-level tax.');
+        $this->assertSame($order->tax, array_sum($lineTaxes));
     }
 
     #[Test]

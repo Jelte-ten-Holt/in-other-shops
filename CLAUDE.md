@@ -72,9 +72,13 @@ Adding a dependency between domains is a significant decision — it means those
 - **Models** use `protected $guarded = []`, method-syntax `casts()`, morph map aliases
 - **Service providers** are `final`, register config in `register()`, load migrations and morph maps in `boot()`
 
-## Commands
+## Tests
 
 The package runs its own PHPUnit suite (Orchestra Testbench) — `composer test`. Consuming projects can run their own tests on top; they should not be the only safety net.
+
+How to write tests for this package — trust principles, what each Action/Listener/HTTP/Command suite must cover, and concrete good-and-bad examples — is in [docs/writing-tests.md](docs/writing-tests.md). Read it before adding tests; the rules there are how the package decides whether a test earns its keep.
+
+## Commands
 
 The package does not ship application-level CLI commands. Exceptions: inventory housekeeping (`inventory:release-expired`, gated behind config) and cart cleanup (`commerce:prune-carts`, prunes expired guest carts).
 

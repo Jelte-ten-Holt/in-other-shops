@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace InOtherShops\Tests\Feature\Shipping;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Event;
 use InOtherShops\Commerce\Order\Events\OrderCreated;
 use InOtherShops\Commerce\Order\Models\Order;
 use InOtherShops\Shipping\Enums\ShipmentStatus;
+use InOtherShops\Shipping\Events\ShipmentCreated;
 use InOtherShops\Tests\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 use RuntimeException;
@@ -39,8 +41,51 @@ final class AutoCreateShipmentTest extends TestCase
 
         $shipments = $order->shipments()->get();
         $this->assertCount(1, $shipments);
-        $this->assertSame(ShipmentStatus::Pending, $shipments->first()->status);
-        $this->assertSame('standard', $shipments->first()->method);
+        $shipment = $shipments->first();
+        $this->assertSame(ShipmentStatus::Pending, $shipment->status);
+        $this->assertSame('standard', $shipment->method);
+
+        // The listener docblock claims it covers ALL of the order's lines.
+        // Without this assertion a regression to "first line only" would be invisible.
+        $this->assertSame(
+            $order->lines()->pluck('id')->sort()->values()->all(),
+            $shipment->items()->pluck('order_line_id')->sort()->values()->all(),
+        );
+    }
+
+    #[Test]
+    public function it_dispatches_shipment_created_with_the_new_shipment(): void
+    {
+        Event::fake([ShipmentCreated::class]);
+
+        $order = Order::factory()->withLines(1)->create([
+            'shipping_method_identifier' => 'standard',
+        ]);
+
+        OrderCreated::dispatch($order);
+
+        Event::assertDispatched(
+            ShipmentCreated::class,
+            fn (ShipmentCreated $event) => $event->shipment->method === 'standard'
+                && $event->shipment->status === ShipmentStatus::Pending,
+        );
+    }
+
+    #[Test]
+    public function it_skips_silently_when_no_shipping_methods_are_configured(): void
+    {
+        // Different from the unknown-method case: when methods is empty entirely
+        // the listener returns silently rather than throwing. Otherwise consumers
+        // who haven't published shipping config would crash on every order.
+        config()->set('shipping.methods', []);
+
+        $order = Order::factory()->withLines(1)->create([
+            'shipping_method_identifier' => 'standard',
+        ]);
+
+        OrderCreated::dispatch($order);
+
+        $this->assertCount(0, $order->shipments()->get());
     }
 
     #[Test]

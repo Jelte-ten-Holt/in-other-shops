@@ -124,6 +124,23 @@ final class ConfirmReservationTest extends TestCase
     }
 
     #[Test]
+    public function it_preserves_the_existing_description_when_none_is_passed_to_confirm(): void
+    {
+        // Negative of the optional-update test: omitting description must not
+        // clobber the value set at reservation time. Without this assertion, a
+        // refactor that always writes the passed value (null included) would
+        // silently null out the description.
+        $stockable = $this->stockableWithLevel(10);
+        $orderRef = TestStockable::factory()->create();
+
+        ($this->reserve)($stockable, quantity: 1, reference: $orderRef, description: 'Held for cart #42');
+
+        $confirmed = ($this->confirm)($orderRef);
+
+        $this->assertSame('Held for cart #42', $confirmed[0]->description);
+    }
+
+    #[Test]
     public function it_dispatches_reservation_confirmed_once_per_confirmed_reservation(): void
     {
         Event::fake([ReservationConfirmed::class]);
