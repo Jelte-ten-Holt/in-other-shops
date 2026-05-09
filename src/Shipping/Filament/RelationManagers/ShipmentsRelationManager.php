@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace InOtherShops\Shipping\Filament\RelationManagers;
 
 use Filament\Actions;
+use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Textarea;
 use Filament\Notifications\Notification;
@@ -87,9 +88,7 @@ class ShipmentsRelationManager extends RelationManager
             ->color('primary')
             ->visible(fn (Shipment $record): bool => $record->status->canTransitionTo(ShipmentStatus::InTransit))
             ->form([
-                TextInput::make('carrier')
-                    ->required()
-                    ->maxLength(64),
+                static::carrierField(),
                 TextInput::make('tracking_number')
                     ->required()
                     ->maxLength(128),
@@ -151,6 +150,36 @@ class ShipmentsRelationManager extends RelationManager
                     ->success()
                     ->send();
             });
+    }
+
+    /**
+     * Carrier picker — a Select sourced from config('shipping.carriers')
+     * when carriers are configured, falling back to a free-text input
+     * otherwise. Picking from config keeps Shipment.carrier aligned with
+     * the carriers that have tracking_url_templates so DispatchShipment
+     * can auto-derive the URL.
+     */
+    private static function carrierField(): Select|TextInput
+    {
+        $carriers = config('shipping.carriers', []);
+
+        if (! is_array($carriers) || $carriers === []) {
+            return TextInput::make('carrier')
+                ->required()
+                ->maxLength(64);
+        }
+
+        $options = [];
+        foreach ($carriers as $identifier => $config) {
+            $options[$identifier] = is_array($config) && isset($config['name'])
+                ? $config['name']
+                : $identifier;
+        }
+
+        return Select::make('carrier')
+            ->options($options)
+            ->required()
+            ->searchable();
     }
 
     private static function markLostAction(): Actions\Action
