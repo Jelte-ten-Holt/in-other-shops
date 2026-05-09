@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace InOtherShops\Shipping\Database\Factories;
 
-use InOtherShops\Currency\Enums\Currency;
+use Illuminate\Database\Eloquent\Factories\Factory;
+use InOtherShops\Shipping\Enums\ShipmentStatus;
 use InOtherShops\Shipping\Models\Shipment;
 use InOtherShops\Shipping\Shipping;
-use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
  * @extends Factory<Shipment>
@@ -23,8 +23,12 @@ final class ShipmentFactory extends Factory
     {
         return [
             'method' => 'standard',
-            'cost' => fake()->numberBetween(500, 2000),
-            'currency' => Currency::EUR->value,
+            'status' => ShipmentStatus::Pending,
         ];
+    }
+
+    public function status(ShipmentStatus $status): static
+    {
+        return $this->state(fn (): array => ['status' => $status]);
     }
 }

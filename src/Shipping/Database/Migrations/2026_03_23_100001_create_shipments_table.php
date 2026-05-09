@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use InOtherShops\Shipping\Enums\ShipmentStatus;
 
 return new class extends Migration
 {
@@ -13,9 +14,13 @@ return new class extends Migration
         Schema::create('shipments', function (Blueprint $table) {
             $table->id();
             $table->morphs('shippable');
-            $table->integer('cost')->default(0);
-            $table->string('currency', 3);
+            $table->string('status')->default(ShipmentStatus::Pending->value);
             $table->string('method')->nullable();
+            $table->string('carrier')->nullable();
+            $table->string('tracking_number')->nullable();
+            $table->string('tracking_url')->nullable();
+            $table->timestamp('shipped_at')->nullable();
+            $table->timestamp('delivered_at')->nullable();
             $table->timestamps();
         });
     }

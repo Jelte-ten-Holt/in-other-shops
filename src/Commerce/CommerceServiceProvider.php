@@ -6,6 +6,8 @@ namespace InOtherShops\Commerce;
 
 use InOtherShops\Commerce\Cart\Commands\PruneExpiredCartsCommand;
 use InOtherShops\Commerce\Listeners\CommerceLogSubscriber;
+use InOtherShops\Commerce\Order\Events\OrderCreated;
+use InOtherShops\Commerce\Order\Listeners\CreateShipmentForNewOrder;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Route;
@@ -35,6 +37,7 @@ final class CommerceServiceProvider extends ServiceProvider
         $this->commands([PruneExpiredCartsCommand::class]);
 
         Event::subscribe(CommerceLogSubscriber::class);
+        Event::listen(OrderCreated::class, CreateShipmentForNewOrder::class);
     }
 
     private function registerCartRoutes(): void

@@ -4,15 +4,13 @@ declare(strict_types=1);
 
 namespace InOtherShops\Shipping\Concerns;
 
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use InOtherShops\Shipping\Shipping;
-use Illuminate\Database\Eloquent\Relations\MorphOne;
 
 trait InteractsWithShipment
 {
-    public function shipment(): MorphOne
+    public function shipments(): MorphMany
     {
-        $model = Shipping::shipment();
-
-        return $this->morphOne($model, 'shippable');
+        return $this->morphMany(Shipping::shipment(), 'shippable');
     }
 }

@@ -45,13 +45,13 @@ final class ListOrdersToolTest extends TestCase
     public function it_filters_by_status(): void
     {
         Order::factory()->status(OrderStatus::Pending)->create();
-        $shipped = Order::factory()->status(OrderStatus::Shipped)->create();
+        $confirmed = Order::factory()->status(OrderStatus::Confirmed)->create();
 
-        $result = app(ListOrders::class)(['status' => 'shipped']);
+        $result = app(ListOrders::class)(['status' => 'confirmed']);
 
         $this->assertCount(1, $result['data']);
-        $this->assertSame($shipped->id, $result['data'][0]['id']);
-        $this->assertSame('shipped', $result['data'][0]['status']);
+        $this->assertSame($confirmed->id, $result['data'][0]['id']);
+        $this->assertSame('confirmed', $result['data'][0]['status']);
     }
 
     #[Test]

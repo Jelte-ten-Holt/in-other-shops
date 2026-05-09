@@ -82,10 +82,10 @@ class OrderResource extends Resource
                 Tables\Columns\TextColumn::make('currency')
                     ->badge()
                     ->formatStateUsing(fn ($state) => $state->value),
-                Tables\Columns\TextColumn::make('shipment.cost')
+                Tables\Columns\TextColumn::make('shipping_cost')
                     ->label('Shipping')
-                    ->formatStateUsing(fn ($record) => $record->shipment?->cost > 0
-                        ? $record->currency->format($record->shipment->cost)
+                    ->formatStateUsing(fn ($record) => $record->shipping_cost > 0
+                        ? $record->currency->format($record->shipping_cost)
                         : '—')
                     ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('total')

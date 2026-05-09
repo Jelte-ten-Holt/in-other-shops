@@ -8,22 +8,14 @@ enum OrderStatus: string
 {
     case Pending = 'pending';
     case Confirmed = 'confirmed';
-    case Processing = 'processing';
-    case Shipped = 'shipped';
-    case Delivered = 'delivered';
     case Cancelled = 'cancelled';
-    case Refunded = 'refunded';
 
     public function label(): string
     {
         return match ($this) {
             self::Pending => 'Pending',
             self::Confirmed => 'Confirmed',
-            self::Processing => 'Processing',
-            self::Shipped => 'Shipped',
-            self::Delivered => 'Delivered',
             self::Cancelled => 'Cancelled',
-            self::Refunded => 'Refunded',
         };
     }
 
@@ -32,11 +24,7 @@ enum OrderStatus: string
         return match ($this) {
             self::Pending => 'gray',
             self::Confirmed => 'info',
-            self::Processing => 'warning',
-            self::Shipped => 'primary',
-            self::Delivered => 'success',
             self::Cancelled => 'danger',
-            self::Refunded => 'danger',
         };
     }
 
@@ -45,11 +33,8 @@ enum OrderStatus: string
     {
         return match ($this) {
             self::Pending => [self::Confirmed, self::Cancelled],
-            self::Confirmed => [self::Processing, self::Cancelled, self::Refunded],
-            self::Processing => [self::Shipped, self::Cancelled, self::Refunded],
-            self::Shipped => [self::Delivered, self::Refunded],
-            self::Delivered => [self::Refunded],
-            self::Cancelled, self::Refunded => [],
+            self::Confirmed => [self::Cancelled],
+            self::Cancelled => [],
         };
     }
 

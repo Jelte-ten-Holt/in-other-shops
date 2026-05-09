@@ -12,7 +12,7 @@ Package-level work, typically surfaced by consuming projects. Completed items ha
 
 ## Deferred / Watch
 
-- 💭 **Split `OrderStatus`** into fulfillment status + derive payment status from `payments` — review called for this, but it's a clean follow-up, not a foundation fix. Revisit once checkout is live.
+- 💭 **Variants domain** — design at [`docs/variants-design.md`](docs/variants-design.md) (2026-05-09). Separate domain (not folded into Taxonomy), `Option` / `OptionValue` / `Variant` naming, polymorphic `HasVariants` ownership on the consumer side, per-variant stock and pricing, parent slug + optional `?variant=42` deep link, Variant-as-cartable. Build gated on a consumer use case — `in-other-worlds` is SKU-flat by design. Out of scope explicitly parked: configurable ("OR-slot") bundles, variants with different tax categories.
 - 💭 **Extract Customer from Commerce** — speculative; no second consumer needs it. Revisit when/if a second consumer arrives.
 - 💭 **Filament `suggest` split** — make Filament optional and split resources into a sub-package. Decision (2026-04-15): Filament is the correct backend tool; no headless consumer exists. Revisit only if one appears.
 - 💭 **Option C FlowChain child-chain bridge** — ship Option B (trait) when the first sub-chain lands (payment inside checkout); upgrade to Option C (framework) only if a second bridge + debugging pain arises.

@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace InOtherShops\Shipping\Contracts;
 
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use InOtherShops\Shipping\Models\Shipment;
-use Illuminate\Database\Eloquent\Relations\MorphOne;
 
 interface HasShipment
 {
     /**
-     * @return MorphOne<Shipment, $this>
+     * @return MorphMany<Shipment, $this>
      */
-    public function shipment(): MorphOne;
+    public function shipments(): MorphMany;
 }

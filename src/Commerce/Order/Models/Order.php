@@ -21,6 +21,7 @@ use InOtherShops\Payment\Concerns\InteractsWithPayments;
 use InOtherShops\Payment\Contracts\HasPayments;
 use InOtherShops\Shipping\Concerns\InteractsWithShipment;
 use InOtherShops\Shipping\Contracts\HasShipment;
+use InOtherShops\Shipping\Enums\ShipmentStatus;
 
 class Order extends Model implements HasAddresses, HasPayments, HasShipment
 {
@@ -73,5 +74,32 @@ class Order extends Model implements HasAddresses, HasPayments, HasShipment
     public function getPaymentTotalDue(): int
     {
         return (int) $this->total;
+    }
+
+    /**
+     * The order is complete when it has been confirmed, has at least one
+     * Shipment, every Shipment is Delivered, and the order is paid in
+     * full. Computed from the three independent state machines (Order,
+     * Payment, Shipment) — there is no `completed_at` column.
+     */
+    public function isComplete(): bool
+    {
+        if ($this->status !== OrderStatus::Confirmed) {
+            return false;
+        }
+
+        if (! $this->isPaid()) {
+            return false;
+        }
+
+        $shipments = $this->shipments;
+
+        if ($shipments->isEmpty()) {
+            return false;
+        }
+
+        return $shipments->every(
+            fn ($shipment) => $shipment->status === ShipmentStatus::Delivered,
+        );
     }
 }

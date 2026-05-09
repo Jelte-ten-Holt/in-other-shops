@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace InOtherShops\Shipping;
 
 use Illuminate\Database\Eloquent\Relations\Relation;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
+use InOtherShops\Shipping\Listeners\ShipmentLogSubscriber;
 
 final class ShippingServiceProvider extends ServiceProvider
 {
@@ -20,10 +22,13 @@ final class ShippingServiceProvider extends ServiceProvider
 
         Relation::morphMap([
             'shipment' => Shipping::shipment(),
+            'shipment_item' => Shipping::shipmentItem(),
         ]);
 
         $this->publishes([
             __DIR__.'/config/shipping.php' => config_path('shipping.php'),
         ], 'shipping-config');
+
+        Event::subscribe(ShipmentLogSubscriber::class);
     }
 }

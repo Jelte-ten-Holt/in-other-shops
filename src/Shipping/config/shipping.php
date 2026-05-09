@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use InOtherShops\Shipping\Models\Shipment;
+use InOtherShops\Shipping\Models\ShipmentItem;
 
 return [
     /*
@@ -17,7 +18,22 @@ return [
 
     'models' => [
         'shipment' => Shipment::class,
+        'shipment_item' => ShipmentItem::class,
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Auto-create Shipment on OrderCreated
+    |--------------------------------------------------------------------------
+    |
+    | When true, the package's default listener creates a single Pending
+    | Shipment for every newly-created Order, covering all of its order
+    | lines. Disable to compose Shipments yourself (e.g. split warehouse
+    | routing).
+    |
+    */
+
+    'auto_create_shipment' => true,
 
     /*
     |--------------------------------------------------------------------------
@@ -69,4 +85,27 @@ return [
     */
 
     'methods' => [],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Carriers
+    |--------------------------------------------------------------------------
+    |
+    | Carrier identifier => display name + tracking-URL template. The
+    | identifier is what's stored on Shipment.carrier; consumers may use
+    | a free-form string instead (a one-off carrier with a non-templatable
+    | URL passes its tracking URL explicitly to DispatchShipment).
+    |
+    | The {tracking_number} placeholder is substituted at dispatch time.
+    |
+    | Example:
+    |
+    |   'dhl' => [
+    |       'name' => 'DHL',
+    |       'tracking_url_template' => 'https://nolp.dhl.de/nextt-online-public/en/search?piececode={tracking_number}',
+    |   ],
+    |
+    */
+
+    'carriers' => [],
 ];
