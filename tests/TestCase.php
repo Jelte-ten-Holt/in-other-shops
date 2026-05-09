@@ -24,6 +24,7 @@ use InOtherShops\Tests\Stubs\TestLocalizable;
 use InOtherShops\Tests\Stubs\TestMediable;
 use InOtherShops\Tests\Stubs\TestPayable;
 use InOtherShops\Tests\Stubs\TestPriceable;
+use InOtherShops\Tests\Stubs\TestTaxonomized;
 use InOtherShops\Tests\Stubs\TestShippableCartable;
 use InOtherShops\Tests\Stubs\TestStockable;
 use InOtherShops\Tests\Stubs\TestStockableCartable;
@@ -56,6 +57,7 @@ abstract class TestCase extends Orchestra
             'test_stockable_localizable' => TestStockableLocalizable::class,
             'test_mediable' => TestMediable::class,
             'test_priceable' => TestPriceable::class,
+            'test_taxonomized' => TestTaxonomized::class,
         ]);
     }
 
