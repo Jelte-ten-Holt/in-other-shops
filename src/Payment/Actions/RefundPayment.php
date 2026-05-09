@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace InOtherShops\Payment\Actions;
 
+use Illuminate\Support\Facades\DB;
 use InOtherShops\Payment\Enums\PaymentStatus;
 use InOtherShops\Payment\Events\PaymentRefunded;
 use InOtherShops\Payment\Exceptions\PaymentNotRefundableException;
@@ -20,17 +21,31 @@ final class RefundPayment
 
     public function __invoke(Payment $payment, ?int $amount = null): Payment
     {
-        $this->validateRefundable($payment);
+        // Two simultaneous refund clicks on the same payment used to read
+        // amount_refunded=0 in parallel, both pass the cap check, both
+        // call the gateway. Locking the row + re-validating the cap under
+        // lock closes that race. Gateway call comes before the DB write
+        // because gateways enforce their own cap from their own records
+        // (Stripe inspects the PaymentIntent it issued); calling them
+        // post-update would feed them a payment that already reflects the
+        // refund and they'd reject it as exceeding the remaining cap.
+        return DB::transaction(function () use ($payment, $amount): Payment {
+            $locked = Payment::query()
+                ->lockForUpdate()
+                ->findOrFail($payment->getKey());
 
-        $refundAmount = $this->resolveRefundAmount($payment, $amount);
+            $this->validateRefundable($locked);
+            $refundAmount = $this->resolveRefundAmount($locked, $amount);
 
-        $this->processRefund($payment, $refundAmount);
+            $this->processRefund($locked, $refundAmount);
+            $this->updatePaymentRecord($locked, $refundAmount);
+            $this->dispatchEvent($locked);
 
-        $this->updatePaymentRecord($payment, $refundAmount);
+            // Refresh the caller's instance so they see the new state too.
+            $payment->setRawAttributes($locked->getAttributes(), sync: true);
 
-        $this->dispatchEvent($payment);
-
-        return $payment;
+            return $payment;
+        });
     }
 
     private function validateRefundable(Payment $payment): void

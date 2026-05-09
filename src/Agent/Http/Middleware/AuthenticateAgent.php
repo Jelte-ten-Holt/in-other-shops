@@ -85,8 +85,11 @@ final class AuthenticateAgent
         $baseScope = (string) config('agent.auth.oauth.scope', 'agent');
         $adminScope = $this->adminScope();
 
+        // Base scope honors wildcards (Passport's normal contract). Admin
+        // requires the literal scope — a wildcard PAT must not silently
+        // unlock AdjustStock and unfiltered order reads.
         $hasBase = $this->tokenHasScope($token, $baseScope);
-        $hasAdmin = $adminScope !== null && $this->tokenHasScope($token, $adminScope);
+        $hasAdmin = $adminScope !== null && $this->tokenHasScope($token, $adminScope, strict: true);
 
         if (! $hasBase && ! $hasAdmin) {
             return false;
@@ -105,13 +108,17 @@ final class AuthenticateAgent
         return true;
     }
 
-    private function tokenHasScope(object $token, string $scope): bool
+    private function tokenHasScope(object $token, string $scope, bool $strict = false): bool
     {
+        $scopes = property_exists($token, 'scopes') ? $token->scopes : null;
+
+        if ($strict) {
+            return is_array($scopes) && in_array($scope, $scopes, true);
+        }
+
         if (method_exists($token, 'can')) {
             return (bool) $token->can($scope);
         }
-
-        $scopes = property_exists($token, 'scopes') ? $token->scopes : null;
 
         if (is_array($scopes)) {
             return in_array($scope, $scopes, true) || in_array('*', $scopes, true);

@@ -205,10 +205,16 @@ class OrderResource extends Resource
                 ->afterStateUpdated(function (Set $set, Get $get): void {
                     static::recalculateTotal($set, $get);
                 }),
+            // Total is computed (subtotal + tax + shipping_cost - discount) by
+            // recalculateTotal() above. Read-only so an admin can't introduce
+            // a discrepancy between total and its parts. See H6 in the
+            // 2026-05-09 audit / docs/launch-blockers.md.
             TextInput::make('total')
                 ->numeric()
                 ->default('0.00')
                 ->minValue(0)
+                ->disabled()
+                ->dehydrated()
                 ->formatStateUsing(fn ($state) => $state !== null ? number_format((int) $state / 100, 2, '.', '') : '0.00')
                 ->dehydrateStateUsing(fn ($state) => $state !== null ? (int) round((float) $state * 100) : 0),
             TextInput::make('_shipping_cost')

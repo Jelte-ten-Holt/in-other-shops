@@ -50,6 +50,11 @@ final class MediaSchema
                     ->disk($disk)
                     ->directory($directory)
                     ->visibility('public')
+                    // Allowlist of mime types served safely from the public disk.
+                    // SVG is intentionally excluded — it executes JS when served inline.
+                    // Size cap is 10 MB; raise per-collection if a use case justifies it.
+                    ->acceptedFileTypes(self::allowedUploadMimeTypes())
+                    ->maxSize(10240)
                     ->columnSpanFull()
                     ->visible(fn ($get) => $get('type') === MediaType::Upload->value),
                 TextInput::make('url')
@@ -358,5 +363,29 @@ final class MediaSchema
         $config = self::collections()[$collection];
 
         return __($config['label'] ?? $collection);
+    }
+
+    /**
+     * Allowlist of mime types accepted by the FileUpload field. Consumer projects
+     * may override via `media.allowed_mime_types` in their config. SVG is omitted
+     * deliberately; if a project needs it, they own the inline-XSS risk.
+     *
+     * @return array<int, string>
+     */
+    public static function allowedUploadMimeTypes(): array
+    {
+        $configured = config('media.allowed_mime_types');
+
+        if (is_array($configured) && $configured !== []) {
+            return array_values(array_filter($configured, 'is_string'));
+        }
+
+        return [
+            'image/jpeg',
+            'image/png',
+            'image/webp',
+            'image/avif',
+            'application/pdf',
+        ];
     }
 }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace InOtherShops\Media\Filament\RelationManagers;
 
 use InOtherShops\Media\Enums\MediaType;
+use InOtherShops\Media\Filament\MediaSchema;
 use InOtherShops\Media\Models\Media;
 use Filament\Actions;
 use Filament\Forms\Components\FileUpload;
@@ -38,6 +39,8 @@ class MediaRelationManager extends RelationManager
                     ->disk($disk)
                     ->directory($directory)
                     ->visibility('public')
+                    ->acceptedFileTypes(MediaSchema::allowedUploadMimeTypes())
+                    ->maxSize(10240)
                     ->columnSpanFull(),
                 Select::make('collection')
                     ->options($collectionOptions)

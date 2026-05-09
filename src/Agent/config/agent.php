@@ -35,11 +35,17 @@ return [
     | The package mounts one MCP endpoint. `path` is the URI (no leading slash
     | stripped by the library); `enabled` gates registration entirely.
     |
+    | `throttle` is a Laravel throttle string ("requests,minutes" or a named
+    | limiter) applied to every MCP request. The default is permissive enough
+    | for an interactive agent session but tight enough to make bearer-token
+    | brute-force unattractive. Set to a named limiter for ip+token keying.
+    |
     */
 
     'route' => [
         'enabled' => true,
         'path' => '/mcp',
+        'throttle' => env('AGENT_ROUTE_THROTTLE', '60,1'),
     ],
 
     /*
