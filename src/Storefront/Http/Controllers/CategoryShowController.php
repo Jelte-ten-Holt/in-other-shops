@@ -29,7 +29,7 @@ final class CategoryShowController
 
     private function findActiveCategory(string $slug): ?Model
     {
-        return Taxonomy::category()->query()
+        return Taxonomy::category()::query()
             ->where('slug', $slug)
             ->where('is_active', true)
             ->with([

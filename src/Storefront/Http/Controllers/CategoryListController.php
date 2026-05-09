@@ -12,7 +12,7 @@ final class CategoryListController
 {
     public function __invoke(): AnonymousResourceCollection
     {
-        $categories = Taxonomy::category()->query()
+        $categories = Taxonomy::category()::query()
             ->whereNull('parent_id')
             ->where('is_active', true)
             ->with([
