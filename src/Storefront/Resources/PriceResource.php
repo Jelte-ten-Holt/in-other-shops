@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace InOtherShops\Storefront\Http\Resources;
+namespace InOtherShops\Storefront\Resources;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;

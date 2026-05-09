@@ -4,36 +4,25 @@ declare(strict_types=1);
 
 namespace InOtherShops\Storefront;
 
-use InOtherShops\Storefront\Http\Middleware\SetStorefrontContext;
-use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
+use InOtherShops\Currency\Enums\Currency;
+use InOtherShops\Storefront\DTOs\StorefrontContext;
 
 final class StorefrontServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
         $this->mergeConfigFrom(__DIR__.'/config/storefront.php', 'storefront');
-    }
 
-    public function boot(): void
-    {
-        if ($this->hasStorefrontModels()) {
-            $this->registerRoutes();
-        }
-    }
+        // Default StorefrontContext for callers (Agent tools, consumer code)
+        // that resolve BrowsableResource without first running an HTTP-layer
+        // middleware to set per-request context. Defaults to the first enabled
+        // currency. A consumer that wants per-request currency can override
+        // this binding (e.g. via a middleware) before the resource is built.
+        $this->app->bind(StorefrontContext::class, function (): StorefrontContext {
+            $enabled = Currency::enabled();
 
-    private function hasStorefrontModels(): bool
-    {
-        return config('storefront.models', []) !== [];
-    }
-
-    private function registerRoutes(): void
-    {
-        $prefix = config('storefront.prefix', 'storefront');
-        $middleware = config('storefront.middleware', ['api']);
-
-        Route::prefix("api/{$prefix}")
-            ->middleware([...$middleware, SetStorefrontContext::class])
-            ->group(__DIR__.'/Http/Routes/api.php');
+            return new StorefrontContext(currency: $enabled[0] ?? Currency::EUR);
+        });
     }
 }

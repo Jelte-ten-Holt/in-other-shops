@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace InOtherShops\Storefront\Http\Resources;
+namespace InOtherShops\Storefront\Resources;
 
 use InOtherShops\Pricing\Contracts\HasPrices;
 use InOtherShops\Storefront\Contracts\HasAvailability;

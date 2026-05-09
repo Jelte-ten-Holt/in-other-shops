@@ -1,6 +1,8 @@
 # Storefront Domain
 
-Read-only API layer that exposes browsable catalog items. Composes multiple domains (Pricing, Taxonomy, Media, Translation) into a unified storefront experience.
+Read-only catalog layer that exposes browsable items via Action classes. Composes multiple domains (Pricing, Taxonomy, Media, Translation) into a unified storefront experience.
+
+> **HTTP layer is shelved** — the JSON-over-HTTP wrappers (controllers, dynamic-route loop, currency-context middleware) live on the [`storefront-http-archive` branch](https://github.com/Jelte-ten-Holt/in-other-shops/tree/storefront-http-archive) with passing tests. Main keeps the Actions, Contracts, JSON Resources (used by the Agent module's catalog tools as serializers), and the `StorefrontContext` DTO; consumers call Actions directly (e.g. via Inertia) or through the Agent tools. Resurrect the HTTP layer by merging the archive branch back when a consumer needs it.
 
 ## Architecture
 
@@ -32,14 +34,11 @@ interface HasStorefrontPresence
     'products' => \App\Models\Product::class,
 ],
 'defaults' => [
-    'currency' => 'EUR',
     'per_page' => 24,
 ],
-'prefix' => 'storefront',
-'middleware' => ['api'],
 ```
 
-The `models` key maps URL segments to model classes. Adding a new browsable type is a one-line config change.
+The `models` key maps storefront keys to model classes. Read by the Storefront Actions and the Agent module's catalog tools to resolve type → class.
 
 ### Automatic Eager Loading (`ResolvesEagerLoading`)
 
@@ -55,31 +54,24 @@ Actions inspect which domain contracts a model implements and automatically eage
 
 This prevents N+1 queries without the storefront knowing which domains a model uses.
 
-### Currency Context
-
-`SetStorefrontContext` middleware reads the `X-Currency` request header, validates it against enabled currencies, and registers a `StorefrontContext` DTO in the service container. Resources use this to resolve the correct price.
-
-### Routes
-
-Registered dynamically under `api/storefront/` from configured models:
-
-- `GET /api/storefront/{type}` — list browsables (paginated, filterable, sortable)
-- `GET /api/storefront/{type}/{slug}` — show single browsable
-- `GET /api/storefront/categories` — list root categories with children
-- `GET /api/storefront/categories/{slug}` — show category with paginated browsable items
-
 ### Actions
 
-- **`ListBrowsables`** — lists items with filtering (category, tag, search), sorting (`name`, `created_at`, `published_at`, prefix with `-` for desc), and pagination.
+- **`ListBrowsables`** — lists items with filtering (category, tag, search), sorting (`name`, `created_at`, `published_at`, prefix with `-` for desc), and pagination. Returns `LengthAwarePaginator` of model instances; the consumer formats them.
 - **`ListCategoryBrowsables`** — collects all browsable items across configured models that belong to a category. In-memory pagination.
 - **`ShowBrowsable`** — retrieves a single item by slug.
 
 ### JSON Resources
 
-- **`BrowsableResource`** — conditionally includes prices (resolved for context currency), `in_stock` (boolean), categories, and tags based on which contracts the model implements. Adds `type` metadata.
+Used by the Agent module's catalog tools (`browse_catalog`, `show_browsable`, `list_categories`, `list_tags`) to format models for tool output. The HTTP-layer archive branch reuses these — they're domain-level formatters, not HTTP-only.
+
+- **`BrowsableResource`** — conditionally includes prices (resolved for `StorefrontContext` currency), `in_stock` (boolean), categories, and tags based on which contracts the model implements. Adds `type` metadata derived from `config('storefront.models')`.
 - **`CategoryResource`** — category with nested children.
 - **`PriceResource`** — raw amount + formatted string + compare-at price.
 - **`TagResource`** — tag with type.
+
+### StorefrontContext
+
+`StorefrontContext` carries per-request currency for resources to use when resolving prices. The service provider binds a default that picks the first enabled `Currency`; HTTP-layer consumers (on the archive branch) override the binding via `SetStorefrontContext` middleware reading the `X-Currency` header.
 
 ## Dependencies
 
