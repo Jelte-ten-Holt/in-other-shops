@@ -54,8 +54,9 @@ final class CreateOrder
         ?string $guestEmail = null,
         ?TaxSnapshot $taxSnapshot = null,
         ?ShippingSnapshot $shippingSnapshot = null,
+        ?string $locale = null,
     ): Order {
-        $order = DB::transaction(fn (): Order => $this->build($cart, $breakdown, $billingAddress, $shippingAddress, $customer, $guestEmail, $taxSnapshot, $shippingSnapshot));
+        $order = DB::transaction(fn (): Order => $this->build($cart, $breakdown, $billingAddress, $shippingAddress, $customer, $guestEmail, $taxSnapshot, $shippingSnapshot, $locale));
 
         OrderCreated::dispatch($order);
 
@@ -66,11 +67,11 @@ final class CreateOrder
      * @param  array<string, mixed>  $billingAddress
      * @param  array<string, mixed>|null  $shippingAddress
      */
-    private function build(Cart $cart, PriceBreakdown $breakdown, array $billingAddress, ?array $shippingAddress, ?Customer $customer, ?string $guestEmail, ?TaxSnapshot $taxSnapshot, ?ShippingSnapshot $shippingSnapshot): Order
+    private function build(Cart $cart, PriceBreakdown $breakdown, array $billingAddress, ?array $shippingAddress, ?Customer $customer, ?string $guestEmail, ?TaxSnapshot $taxSnapshot, ?ShippingSnapshot $shippingSnapshot, ?string $locale): Order
     {
         $this->commitVoucherUsage($breakdown);
 
-        $order = $this->createOrderRecord($breakdown, $customer, $guestEmail, $taxSnapshot, $shippingSnapshot);
+        $order = $this->createOrderRecord($breakdown, $customer, $guestEmail, $taxSnapshot, $shippingSnapshot, $locale);
 
         $this->attachLines($order, $cart, $breakdown, $taxSnapshot);
         $this->attachAddress($order, $billingAddress, $shippingAddress === null ? AddressType::ShippingAndBilling : AddressType::Billing);
@@ -95,7 +96,7 @@ final class CreateOrder
         );
     }
 
-    private function createOrderRecord(PriceBreakdown $breakdown, ?Customer $customer, ?string $guestEmail, ?TaxSnapshot $taxSnapshot, ?ShippingSnapshot $shippingSnapshot): Order
+    private function createOrderRecord(PriceBreakdown $breakdown, ?Customer $customer, ?string $guestEmail, ?TaxSnapshot $taxSnapshot, ?ShippingSnapshot $shippingSnapshot, ?string $locale): Order
     {
         /** @var Order */
         return Commerce::order()::query()->create([
@@ -113,6 +114,7 @@ final class CreateOrder
             'shipping_cost_currency' => $shippingSnapshot?->currency,
             'customer_id' => $customer?->getKey(),
             'email' => $guestEmail,
+            'locale' => $locale,
         ]);
     }
 

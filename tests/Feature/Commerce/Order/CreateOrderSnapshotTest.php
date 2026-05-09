@@ -207,6 +207,55 @@ final class CreateOrderSnapshotTest extends TestCase
         $this->assertSame(TaxCategory::PhysicalGoods, $line->tax_category);
     }
 
+    #[Test]
+    public function it_snapshots_the_locale_when_provided(): void
+    {
+        $cart = $this->cartWithItem();
+
+        $breakdown = new PriceBreakdown(
+            subtotal: 1000,
+            discount: 0,
+            tax: 0,
+            shippingCost: 0,
+            total: 1000,
+            currency: Currency::EUR,
+            lines: [],
+        );
+
+        $order = ($this->createOrder)(
+            cart: $cart,
+            breakdown: $breakdown,
+            billingAddress: $this->billingAddress(),
+            locale: 'de',
+        );
+
+        $this->assertSame('de', $order->locale);
+    }
+
+    #[Test]
+    public function it_leaves_locale_null_when_not_provided(): void
+    {
+        $cart = $this->cartWithItem();
+
+        $breakdown = new PriceBreakdown(
+            subtotal: 1000,
+            discount: 0,
+            tax: 0,
+            shippingCost: 0,
+            total: 1000,
+            currency: Currency::EUR,
+            lines: [],
+        );
+
+        $order = ($this->createOrder)(
+            cart: $cart,
+            breakdown: $breakdown,
+            billingAddress: $this->billingAddress(),
+        );
+
+        $this->assertNull($order->locale);
+    }
+
     private function cartWithItem(): Cart
     {
         $cart = Cart::factory()->create(['session_token' => 'test-session']);
