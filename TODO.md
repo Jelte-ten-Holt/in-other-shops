@@ -6,7 +6,14 @@ Package-level work, typically surfaced by consuming projects. Completed items ha
 
 ## Open
 
-- [ ] **`AuthenticateAgent` should log on exception, not swallow silently** — the package middleware catches `Throwable` in `authenticateViaOauth` and the `Auth::guard()` resolution branch, returning false with no log entry. This is what made the OAuth-key-perm bug take an hour to find rather than a minute. Log at `warning` level when the catch fires (message + exception class). Surfaced from in-other-worlds TODO.
+_(none — see Deferred / Watch)_
+
+## Recently shipped, awaiting release
+
+- [ ] **`AuthenticateAgent` warning logs on swallowed exceptions** — both catch sites in `authenticateViaOauth` (`Auth::guard('api')` and `$guard->user()`) now emit `Log::warning` with exception class + message via a new `logAuthFailure()` helper. Distinct messages per site so operators can tell which leg failed. Test coverage added: regression tests for both catch paths plus a happy-path no-warning assertion. Remove from this TODO once tagged and the in-other-worlds composer.lock is bumped.
+- [ ] **`OrderFailed` event deleted** — never dispatched, and reflection showed it shouldn't live in the package: order-failure semantics are tied to the consumer's checkout orchestration, not to the package's `CreateOrder` action. `FlowChainFailed` already covers the audit primitive at the right abstraction level (`flowName === 'checkout'` is the typed slice consumers can filter on). Removed: the event class, the `CommerceLogSubscriber` wiring + handler, and the test that dispatched it directly. Consumers that want a typed `OrderFailed` should ship it project-side with a payload that means something to their app (cart_id, customer_id, throwable).
+- [ ] **`branch-alias` corrected to `0.15.x-dev`** — was stale at `0.10.x-dev`. Affects `dev-main` resolution in dependency graphs only.
+- [ ] **Cut as v0.15.1** — additive logging + dead-code removal. No API change for current consumers (no one was dispatching `OrderFailed`).
 
 ---
 
@@ -20,5 +27,4 @@ Package-level work, typically surfaced by consuming projects. Completed items ha
 - 💭 **FlowChain `runId` on events** — add for cross-event correlation when observability needs it.
 - 💭 **Registry model swap consistency** — several actions (`ApplyVoucher`, `HandlePaymentWebhook`, `AddToCart`, `ResolveCart`) query concrete models instead of the registry. Fix in a sweep.
 - 💭 **Thread `source` through stock-adjust call sites** — `config('inventory.sources')` lists `dashboard`, `checkout`, `import`, `agent`, but only the Agent tool actually passes `source`. `InventorySchema::saveStockAdjustment` (admin) should pass `source: 'dashboard'`; checkout/order flows should pass `source: 'checkout'`; import jobs `'import'`. Without this the audit trail can't tell these apart.
-- 💭 **`OrderFailed` event never dispatched** — the event is defined and subscribed in `CommerceLogSubscriber`, but nothing in the package dispatches it. `CreateOrder` doesn't fire it on exception — the exception just propagates. Consumer checkout FlowChain steps would need to dispatch it manually. Ship a helper or document the pattern.
 - 💭 **Test coverage** — package ships 74 tests but core actions like `CreateOrder`, `AddToCart`, `RemoveFromCart`, `UpdateCartItemQuantity`, `ClaimCart`, `InitiatePayment`, `HandlePaymentWebhook`, `RefundPayment`, `CalculateTotal`, `ResolvePrice` have no package-level tests.

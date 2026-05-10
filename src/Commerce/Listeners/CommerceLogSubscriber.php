@@ -8,7 +8,6 @@ use InOtherShops\Commerce\Cart\Events\CartClaimed;
 use InOtherShops\Commerce\Cart\Events\CartCleared;
 use InOtherShops\Commerce\Cart\Events\CartUpdated;
 use InOtherShops\Commerce\Order\Events\OrderCreated;
-use InOtherShops\Commerce\Order\Events\OrderFailed;
 use InOtherShops\Commerce\Order\Events\OrderStatusChanged;
 use InOtherShops\Logging\DTOs\LogEntry;
 use InOtherShops\Logging\Enums\LogLevel;
@@ -31,7 +30,6 @@ final class CommerceLogSubscriber
             CartClaimed::class => 'handleCartClaimed',
             CartCleared::class => 'handleCartCleared',
             OrderCreated::class => 'handleOrderCreated',
-            OrderFailed::class => 'handleOrderFailed',
             OrderStatusChanged::class => 'handleOrderStatusChanged',
         ];
     }
@@ -82,19 +80,6 @@ final class CommerceLogSubscriber
                 'customer_id' => $event->order->customer_id,
                 'total' => $event->order->total,
                 'currency' => $event->order->currency?->value,
-            ],
-        ));
-    }
-
-    public function handleOrderFailed(OrderFailed $event): void
-    {
-        $this->dispatcher->log(new LogEntry(
-            level: LogLevel::Error,
-            channel: self::CHANNEL,
-            message: "Order failed: {$event->reason}.",
-            context: [
-                'reason' => $event->reason,
-                'failed_step' => $event->failedStep,
             ],
         ));
     }

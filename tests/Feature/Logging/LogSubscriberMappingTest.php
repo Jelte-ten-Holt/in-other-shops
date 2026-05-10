@@ -16,7 +16,6 @@ use InOtherShops\Commerce\Cart\Models\Cart;
 use InOtherShops\Commerce\Customer\Models\Customer;
 use InOtherShops\Commerce\Order\Enums\OrderStatus;
 use InOtherShops\Commerce\Order\Events\OrderCreated;
-use InOtherShops\Commerce\Order\Events\OrderFailed;
 use InOtherShops\Commerce\Order\Events\OrderStatusChanged;
 use InOtherShops\Commerce\Order\Models\Order;
 use InOtherShops\Currency\Enums\Currency;
@@ -384,16 +383,6 @@ final class LogSubscriberMappingTest extends TestCase
         $entry = $this->assertSingleEntry('commerce', LogLevel::Info, 'Order TEST-LOG-1 created');
         $this->assertSame('TEST-LOG-1', $entry->context['order_number']);
         $this->assertSame(5000, $entry->context['total']);
-    }
-
-    #[Test]
-    public function order_failed_routes_to_commerce_channel_at_error(): void
-    {
-        OrderFailed::dispatch('payment_declined', 'InitiatePayment');
-
-        $entry = $this->assertSingleEntry('commerce', LogLevel::Error, 'Order failed');
-        $this->assertSame('payment_declined', $entry->context['reason']);
-        $this->assertSame('InitiatePayment', $entry->context['failed_step']);
     }
 
     #[Test]
