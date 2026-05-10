@@ -4,11 +4,15 @@ declare(strict_types=1);
 
 namespace InOtherShops\Tests\Feature\Agent;
 
+use Illuminate\Contracts\Auth\Guard;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
 use InOtherShops\Agent\Http\Middleware\AuthenticateAgent;
 use InOtherShops\Tests\TestCase;
 use PHPUnit\Framework\Attributes\Test;
+use RuntimeException;
 
 /**
  * Direct unit-shaped coverage of the AuthenticateAgent middleware.
@@ -182,5 +186,103 @@ final class AuthenticateAgentMiddlewareTest extends TestCase
         $this->getJson(self::PROBE_PATH, [
             'Authorization' => 'Bearer '.self::BEARER,
         ])->assertOk();
+    }
+
+    #[Test]
+    public function a_guard_resolution_failure_is_logged_at_warning_level(): void
+    {
+        // Regression: previously the catch silently returned false, making
+        // misconfigured OAuth setups (broken provider config, missing driver)
+        // invisible. The catch must leave a breadcrumb.
+        config()->set('agent.auth.oauth.enabled', true);
+        Log::spy();
+
+        $this->getJson(self::PROBE_PATH, [
+            'Authorization' => 'Bearer '.self::BEARER,
+        ])->assertOk();
+
+        Log::shouldHaveReceived('warning')
+            ->withArgs(fn (string $message, array $context = []) => str_contains($message, 'AuthenticateAgent')
+                && str_contains($message, 'guard("api") failed to resolve')
+                && isset($context['exception'])
+                && isset($context['message']))
+            ->once();
+    }
+
+    #[Test]
+    public function a_token_validation_failure_is_logged_at_warning_level(): void
+    {
+        // The OAuth-key-perm bug surfaced here: Passport's `$guard->user()`
+        // threw while reading the RSA keys, the catch swallowed it, and the
+        // operator only saw a generic 401. This proves the breadcrumb is now
+        // emitted on that exact path.
+        config()->set('agent.auth.oauth.enabled', true);
+        config()->set('auth.guards.api', ['driver' => 'throwing-stub', 'provider' => null]);
+
+        Auth::extend('throwing-stub', fn () => new class implements Guard
+        {
+            public function check(): bool
+            {
+                return false;
+            }
+
+            public function guest(): bool
+            {
+                return true;
+            }
+
+            public function user(): never
+            {
+                throw new RuntimeException('simulated token validation failure');
+            }
+
+            public function id(): null
+            {
+                return null;
+            }
+
+            public function validate(array $credentials = []): bool
+            {
+                return false;
+            }
+
+            public function hasUser(): bool
+            {
+                return false;
+            }
+
+            public function setUser($user): self
+            {
+                return $this;
+            }
+        });
+
+        Log::spy();
+
+        $this->getJson(self::PROBE_PATH, [
+            'Authorization' => 'Bearer '.self::BEARER,
+        ])->assertOk();
+
+        Log::shouldHaveReceived('warning')
+            ->withArgs(fn (string $message, array $context = []) => str_contains($message, 'AuthenticateAgent')
+                && str_contains($message, 'threw during token validation')
+                && ($context['exception'] ?? null) === RuntimeException::class
+                && ($context['message'] ?? null) === 'simulated token validation failure')
+            ->once();
+    }
+
+    #[Test]
+    public function the_happy_bearer_path_does_not_emit_auth_failure_warnings(): void
+    {
+        // OAuth disabled → the middleware skips the guard resolution branch
+        // entirely, so neither catch site fires and no warning is emitted.
+        config()->set('agent.auth.oauth.enabled', false);
+        Log::spy();
+
+        $this->getJson(self::PROBE_PATH, [
+            'Authorization' => 'Bearer '.self::BEARER,
+        ])->assertOk();
+
+        Log::shouldNotHaveReceived('warning');
     }
 }

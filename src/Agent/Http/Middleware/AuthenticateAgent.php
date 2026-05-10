@@ -8,6 +8,7 @@ use Closure;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use InOtherShops\Agent\Support\CanonicalUrl;
 use Symfony\Component\HttpFoundation\Response;
 use Throwable;
@@ -62,13 +63,27 @@ final class AuthenticateAgent
     {
         try {
             $guard = Auth::guard('api');
-        } catch (Throwable) {
+        } catch (Throwable $e) {
+            // The api guard isn't resolvable. Common in environments without
+            // Passport (CLI / dev / staging that runs the bearer path only) —
+            // noisy but harmless there. The signal we care about is the rare
+            // case where Passport IS installed and the guard still fails to
+            // resolve (misconfigured providers, broken DI). Without this log
+            // that case is invisible.
+            $this->logAuthFailure('Auth::guard("api") failed to resolve.', $e);
+
             return false;
         }
 
         try {
             $user = $guard->user();
-        } catch (Throwable) {
+        } catch (Throwable $e) {
+            // The guard resolved but token validation threw. This is the path
+            // that swallowed the OAuth-key-perm bug (Passport's RSA key files
+            // had wrong permissions, throwing inside token decoding). Without
+            // this log, that surfaces as a generic 401 with no breadcrumb.
+            $this->logAuthFailure('Auth::guard("api")->user() threw during token validation.', $e);
+
             return false;
         }
 
@@ -192,6 +207,14 @@ final class AuthenticateAgent
         $request->attributes->set('agent.scopes', $scopes);
         $request->attributes->set('agent.is_admin', $isAdmin);
         $request->attributes->set('agent.bearer_hash', $bearerHash);
+    }
+
+    private function logAuthFailure(string $message, Throwable $e): void
+    {
+        Log::warning('AuthenticateAgent: '.$message, [
+            'exception' => $e::class,
+            'message' => $e->getMessage(),
+        ]);
     }
 
     private function unauthorized(): Response
