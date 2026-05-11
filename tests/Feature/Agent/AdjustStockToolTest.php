@@ -39,11 +39,12 @@ final class AdjustStockToolTest extends TestCase
     public function it_adds_stock_and_returns_movement_detail(): void
     {
         $browsable = TestBrowsable::factory()->create(['slug' => 'thing']);
-        StockItem::factory()->create([
-            'stockable_type' => 'test_browsable',
-            'stockable_id' => $browsable->id,
-            'stock_level' => 4,
-        ]);
+        StockItem::factory()
+            ->withLevel(4)
+            ->create([
+                'stockable_type' => 'test_browsable',
+                'stockable_id' => $browsable->id,
+            ]);
 
         $result = app(AdjustStock::class)([
             'type' => 'browsable',

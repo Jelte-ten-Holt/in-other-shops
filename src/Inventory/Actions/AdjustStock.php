@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace InOtherShops\Inventory\Actions;
 
 use InOtherShops\Inventory\Contracts\HasStock;
+use InOtherShops\Inventory\DTOs\Stock;
 use InOtherShops\Inventory\Enums\StockMovementReason;
 use InOtherShops\Inventory\Events\StockAdjusted;
 use InOtherShops\Inventory\Models\StockItem;
@@ -95,7 +96,7 @@ final class AdjustStock
         }
 
         try {
-            return $stockable->stockItem()->create(['stock_level' => 0]);
+            return $stockable->stockItem()->create(['stock_level' => new Stock(0)]);
         } catch (UniqueConstraintViolationException) {
             /** @var StockItem */
             return $stockable->stockItem()->lockForUpdate()->first();
@@ -127,7 +128,13 @@ final class AdjustStock
 
     private function updateStockLevel(StockItem $stockItem, int $quantity): void
     {
-        $stockItem->increment('stock_level', $quantity);
+        // Read-then-write under the lockForUpdate held by findOrCreateStockItem.
+        // Was `->increment('stock_level', $quantity)` (a single atomic UPDATE),
+        // but now that stock_level is cast to Stock-only on write, the new
+        // value has to be constructed explicitly. The surrounding row lock
+        // serializes the read+write window, so concurrent adjusts can't lose.
+        $stockItem->stock_level = new Stock($stockItem->stock_level + $quantity);
+        $stockItem->save();
     }
 
     private function validateSource(?string $source): void

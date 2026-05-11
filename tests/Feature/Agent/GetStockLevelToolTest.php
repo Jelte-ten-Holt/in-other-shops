@@ -30,11 +30,12 @@ final class GetStockLevelToolTest extends TestCase
     {
         $browsable = TestBrowsable::factory()->create(['slug' => 'stocked-thing']);
 
-        StockItem::factory()->create([
-            'stockable_type' => 'test_browsable',
-            'stockable_id' => $browsable->id,
-            'stock_level' => 7,
-        ]);
+        StockItem::factory()
+            ->withLevel(7)
+            ->create([
+                'stockable_type' => 'test_browsable',
+                'stockable_id' => $browsable->id,
+            ]);
 
         $result = app(GetStockLevel::class)(['type' => 'browsable', 'slug' => 'stocked-thing']);
 

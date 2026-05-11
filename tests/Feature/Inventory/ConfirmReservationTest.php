@@ -182,7 +182,8 @@ final class ConfirmReservationTest extends TestCase
 
         StockItem::factory()
             ->for($stockable, 'stockable')
-            ->create(['stock_level' => $level]);
+            ->withLevel($level)
+            ->create();
 
         return $stockable;
     }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace InOtherShops\Inventory\Models;
 
+use InOtherShops\Inventory\Casts\StockCast;
 use InOtherShops\Inventory\Database\Factories\StockItemFactory;
 use InOtherShops\Inventory\Inventory;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -26,7 +27,7 @@ class StockItem extends Model
     protected function casts(): array
     {
         return [
-            'stock_level' => 'integer',
+            'stock_level' => StockCast::class,
             'low_stock_threshold' => 'integer',
         ];
     }

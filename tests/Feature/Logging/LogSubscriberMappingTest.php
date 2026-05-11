@@ -146,7 +146,7 @@ final class LogSubscriberMappingTest extends TestCase
     public function stock_adjusted_event_routes_to_inventory_channel_at_info(): void
     {
         $stockable = TestStockable::factory()->create();
-        $stockItem = StockItem::factory()->for($stockable, 'stockable')->create(['stock_level' => 7]);
+        $stockItem = StockItem::factory()->for($stockable, 'stockable')->withLevel(7)->create();
         $movement = StockMovement::factory()->for($stockItem)->create([
             'quantity' => 3,
             'reason' => StockMovementReason::Restock,

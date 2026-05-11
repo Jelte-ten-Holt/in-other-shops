@@ -72,9 +72,11 @@ interface HasStock
 
 ### Actions
 
-> **Stock writes go through these actions only.** Never write to `StockItem::stock_level` directly via Eloquent (`$item->stock_level = 50`), Eloquent's `update()`, raw `DB::table('stock_items')->update(...)`, or any other path. The actions are the single chokepoint that maintains the StockMovement ledger, dispatches StockAdjusted/StockReleased events, and (with the planned Stock value object) propagates writes across `LocaleGroup` siblings when `shares_inventory=true`. Bypassing them silently corrupts the audit trail and breaks shared-inventory propagation.
+> **Stock writes go through these actions only.** Never write to `StockItem::stock_level` directly via Eloquent (`$item->stock_level = 50`), Eloquent's `update()`, raw `DB::table('stock_items')->update(...)`, or any other path. The actions are the single chokepoint that maintains the StockMovement ledger, dispatches StockAdjusted/StockReleased events, and propagates writes across `LocaleGroup` siblings when `shares_inventory=true`. Bypassing them silently corrupts the audit trail and breaks shared-inventory propagation.
 >
-> **Documented exception:** seeders may create initial `StockItem` rows directly with a starting `stock_level` to avoid polluting the audit ledger with synthetic `received` movements. Anywhere outside seeders, use the actions.
+> The Eloquent route is **enforced at the language level** by the `StockCast` (inbound-only) on `StockItem::stock_level`: any non-`Stock` assignment throws `RawStockMutationException`. `AdjustStock` wraps internally, so production callers never see this. Factories use the `Stock` value object too; tests that need a seeded level can use `StockItem::factory()->withLevel(N)`.
+>
+> **Documented exception:** seeders may create initial `StockItem` rows directly with `['stock_level' => new Stock(N)]` to avoid polluting the audit ledger with synthetic `received` movements. Raw `DB::table()` writes still bypass the cast — they're forbidden, but cannot be language-enforced.
 
 - **`AdjustStock`** — finds or creates the StockItem, writes one StockMovement, updates `stock_level`. Single DB transaction. Returns the StockMovement. Validates `source` against `config('inventory.sources')`. **Use this for any non-reservation stock change** (received shipment, manual correction, restock).
 - **`ReserveStock`** — inside a transaction: decrements stock via `AdjustStock` with `reason=Reserved` **and** creates a `StockReservation` row (`status=Pending`) pointing at that movement. Returns the `StockReservation`. Dispatches `ReservationCreated`.
