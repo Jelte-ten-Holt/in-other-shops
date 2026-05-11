@@ -137,6 +137,7 @@ final class InventorySchema
             quantity: (int) $quantity,
             reason: $reason,
             description: $description ?: null,
+            source: 'dashboard',
         );
     }
 

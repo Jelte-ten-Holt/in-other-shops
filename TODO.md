@@ -10,7 +10,7 @@ _(none — see Deferred / Watch)_
 
 ## Recently shipped, awaiting release
 
-_(none — v0.15.4 tagged 2026-05-11, consumer bumped)_
+- **v0.16.1** — `InventorySchema` admin path now stamps `source: 'dashboard'` on stock movements, closing the audit-trail gap (agent path was already `'agent'`, project checkout was already `'checkout'`). Consumer needs `composer update` only — no code changes required.
 
 ---
 
@@ -24,7 +24,6 @@ _(none — v0.15.4 tagged 2026-05-11, consumer bumped)_
 - 💭 **`withoutEvents()` on FlowChain** — no consumer needs it; consider removal.
 - 💭 **FlowChain `runId` on events** — add for cross-event correlation when observability needs it.
 - 💭 **Registry model swap consistency** — several actions (`ApplyVoucher`, `HandlePaymentWebhook`, `AddToCart`, `ResolveCart`) query concrete models instead of the registry. Fix in a sweep.
-- 💭 **Thread `source` through stock-adjust call sites** — `config('inventory.sources')` lists `dashboard`, `checkout`, `import`, `agent`, but only the Agent tool actually passes `source`. `InventorySchema::saveStockAdjustment` (admin) should pass `source: 'dashboard'`; checkout/order flows should pass `source: 'checkout'`; import jobs `'import'`. Without this the audit trail can't tell these apart.
 - 💭 **Test coverage** — suite at 477 tests after the 2026-05-11 sweep. Added `CreateOrderTest`, `InitiatePaymentTest`, `CalculateTotalTest` for missing-action coverage; new `ShippedDefaultConfigTest` per domain (Tax, Shipping, Logging) closes the "every test overrides config" gap. All audit-surfaced High + Medium half-tests fixed (try/catch with no-side-effect assertions, distinguishable values, narrowed scopes). Outstanding:
   - **Low — Filament internals tested as contract** — `OrderResourceTotalFieldTest` pins `isDisabled()` / `isDehydrated()` on Filament components rather than the "admin cannot edit total" contract. Acceptable as a regression anchor for the specific audit fix; revisit if a Livewire-stack-booted test layer lands.
   - **Concurrency probes are absent suite-wide** — `lockForUpdate` paths in `ApplyVoucher`, `AdjustStock`, `ReleaseReservation`, `ConfirmReservation`, `RefundPayment` are documented but untested. Real contention testing needs multi-process + a real RDBMS (not SQLite in-memory). The doc acknowledges this; flagged for the day a real contention probe lands.
