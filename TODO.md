@@ -10,7 +10,7 @@ _(none — see Deferred / Watch)_
 
 ## Recently shipped, awaiting release
 
-- **v0.16.1** — `InventorySchema` admin path now stamps `source: 'dashboard'` on stock movements, closing the audit-trail gap (agent path was already `'agent'`, project checkout was already `'checkout'`). Consumer needs `composer update` only — no code changes required.
+_(none — v0.16.1 tagged 2026-05-11, consumer bumped)_
 
 ---
 
