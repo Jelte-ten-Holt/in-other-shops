@@ -37,7 +37,7 @@ final class EnsureCartableInStockTest extends TestCase
     }
 
     #[Test]
-    public function add_to_cart_rejects_quantity_above_stock_when_backorder_disabled(): void
+    public function add_to_cart_rejects_quantity_above_stock_when_backorder_disabled_and_writes_no_item(): void
     {
         $cart = Cart::factory()->create(['currency' => Currency::EUR->value]);
         $cartable = TestStockableCartable::factory()->create([
@@ -46,10 +46,15 @@ final class EnsureCartableInStockTest extends TestCase
         ]);
         $this->stockUp($cartable, 1);
 
-        $this->expectException(InsufficientStockException::class);
-        $this->expectExceptionMessageMatches('/only 1 in stock/');
+        try {
+            ($this->addToCart)($cart, $cartable, quantity: 5);
+            $this->fail('Expected InsufficientStockException.');
+        } catch (InsufficientStockException $e) {
+            $this->assertMatchesRegularExpression('/only 1 in stock/', $e->getMessage());
+        }
 
-        ($this->addToCart)($cart, $cartable, quantity: 5);
+        $this->assertSame(0, $cart->items()->count(),
+            'A rejected add must not leave a CartItem row behind.');
     }
 
     #[Test]
@@ -104,15 +109,22 @@ final class EnsureCartableInStockTest extends TestCase
 
         ($this->addToCart)($cart, $cartable, quantity: 2);
 
-        $this->expectException(InsufficientStockException::class);
-        $this->expectExceptionMessageMatches('/only 3 in stock/');
+        try {
+            // Already 2 in cart; adding 2 more would request 4 against 3 available.
+            ($this->addToCart)($cart, $cartable, quantity: 2);
+            $this->fail('Expected InsufficientStockException.');
+        } catch (InsufficientStockException $e) {
+            $this->assertMatchesRegularExpression('/only 3 in stock/', $e->getMessage());
+        }
 
-        // Already 2 in cart; adding 2 more would request 4 against 3 available.
-        ($this->addToCart)($cart, $cartable, quantity: 2);
+        $this->assertSame(2, $cart->items()->first()->quantity,
+            'Rejected add must not advance the existing item quantity.');
+        $this->assertSame(1, $cart->items()->count(),
+            'Rejected add must not create a second item row.');
     }
 
     #[Test]
-    public function add_to_cart_message_says_out_of_stock_when_zero(): void
+    public function add_to_cart_message_says_out_of_stock_when_zero_and_writes_no_item(): void
     {
         $cart = Cart::factory()->create(['currency' => Currency::EUR->value]);
         $cartable = TestStockableCartable::factory()->create([
@@ -121,14 +133,18 @@ final class EnsureCartableInStockTest extends TestCase
             'allow_backorder' => false,
         ]);
 
-        $this->expectException(InsufficientStockException::class);
-        $this->expectExceptionMessage('Cookie for sale is out of stock.');
+        try {
+            ($this->addToCart)($cart, $cartable, quantity: 1);
+            $this->fail('Expected InsufficientStockException.');
+        } catch (InsufficientStockException $e) {
+            $this->assertSame('Cookie for sale is out of stock.', $e->getMessage());
+        }
 
-        ($this->addToCart)($cart, $cartable, quantity: 1);
+        $this->assertSame(0, $cart->items()->count());
     }
 
     #[Test]
-    public function update_cart_item_rejects_quantity_above_stock(): void
+    public function update_cart_item_rejects_quantity_above_stock_and_preserves_original_quantity(): void
     {
         $cart = Cart::factory()->create(['currency' => Currency::EUR->value]);
         $cartable = TestStockableCartable::factory()->create([
@@ -139,9 +155,15 @@ final class EnsureCartableInStockTest extends TestCase
 
         $item = ($this->addToCart)($cart, $cartable, quantity: 1);
 
-        $this->expectException(InsufficientStockException::class);
+        try {
+            ($this->update)($item, quantity: 10);
+            $this->fail('Expected InsufficientStockException.');
+        } catch (InsufficientStockException) {
+            // expected
+        }
 
-        ($this->update)($item, quantity: 10);
+        $this->assertSame(1, $item->fresh()->quantity,
+            'A rejected update must not advance the item quantity.');
     }
 
     #[Test]

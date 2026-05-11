@@ -97,7 +97,7 @@ final class ConfirmReservationTest extends TestCase
     }
 
     #[Test]
-    public function it_ignores_already_resolved_reservations(): void
+    public function it_ignores_already_released_reservations(): void
     {
         $stockable = $this->stockableWithLevel(10);
         $orderRef = TestStockable::factory()->create();
@@ -108,6 +108,25 @@ final class ConfirmReservationTest extends TestCase
         $confirmed = ($this->confirm)($orderRef);
 
         $this->assertCount(0, $confirmed);
+    }
+
+    #[Test]
+    public function it_ignores_already_confirmed_reservations(): void
+    {
+        // Companion to the Released-skip test. "Already resolved" includes
+        // Confirmed too — without this case a regression that re-confirmed
+        // Confirmed reservations (double-decrementing stock or doubling the
+        // movement ledger) would be invisible.
+        $stockable = $this->stockableWithLevel(10);
+        $orderRef = TestStockable::factory()->create();
+
+        $reservation = ($this->reserve)($stockable, quantity: 3, reference: $orderRef);
+        $reservation->update(['status' => ReservationStatus::Confirmed]);
+
+        $confirmed = ($this->confirm)($orderRef);
+
+        $this->assertCount(0, $confirmed,
+            'A re-confirm pass over an already-Confirmed reservation must be a no-op.');
     }
 
     #[Test]

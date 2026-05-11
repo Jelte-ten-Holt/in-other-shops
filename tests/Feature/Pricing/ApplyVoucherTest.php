@@ -42,13 +42,19 @@ final class ApplyVoucherTest extends TestCase
     }
 
     #[Test]
-    public function it_throws_when_voucher_is_at_max_uses(): void
+    public function it_throws_when_voucher_is_at_max_uses_without_advancing_usage(): void
     {
         Voucher::factory()->withMaxUses(max: 2, used: 2)->create(['code' => 'FULL']);
 
-        $this->expectException(VoucherInvalidException::class);
+        try {
+            ($this->apply)(5000, 'FULL', Currency::EUR);
+            $this->fail('Expected VoucherInvalidException.');
+        } catch (VoucherInvalidException) {
+            // expected
+        }
 
-        ($this->apply)(5000, 'FULL', Currency::EUR);
+        $this->assertSame(2, Voucher::query()->where('code', 'FULL')->value('times_used'),
+            'A refactor that incremented before validating the max would leave times_used at 3.');
     }
 
     #[Test]

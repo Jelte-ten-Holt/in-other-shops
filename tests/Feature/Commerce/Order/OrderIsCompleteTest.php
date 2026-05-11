@@ -34,8 +34,13 @@ final class OrderIsCompleteTest extends TestCase
     }
 
     #[Test]
-    public function confirmed_order_with_no_shipments_is_not_complete(): void
+    public function confirmed_paid_order_with_zero_shipment_records_is_not_complete(): void
     {
+        // Narrow scope: a confirmed, paid Order with no Shipment rows in the
+        // DB is currently never `isComplete()`. The package has no notion of
+        // "digital order = complete on payment" — a future digital-goods
+        // surface would either create a Delivered Shipment on confirm or
+        // bypass the shipment check, and would need its own test.
         $order = $this->paidOrder();
 
         $this->assertFalse($order->isComplete());

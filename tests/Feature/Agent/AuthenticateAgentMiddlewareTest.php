@@ -180,12 +180,19 @@ final class AuthenticateAgentMiddlewareTest extends TestCase
     {
         // OAuth check tries `Auth::guard('api')`; without Passport that throws
         // or returns null. The middleware must catch and continue to the
-        // static bearer path so CLI clients still authenticate.
+        // static bearer path so CLI clients still authenticate. Assert on
+        // the bearer-path stamp (`agent.bearer_hash`) — `assertOk` alone
+        // would also pass if some other (non-bearer) path happened to
+        // succeed, which is exactly the regression we're guarding against.
         config()->set('agent.auth.oauth.enabled', true);
 
-        $this->getJson(self::PROBE_PATH, [
+        $body = $this->getJson(self::PROBE_PATH, [
             'Authorization' => 'Bearer '.self::BEARER,
-        ])->assertOk();
+        ])->assertOk()->json();
+
+        $this->assertNotEmpty($body['agent.bearer_hash'],
+            'Bearer fallback must stamp the bearer-hash attribute, proving the bearer path was taken.');
+        $this->assertTrue($body['agent.is_admin']);
     }
 
     #[Test]

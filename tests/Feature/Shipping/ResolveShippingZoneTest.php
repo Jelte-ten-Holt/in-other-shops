@@ -37,13 +37,17 @@ final class ResolveShippingZoneTest extends TestCase
     #[Test]
     public function it_handles_lowercase_country_codes(): void
     {
+        // Use a zone identifier that differs from the country code so the
+        // test cannot pass by accidentally echoing the input — proves the
+        // resolver actually looked up `'fr'` against `countries: ['FR']`
+        // (case-normalized) and returned the *zone*, not the country.
         config()->set('shipping.zones', [
-            'de' => ['currency' => 'EUR', 'countries' => ['DE']],
+            'eu' => ['currency' => 'EUR', 'countries' => ['FR', 'DE']],
         ]);
 
-        $zone = (new ResolveShippingZoneForCountry)('de');
+        $zone = (new ResolveShippingZoneForCountry)('fr');
 
         $this->assertNotNull($zone);
-        $this->assertSame('de', $zone->identifier);
+        $this->assertSame('eu', $zone->identifier);
     }
 }

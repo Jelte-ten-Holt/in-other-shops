@@ -82,10 +82,16 @@ final class ResolveCartTest extends TestCase
     }
 
     #[Test]
-    public function it_throws_when_neither_session_nor_owner_given(): void
+    public function it_throws_when_neither_session_nor_owner_given_and_creates_no_cart(): void
     {
-        $this->expectException(InvalidArgumentException::class);
+        try {
+            ($this->resolveCart)(Currency::EUR);
+            $this->fail('Expected InvalidArgumentException.');
+        } catch (InvalidArgumentException) {
+            // expected
+        }
 
-        ($this->resolveCart)(Currency::EUR);
+        $this->assertSame(0, Cart::query()->count(),
+            'A rejected resolve must not leak a phantom Cart row.');
     }
 }

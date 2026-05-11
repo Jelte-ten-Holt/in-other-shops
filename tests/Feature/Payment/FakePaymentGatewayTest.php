@@ -96,7 +96,7 @@ final class FakePaymentGatewayTest extends TestCase
     }
 
     #[Test]
-    public function refund_records_the_amount_and_rejects_overrefund(): void
+    public function refund_records_the_amount(): void
     {
         $gateway = new FakePaymentGateway;
         $payment = $this->paymentFor(2500);
@@ -106,9 +106,27 @@ final class FakePaymentGatewayTest extends TestCase
 
         $this->assertCount(1, $gateway->recordedRefunds());
         $this->assertSame(1000, $gateway->recordedRefunds()[0]['amount']);
+    }
 
-        $this->expectException(RefundAmountExceededException::class);
-        $gateway->refund($payment, 9999);
+    #[Test]
+    public function refund_rejects_overrefund_without_recording_it(): void
+    {
+        $gateway = new FakePaymentGateway;
+        $payment = $this->paymentFor(2500);
+        $payment->update(['gateway_reference' => 'fake_pi_xyz']);
+
+        $gateway->refund($payment, 1000);
+
+        try {
+            $gateway->refund($payment, 9999);
+            $this->fail('Expected RefundAmountExceededException.');
+        } catch (RefundAmountExceededException) {
+            // expected
+        }
+
+        $this->assertCount(1, $gateway->recordedRefunds(),
+            'A rejected over-refund must not append a recorded-refund entry.');
+        $this->assertSame(1000, $gateway->recordedRefunds()[0]['amount']);
     }
 
     #[Test]

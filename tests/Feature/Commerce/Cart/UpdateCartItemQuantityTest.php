@@ -29,7 +29,7 @@ final class UpdateCartItemQuantityTest extends TestCase
     }
 
     #[Test]
-    public function it_updates_quantity(): void
+    public function it_updates_quantity_and_persists_the_change(): void
     {
         $cart = Cart::factory()->create(['currency' => Currency::EUR->value]);
         $item = (app(\InOtherShops\Commerce\Cart\Actions\AddToCart::class))($cart, TestCartable::factory()->create());
@@ -38,6 +38,8 @@ final class UpdateCartItemQuantityTest extends TestCase
 
         $this->assertNotNull($result);
         $this->assertSame(5, $result->quantity);
+        $this->assertSame(5, $item->fresh()->quantity,
+            'Reading off the returned object alone would pass even if the row was never saved.');
     }
 
     #[Test]

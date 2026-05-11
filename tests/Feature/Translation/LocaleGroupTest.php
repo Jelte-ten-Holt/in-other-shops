@@ -165,8 +165,20 @@ final class LocaleGroupTest extends TestCase
         $group = LocaleGroup::factory()->create();
         TestLocalizable::factory()->create(['locale' => 'en', 'locale_group_id' => $group->id]);
 
-        $this->expectException(QueryException::class);
+        try {
+            TestLocalizable::factory()->create(['locale' => 'en', 'locale_group_id' => $group->id]);
+            $this->fail('Expected QueryException on the duplicate (locale, locale_group_id) row.');
+        } catch (QueryException) {
+            // expected
+        }
 
-        TestLocalizable::factory()->create(['locale' => 'en', 'locale_group_id' => $group->id]);
+        $this->assertSame(
+            1,
+            TestLocalizable::query()
+                ->where('locale_group_id', $group->id)
+                ->where('locale', 'en')
+                ->count(),
+            'The duplicate insert must not leave a phantom row behind.',
+        );
     }
 }

@@ -69,9 +69,38 @@ final class AttachDetachTagTest extends TestCase
 
         ($this->attach)($model, $tag);
 
-        $this->expectException(QueryException::class);
+        try {
+            ($this->attach)($model, $tag);
+            $this->fail('Expected QueryException on the second attach.');
+        } catch (QueryException) {
+            // expected
+        }
+
+        $this->assertSame(1, $model->tags()->count(),
+            'The unique constraint must reject the second pivot row, leaving exactly one.');
+    }
+
+    #[Test]
+    public function it_does_not_dispatch_tag_attached_when_the_unique_constraint_fires(): void
+    {
+        // Mirror of AttachDetachCategoryTest::it_does_not_dispatch_category_attached_when_the_unique_constraint_fires.
+        // If the second attach throws on the DB-level unique constraint, the
+        // TagAttached event must not fire — otherwise consumers (audit log,
+        // search-index reindex) act on a row that was never written.
+        Event::fake([TagAttached::class]);
+
+        $model = TestTaxonomized::factory()->create();
+        $tag = Tag::factory()->create();
 
         ($this->attach)($model, $tag);
+
+        try {
+            ($this->attach)($model, $tag);
+        } catch (QueryException) {
+            // expected
+        }
+
+        Event::assertDispatchedTimes(TagAttached::class, 1);
     }
 
     #[Test]

@@ -311,12 +311,20 @@ final class StripePaymentGatewayTest extends TestCase
     #[Test]
     public function verify_webhook_signature_accepts_a_valid_signature_for_the_configured_secret(): void
     {
+        // Prove the happy path by exercising what depends on it: a valid
+        // signature lets parseWebhook reach its body parser and return a
+        // populated payload. Without verification succeeding, parseWebhook
+        // wouldn't be safe to call. This avoids `expectNotToPerformAssertions`
+        // (cf. docs/writing-tests.md "Don't `assertTrue(true)`").
         $payload = $this->validIntentEventJson('evt_sig_ok', 'payment_intent.succeeded', 'pi_sig_ok', 'succeeded');
         $request = $this->signedRequest($payload, time());
 
         $this->gateway->verifyWebhookSignature($request);
+        $parsed = $this->gateway->parseWebhook($request);
 
-        $this->expectNotToPerformAssertions();
+        $this->assertSame('pi_sig_ok', $parsed->gatewayReference,
+            'A valid signature must let parseWebhook reach the body without throwing.');
+        $this->assertSame('evt_sig_ok', $parsed->eventId);
     }
 
     #[Test]

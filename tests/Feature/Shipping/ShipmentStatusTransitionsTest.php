@@ -159,9 +159,15 @@ final class ShipmentStatusTransitionsTest extends TestCase
     {
         $shipment = $this->shipment(ShipmentStatus::Delivered);
 
-        $this->expectException(InvalidShipmentStatusTransitionException::class);
+        try {
+            app(MarkShipmentReady::class)($shipment);
+            $this->fail('Expected InvalidShipmentStatusTransitionException.');
+        } catch (InvalidShipmentStatusTransitionException) {
+            // expected
+        }
 
-        app(MarkShipmentReady::class)($shipment);
+        $this->assertSame(ShipmentStatus::Delivered, $shipment->fresh()->status,
+            'Terminal status must not be overwritten when the guard rejects the transition.');
     }
 
     #[Test]
@@ -169,9 +175,14 @@ final class ShipmentStatusTransitionsTest extends TestCase
     {
         $shipment = $this->shipment(ShipmentStatus::Lost);
 
-        $this->expectException(InvalidShipmentStatusTransitionException::class);
+        try {
+            app(MarkShipmentDelivered::class)($shipment);
+            $this->fail('Expected InvalidShipmentStatusTransitionException.');
+        } catch (InvalidShipmentStatusTransitionException) {
+            // expected
+        }
 
-        app(MarkShipmentDelivered::class)($shipment);
+        $this->assertSame(ShipmentStatus::Lost, $shipment->fresh()->status);
     }
 
     #[Test]
@@ -179,9 +190,14 @@ final class ShipmentStatusTransitionsTest extends TestCase
     {
         $shipment = $this->shipment(ShipmentStatus::Pending);
 
-        $this->expectException(InvalidShipmentStatusTransitionException::class);
+        try {
+            app(MarkShipmentDelivered::class)($shipment);
+            $this->fail('Expected InvalidShipmentStatusTransitionException.');
+        } catch (InvalidShipmentStatusTransitionException) {
+            // expected
+        }
 
-        app(MarkShipmentDelivered::class)($shipment);
+        $this->assertSame(ShipmentStatus::Pending, $shipment->fresh()->status);
     }
 
     private function shipment(ShipmentStatus $status): Shipment

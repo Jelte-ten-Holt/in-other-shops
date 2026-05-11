@@ -60,34 +60,51 @@ final class CalculateVoucherDiscountTest extends TestCase
     }
 
     #[Test]
-    public function it_throws_when_voucher_is_inactive(): void
+    public function it_throws_when_voucher_is_inactive_without_recording_usage(): void
     {
-        Voucher::factory()->inactive()->create(['code' => 'OFF']);
+        Voucher::factory()->inactive()->create(['code' => 'OFF', 'times_used' => 0]);
 
-        $this->expectException(VoucherInvalidException::class);
-        $this->expectExceptionMessage('Voucher [OFF] is no longer valid.');
+        try {
+            ($this->calculate)(5000, 'OFF', Currency::EUR);
+            $this->fail('Expected VoucherInvalidException.');
+        } catch (VoucherInvalidException $e) {
+            $this->assertStringContainsString('Voucher [OFF] is no longer valid.', $e->getMessage());
+        }
 
-        ($this->calculate)(5000, 'OFF', Currency::EUR);
+        $this->assertSame(0, Voucher::query()->where('code', 'OFF')->value('times_used'),
+            'Calculate must never record usage — only ApplyVoucher does.');
     }
 
     #[Test]
-    public function it_throws_when_voucher_is_expired(): void
+    public function it_throws_when_voucher_is_expired_without_recording_usage(): void
     {
-        Voucher::factory()->expired()->create(['code' => 'OLD']);
+        Voucher::factory()->expired()->create(['code' => 'OLD', 'times_used' => 0]);
 
-        $this->expectException(VoucherInvalidException::class);
+        try {
+            ($this->calculate)(5000, 'OLD', Currency::EUR);
+            $this->fail('Expected VoucherInvalidException.');
+        } catch (VoucherInvalidException) {
+            // expected
+        }
 
-        ($this->calculate)(5000, 'OLD', Currency::EUR);
+        $this->assertSame(0, Voucher::query()->where('code', 'OLD')->value('times_used'));
     }
 
     #[Test]
-    public function it_throws_when_voucher_is_at_max_uses(): void
+    public function it_throws_when_voucher_is_at_max_uses_without_advancing_usage(): void
     {
+        // Pre-pin times_used at the max value. A regression that incremented
+        // before validating would push it to 2 and the test would fail.
         Voucher::factory()->withMaxUses(max: 1, used: 1)->create(['code' => 'BURNED']);
 
-        $this->expectException(VoucherInvalidException::class);
+        try {
+            ($this->calculate)(5000, 'BURNED', Currency::EUR);
+            $this->fail('Expected VoucherInvalidException.');
+        } catch (VoucherInvalidException) {
+            // expected
+        }
 
-        ($this->calculate)(5000, 'BURNED', Currency::EUR);
+        $this->assertSame(1, Voucher::query()->where('code', 'BURNED')->value('times_used'));
     }
 
     #[Test]

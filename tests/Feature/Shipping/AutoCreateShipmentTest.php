@@ -115,14 +115,23 @@ final class AutoCreateShipmentTest extends TestCase
     }
 
     #[Test]
-    public function it_throws_when_order_references_an_unknown_shipping_method(): void
+    public function it_throws_when_order_references_an_unknown_shipping_method_and_leaves_no_shipment_or_event(): void
     {
+        Event::fake([ShipmentCreated::class]);
+
         $order = Order::factory()->withLines(1)->create([
             'shipping_method_identifier' => 'does_not_exist',
         ]);
 
-        $this->expectException(RuntimeException::class);
+        try {
+            OrderCreated::dispatch($order);
+            $this->fail('Expected RuntimeException for unknown shipping method.');
+        } catch (RuntimeException) {
+            // expected
+        }
 
-        OrderCreated::dispatch($order);
+        $this->assertCount(0, $order->shipments()->get(),
+            'Listener must not persist a Shipment when the method is unknown.');
+        Event::assertNotDispatched(ShipmentCreated::class);
     }
 }

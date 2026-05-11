@@ -38,14 +38,19 @@ final class CreateOrderSnapshotTest extends TestCase
     #[Test]
     public function it_snapshots_tax_and_shipping_on_the_order_row(): void
     {
+        // Distinct, non-swappable values: `rateBps: 1730` and `countryCode: 'XX'`
+        // cannot trade places (one's an int, one's a 2-char string) and the
+        // shipping snapshot uses a different cost (777) and method identifier
+        // ('express_x') from the tax snapshot — a refactor that mixed up the
+        // column assignments (e.g. `tax_rate_bps <- countryCode`) would fail.
         $cart = $this->cartWithItem();
 
         $breakdown = new PriceBreakdown(
             subtotal: 10000,
             discount: 0,
-            tax: 2100,
-            shippingCost: 500,
-            total: 12600,
+            tax: 1730,
+            shippingCost: 777,
+            total: 12507,
             currency: Currency::EUR,
             lines: [],
         );
@@ -54,15 +59,15 @@ final class CreateOrderSnapshotTest extends TestCase
             cart: $cart,
             breakdown: $breakdown,
             billingAddress: $this->billingAddress(),
-            taxSnapshot: new TaxSnapshot(rateBps: 2100, countryCode: 'NL'),
-            shippingSnapshot: new ShippingSnapshot(methodIdentifier: 'standard', cost: 500, currency: 'EUR'),
+            taxSnapshot: new TaxSnapshot(rateBps: 1730, countryCode: 'XX'),
+            shippingSnapshot: new ShippingSnapshot(methodIdentifier: 'express_x', cost: 777, currency: 'USD'),
         );
 
-        $this->assertSame(2100, $order->tax_rate_bps);
-        $this->assertSame('NL', $order->tax_rate_country_code);
-        $this->assertSame('standard', $order->shipping_method_identifier);
-        $this->assertSame(500, $order->shipping_cost);
-        $this->assertSame('EUR', $order->shipping_cost_currency);
+        $this->assertSame(1730, $order->tax_rate_bps);
+        $this->assertSame('XX', $order->tax_rate_country_code);
+        $this->assertSame('express_x', $order->shipping_method_identifier);
+        $this->assertSame(777, $order->shipping_cost);
+        $this->assertSame('USD', $order->shipping_cost_currency);
     }
 
     #[Test]

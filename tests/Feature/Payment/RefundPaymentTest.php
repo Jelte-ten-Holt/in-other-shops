@@ -110,24 +110,48 @@ final class RefundPaymentTest extends TestCase
     }
 
     #[Test]
-    public function refunding_a_failed_payment_throws(): void
+    public function refunding_a_failed_payment_throws_and_does_not_mutate(): void
     {
+        Event::fake([PaymentRefunded::class]);
+
         $payment = $this->paymentWithStatus(2500, PaymentStatus::Failed);
 
-        $this->expectException(PaymentNotRefundableException::class);
+        try {
+            ($this->refund)($payment);
+            $this->fail('Expected PaymentNotRefundableException.');
+        } catch (PaymentNotRefundableException) {
+            // expected
+        }
 
-        ($this->refund)($payment);
+        $payment->refresh();
+        $this->assertSame(PaymentStatus::Failed, $payment->status);
+        $this->assertSame(0, $payment->amount_refunded);
+        $this->assertCount(0, $this->gateway->recordedRefunds(),
+            'Gateway must not be called for non-refundable payments.');
+        Event::assertNotDispatched(PaymentRefunded::class);
     }
 
     #[Test]
-    public function refunding_an_already_fully_refunded_payment_throws(): void
+    public function refunding_an_already_fully_refunded_payment_throws_and_does_not_mutate(): void
     {
+        Event::fake([PaymentRefunded::class]);
+
         $payment = $this->paymentWithStatus(2500, PaymentStatus::Refunded);
         $payment->update(['amount_refunded' => 2500]);
 
-        $this->expectException(PaymentNotRefundableException::class);
+        try {
+            ($this->refund)($payment);
+            $this->fail('Expected PaymentNotRefundableException.');
+        } catch (PaymentNotRefundableException) {
+            // expected
+        }
 
-        ($this->refund)($payment);
+        $payment->refresh();
+        $this->assertSame(PaymentStatus::Refunded, $payment->status);
+        $this->assertSame(2500, $payment->amount_refunded,
+            'amount_refunded must not advance past the original full-refund value.');
+        $this->assertCount(0, $this->gateway->recordedRefunds());
+        Event::assertNotDispatched(PaymentRefunded::class);
     }
 
     #[Test]
@@ -151,13 +175,45 @@ final class RefundPaymentTest extends TestCase
     }
 
     #[Test]
-    public function refunding_a_zero_or_negative_amount_throws_invalid_argument(): void
+    public function refunding_a_zero_amount_throws_invalid_argument_and_does_not_mutate(): void
     {
+        Event::fake([PaymentRefunded::class]);
+
         $payment = $this->successfulPayment(2500);
 
-        $this->expectException(InvalidArgumentException::class);
+        try {
+            ($this->refund)($payment, 0);
+            $this->fail('Expected InvalidArgumentException for zero amount.');
+        } catch (InvalidArgumentException) {
+            // expected
+        }
 
-        ($this->refund)($payment, 0);
+        $payment->refresh();
+        $this->assertSame(PaymentStatus::Succeeded, $payment->status);
+        $this->assertSame(0, $payment->amount_refunded);
+        $this->assertCount(0, $this->gateway->recordedRefunds());
+        Event::assertNotDispatched(PaymentRefunded::class);
+    }
+
+    #[Test]
+    public function refunding_a_negative_amount_throws_invalid_argument_and_does_not_mutate(): void
+    {
+        Event::fake([PaymentRefunded::class]);
+
+        $payment = $this->successfulPayment(2500);
+
+        try {
+            ($this->refund)($payment, -100);
+            $this->fail('Expected InvalidArgumentException for negative amount.');
+        } catch (InvalidArgumentException) {
+            // expected
+        }
+
+        $payment->refresh();
+        $this->assertSame(PaymentStatus::Succeeded, $payment->status);
+        $this->assertSame(0, $payment->amount_refunded);
+        $this->assertCount(0, $this->gateway->recordedRefunds());
+        Event::assertNotDispatched(PaymentRefunded::class);
     }
 
     #[Test]
