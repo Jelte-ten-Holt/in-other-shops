@@ -5,7 +5,11 @@ declare(strict_types=1);
 namespace InOtherShops\Taxonomy;
 
 use Illuminate\Database\Eloquent\Relations\Relation;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
+use InOtherShops\Taxonomy\Commands\RecomputeCategoryCountsCommand;
+use InOtherShops\Taxonomy\Listeners\MaintainCategoryCounts;
+use InOtherShops\Taxonomy\Observers\CategoryObserver;
 
 final class TaxonomyServiceProvider extends ServiceProvider
 {
@@ -21,6 +25,14 @@ final class TaxonomyServiceProvider extends ServiceProvider
         Relation::morphMap([
             'category' => Taxonomy::category(),
             'tag' => Taxonomy::tag(),
+        ]);
+
+        Taxonomy::category()::observe(CategoryObserver::class);
+
+        Event::subscribe(MaintainCategoryCounts::class);
+
+        $this->commands([
+            RecomputeCategoryCountsCommand::class,
         ]);
     }
 }

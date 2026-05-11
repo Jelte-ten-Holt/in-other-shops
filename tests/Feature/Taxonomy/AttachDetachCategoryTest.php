@@ -145,12 +145,12 @@ final class AttachDetachCategoryTest extends TestCase
     }
 
     #[Test]
-    public function detaching_a_category_that_was_never_attached_is_a_no_op(): void
+    public function detaching_a_category_that_was_never_attached_does_not_dispatch_an_event(): void
     {
-        // detach() on a non-existent pivot row affects 0 rows — no DB error,
-        // no exception. The event still dispatches because the action does
-        // not check the affected-row count. Pinning this so consumers know
-        // a CategoryDetached event does NOT imply a row was deleted.
+        // detach() on a non-existent pivot row affects 0 rows. The action
+        // gates the event on the affected-row count so listeners
+        // maintaining derived state (e.g. MaintainCategoryCounts) do not
+        // see a phantom detach for a row that was never there.
         Event::fake([CategoryDetached::class]);
 
         $model = TestTaxonomized::factory()->create();
@@ -159,6 +159,6 @@ final class AttachDetachCategoryTest extends TestCase
         ($this->detach)($model, $category);
 
         $this->assertSame(0, $model->categories()->count());
-        Event::assertDispatched(CategoryDetached::class, 1);
+        Event::assertNotDispatched(CategoryDetached::class);
     }
 }

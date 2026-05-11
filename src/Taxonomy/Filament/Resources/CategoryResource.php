@@ -15,6 +15,7 @@ use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\DB;
 use InOtherShops\Taxonomy\Filament\Resources\CategoryResource\Pages;
 use InOtherShops\Taxonomy\Models\Category;
 use InOtherShops\Translation\Filament\TranslationSchema;
@@ -89,8 +90,24 @@ final class CategoryResource extends Resource
             ->actions([
                 Actions\EditAction::make(),
                 Actions\DeleteAction::make()
-                    ->disabled(fn (Category $record): bool => $record->children()->exists()),
+                    ->disabled(fn (Category $record): bool => $record->children()->exists())
+                    ->modalDescription(fn (Category $record): string => self::deleteModalDescription($record)),
             ]);
+    }
+
+    private static function deleteModalDescription(Category $record): string
+    {
+        $attached = (int) DB::table('categorizables')
+            ->where('category_id', $record->getKey())
+            ->count();
+
+        if ($attached === 0) {
+            return 'Are you sure you want to delete this category? This action cannot be undone.';
+        }
+
+        $noun = $attached === 1 ? 'item is' : 'items are';
+
+        return "{$attached} {$noun} attached to this category. Deleting it will detach them; the items themselves are not deleted. Are you sure?";
     }
 
     public static function getRelations(): array

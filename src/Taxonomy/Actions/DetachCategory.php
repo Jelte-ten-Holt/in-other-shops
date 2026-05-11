@@ -13,7 +13,11 @@ final class DetachCategory
 {
     public function __invoke(Model&HasCategories $model, Category $category): void
     {
-        $model->categories()->detach($category);
+        $removed = $model->categories()->detach($category);
+
+        if ($removed === 0) {
+            return;
+        }
 
         CategoryDetached::dispatch($model, $category);
     }
