@@ -148,12 +148,35 @@ final class DynamicClientRegistrationController
         }
 
         return [
-            'client_name' => (string) $request->input('client_name', 'Dynamically Registered Client'),
+            'client_name' => $this->sanitizeClientName($request->input('client_name')),
             'redirect_uris' => array_values(array_map('strval', $redirectUris)),
             'scope' => $requestedScope,
             'token_endpoint_auth_method' => $authMethod,
             'confidential' => $authMethod !== 'none',
         ];
+    }
+
+    /**
+     * Strip control characters (which would corrupt log output and could
+     * smuggle ANSI escapes into operator terminals), trim, and cap at 255
+     * characters. Falls back to a default when nothing usable remains.
+     */
+    private function sanitizeClientName(mixed $raw): string
+    {
+        if (! is_string($raw)) {
+            return 'Dynamically Registered Client';
+        }
+
+        // Remove ASCII control characters (0x00–0x1F and 0x7F) — covers
+        // newlines, tabs, escape sequences, and the DEL byte.
+        $stripped = preg_replace('/[\x00-\x1F\x7F]/u', '', $raw) ?? '';
+        $trimmed = trim($stripped);
+
+        if ($trimmed === '') {
+            return 'Dynamically Registered Client';
+        }
+
+        return mb_substr($trimmed, 0, 255);
     }
 
     /**

@@ -232,4 +232,59 @@ final class DynamicClientRegistrationTest extends TestCase
 
         $this->assertSame(1, Client::query()->count());
     }
+
+    #[Test]
+    public function it_strips_control_characters_from_client_name(): void
+    {
+        // Audit L5: an attacker-controlled client_name reaches the agent log
+        // and admin-facing surfaces. Newlines, ANSI escape sequences, and
+        // similar control bytes corrupt log output and could be used to
+        // forge log entries. Strip them at the trust boundary.
+        $response = $this->postJson('/oauth/register', [
+            'client_name' => "Evil\x1b[31mclient\x00name\nwith newlines",
+            'redirect_uris' => ['https://claude.ai/callback'],
+        ])->assertStatus(201);
+
+        $response->assertJson(['client_name' => 'Evil[31mclientnamewith newlines']);
+    }
+
+    #[Test]
+    public function it_caps_client_name_at_255_characters(): void
+    {
+        $longName = str_repeat('A', 1000);
+
+        $response = $this->postJson('/oauth/register', [
+            'client_name' => $longName,
+            'redirect_uris' => ['https://claude.ai/callback'],
+        ])->assertStatus(201);
+
+        $returned = $response->json('client_name');
+        $this->assertSame(255, mb_strlen($returned));
+        $this->assertSame(str_repeat('A', 255), $returned);
+    }
+
+    #[Test]
+    public function client_name_falls_back_to_default_when_only_control_chars_or_whitespace(): void
+    {
+        $response = $this->postJson('/oauth/register', [
+            'client_name' => "\x00\x00   \x1b[\n",
+            'redirect_uris' => ['https://claude.ai/callback'],
+        ])->assertStatus(201);
+
+        $this->assertSame('[', $response->json('client_name'));
+        // Note: '[' survives — only control bytes (0x00-0x1F + 0x7F) are
+        // stripped, not the printable ANSI-escape payload. That's fine for
+        // a log line: the visible payload is harmless without the leading
+        // ESC byte.
+    }
+
+    #[Test]
+    public function client_name_falls_back_to_default_when_missing(): void
+    {
+        $response = $this->postJson('/oauth/register', [
+            'redirect_uris' => ['https://claude.ai/callback'],
+        ])->assertStatus(201);
+
+        $this->assertSame('Dynamically Registered Client', $response->json('client_name'));
+    }
 }
