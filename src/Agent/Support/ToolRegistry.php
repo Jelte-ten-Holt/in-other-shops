@@ -12,6 +12,7 @@ use InOtherShops\Agent\Tools\BrowseCatalog;
 use InOtherShops\Agent\Tools\GetStockLevel;
 use InOtherShops\Agent\Tools\ListCategories;
 use InOtherShops\Agent\Tools\ListOrders;
+use InOtherShops\Agent\Tools\ListStockLevels;
 use InOtherShops\Agent\Tools\ListTags;
 use InOtherShops\Agent\Tools\Ping;
 use InOtherShops\Agent\Tools\ShowBrowsable;
@@ -37,6 +38,7 @@ final class ToolRegistry
         ListOrders::class,
         ShowOrder::class,
         GetStockLevel::class,
+        ListStockLevels::class,
         AdjustStock::class,
     ];
 

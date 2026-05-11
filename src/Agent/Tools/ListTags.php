@@ -23,7 +23,7 @@ final class ListTags extends AgentTool
 
     public function description(): string
     {
-        return 'List tags with an optional type filter. Returns active tags only unless include_inactive is true.';
+        return 'List tags with an optional type filter. Returns active tags only unless include_inactive is true. Tag types are project-defined free-form strings — typical conventions: a type per entity class the tag may be attached to ("content", "product"), or a display-behavior marker ("hidden_on_front", "featured"). To discover what types exist on this site, call without a filter and read the `type` field on each row.';
     }
 
     public function inputSchema(): array
@@ -33,7 +33,7 @@ final class ListTags extends AgentTool
             'properties' => [
                 'tag_type' => [
                     'type' => 'string',
-                    'description' => 'Filter by tag type (e.g. "featured", "hidden_on_front"). Omit to return all types.',
+                    'description' => 'Filter by tag type. Project-defined free-form string (no fixed enum). Common conventions: "content"/"product"/"bundle" (scopes the tag to one entity class) or "hidden_on_front"/"featured" (display-behavior markers). Omit to return all types.',
                 ],
                 'include_inactive' => [
                     'type' => 'boolean',
