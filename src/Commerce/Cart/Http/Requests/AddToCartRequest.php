@@ -66,17 +66,24 @@ final class AddToCartRequest extends FormRequest
         return (int) ($this->input('quantity') ?? 1);
     }
 
+    /**
+     * Resolves the request's `type` via the morph map only — raw FQCNs are
+     * rejected. `new $class` on an attacker-controlled FQCN would run
+     * arbitrary constructors before the `instanceof HasCart` check could
+     * fire, so the morph map is the trust boundary: only types the
+     * consumer has registered in `Relation::enforceMorphMap()` can resolve.
+     */
     private function resolveCartable(): ?Model
     {
-        $class = Relation::getMorphedModel((string) $this->input('type')) ?? $this->input('type');
+        $type = $this->input('type');
 
-        if (! is_string($class) || ! class_exists($class)) {
+        if (! is_string($type) || $type === '') {
             return null;
         }
 
-        $instance = new $class;
+        $class = Relation::getMorphedModel($type);
 
-        if (! $instance instanceof Model) {
+        if ($class === null || ! class_exists($class) || ! is_subclass_of($class, Model::class)) {
             return null;
         }
 

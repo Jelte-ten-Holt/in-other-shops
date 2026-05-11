@@ -4,15 +4,17 @@ declare(strict_types=1);
 
 namespace InOtherShops\Payment\Actions;
 
+use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use InOtherShops\Payment\DTOs\WebhookPayload;
 use InOtherShops\Payment\Enums\PaymentStatus;
 use InOtherShops\Payment\Events\PaymentFailed;
 use InOtherShops\Payment\Events\PaymentSucceeded;
+use InOtherShops\Payment\Exceptions\PaymentAmountMismatchException;
 use InOtherShops\Payment\Models\Payment;
 use InOtherShops\Payment\Models\WebhookEvent;
 use InOtherShops\Payment\PaymentGatewayManager;
-use Illuminate\Database\UniqueConstraintViolationException;
-use Illuminate\Http\Request;
 
 final class ProcessPaymentWebhook
 {
@@ -28,23 +30,27 @@ final class ProcessPaymentWebhook
 
         $payload = $gateway->parseWebhook($request);
 
-        if (! $this->recordIdempotency($gatewayName, $payload)) {
-            return null;
-        }
+        return DB::transaction(function () use ($gatewayName, $payload): ?Payment {
+            if (! $this->recordIdempotency($gatewayName, $payload)) {
+                return null;
+            }
 
-        $payment = $this->findPayment($gatewayName, $payload);
+            $payment = $this->findPayment($gatewayName, $payload);
 
-        if ($payment === null) {
-            return null;
-        }
+            if ($payment === null) {
+                return null;
+            }
 
-        $changed = $this->updatePaymentStatus($payment, $payload);
+            $this->guardAmountMatches($payment, $payload);
 
-        if ($changed) {
-            $this->dispatchEvent($payment);
-        }
+            $changed = $this->updatePaymentStatus($payment, $payload);
 
-        return $payment;
+            if ($changed) {
+                $this->dispatchEvent($payment);
+            }
+
+            return $payment;
+        });
     }
 
     /**
@@ -76,6 +82,42 @@ final class ProcessPaymentWebhook
             ->where('gateway', $gatewayName)
             ->where('gateway_reference', $payload->gatewayReference)
             ->first();
+    }
+
+    /**
+     * Defense-in-depth: refuse to act on a webhook whose amount or currency
+     * disagrees with the Payment row we created server-side. The signature has
+     * already been verified, so a mismatch implies one of: a Stripe routing
+     * bug, a confused-deputy in our own code (wrong gateway_reference linked),
+     * or compromised webhook secrets. In all cases we'd rather fail loudly
+     * than silently mark a payment "succeeded" for the wrong amount.
+     *
+     * The transaction wrapping `__invoke` rolls back the idempotency row on
+     * throw, so the gateway's retry will hit this same guard again until the
+     * underlying mismatch is resolved or the operator acks via the gateway
+     * dashboard.
+     */
+    private function guardAmountMatches(Payment $payment, WebhookPayload $payload): void
+    {
+        if ($payload->amount !== null && $payload->amount !== $payment->amount) {
+            throw PaymentAmountMismatchException::amount(
+                expected: $payment->amount,
+                received: $payload->amount,
+            );
+        }
+
+        $expectedCurrency = $payment->currency?->value;
+
+        if (
+            $payload->currency !== null
+            && $expectedCurrency !== null
+            && strtolower($payload->currency) !== strtolower($expectedCurrency)
+        ) {
+            throw PaymentAmountMismatchException::currency(
+                expected: strtolower($expectedCurrency),
+                received: strtolower($payload->currency),
+            );
+        }
     }
 
     private function updatePaymentStatus(Payment $payment, WebhookPayload $payload): bool

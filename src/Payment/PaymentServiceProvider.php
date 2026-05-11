@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace InOtherShops\Payment;
 
+use InOtherShops\Payment\Commands\PrunePaymentWebhookEventsCommand;
 use InOtherShops\Payment\Listeners\PaymentLogSubscriber;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Facades\Event;
@@ -30,6 +31,8 @@ final class PaymentServiceProvider extends ServiceProvider
         $this->publishes([
             __DIR__.'/config/payment.php' => config_path('payment.php'),
         ], 'payment-config');
+
+        $this->commands([PrunePaymentWebhookEventsCommand::class]);
 
         Event::subscribe(PaymentLogSubscriber::class);
     }

@@ -120,6 +120,8 @@ final class StripePaymentGateway implements ManagesCustomers, PaymentGateway
                 'event_type' => $event->type,
                 'intent_status' => $intent->status,
             ],
+            amount: isset($intent->amount) && is_int($intent->amount) ? $intent->amount : null,
+            currency: isset($intent->currency) && is_string($intent->currency) ? strtolower($intent->currency) : null,
         );
     }
 

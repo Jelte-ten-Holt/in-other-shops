@@ -42,4 +42,21 @@ class Shipment extends Model
     {
         return $this->hasMany(Shipping::shipmentItem());
     }
+
+    /**
+     * Duck-typed check against the Payment domain's `HasPayments::isPaid()`.
+     * Avoids a hard Shipping→Payment dependency in the domain graph — a
+     * shippable that doesn't implement `isPaid()` (no Payment integration)
+     * is allowed to dispatch.
+     */
+    public function shippableIsPaid(): bool
+    {
+        $shippable = $this->shippable;
+
+        if ($shippable === null || ! method_exists($shippable, 'isPaid')) {
+            return true;
+        }
+
+        return (bool) $shippable->isPaid();
+    }
 }

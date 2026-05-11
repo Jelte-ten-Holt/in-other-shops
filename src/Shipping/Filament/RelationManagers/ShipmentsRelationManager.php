@@ -86,7 +86,8 @@ class ShipmentsRelationManager extends RelationManager
             ->label('Dispatch')
             ->icon('heroicon-o-truck')
             ->color('primary')
-            ->visible(fn (Shipment $record): bool => $record->status->canTransitionTo(ShipmentStatus::InTransit))
+            ->visible(fn (Shipment $record): bool => $record->status->canTransitionTo(ShipmentStatus::InTransit)
+                && $record->shippableIsPaid())
             ->form([
                 static::carrierField(),
                 TextInput::make('tracking_number')
@@ -98,6 +99,16 @@ class ShipmentsRelationManager extends RelationManager
                     ->helperText('Leave blank to derive from the carrier template (config/shipping.carriers).'),
             ])
             ->action(function (Shipment $record, array $data): void {
+                if (! $record->shippableIsPaid()) {
+                    Notification::make()
+                        ->title('Shipment cannot be dispatched')
+                        ->body('The associated payable is not paid in full.')
+                        ->danger()
+                        ->send();
+
+                    return;
+                }
+
                 app(DispatchShipment::class)(
                     $record,
                     $data['tracking_number'],

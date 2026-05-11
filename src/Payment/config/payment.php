@@ -44,6 +44,20 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Webhook Retention
+    |--------------------------------------------------------------------------
+    |
+    | Days to keep entries in the `webhook_events` idempotency ledger. Older
+    | rows are removed by `payment:prune-webhook-events`. Schedule daily.
+    | Retention only needs to outlive the longest gateway-retry window the
+    | shop accepts — Stripe retries for ~3 days; 90 is conservative.
+    |
+    */
+
+    'webhook_retention_days' => env('PAYMENT_WEBHOOK_RETENTION_DAYS', 90),
+
+    /*
+    |--------------------------------------------------------------------------
     | Models
     |--------------------------------------------------------------------------
     |

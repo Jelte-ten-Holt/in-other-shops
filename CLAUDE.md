@@ -82,7 +82,7 @@ How to write tests for this package — trust principles, what each Action/Liste
 
 ## Commands
 
-The package does not ship application-level CLI commands. Exceptions: inventory housekeeping (`inventory:release-expired`, gated behind config) and cart cleanup (`commerce:prune-carts`, prunes expired guest carts).
+The package does not ship application-level CLI commands. Exceptions: inventory housekeeping (`inventory:release-expired`, gated behind config), cart cleanup (`commerce:prune-carts`, prunes expired guest carts), and webhook ledger pruning (`payment:prune-webhook-events`, retention via `payment.webhook_retention_days`, default 90).
 
 ## Adding a New Domain
 

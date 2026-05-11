@@ -11,6 +11,7 @@ use InOtherShops\Payment\Actions\ProcessPaymentWebhook;
 use InOtherShops\Payment\Enums\PaymentStatus;
 use InOtherShops\Payment\Events\PaymentFailed;
 use InOtherShops\Payment\Events\PaymentSucceeded;
+use InOtherShops\Payment\Exceptions\PaymentAmountMismatchException;
 use InOtherShops\Payment\Models\Payment;
 use InOtherShops\Payment\Models\WebhookEvent;
 use InOtherShops\Payment\PaymentGatewayManager;
@@ -171,6 +172,70 @@ final class ProcessPaymentWebhookTest extends TestCase
         // happens during retry storms).
         $this->assertNotNull($returned);
         Event::assertNotDispatched(PaymentSucceeded::class);
+    }
+
+    #[Test]
+    public function a_webhook_whose_amount_disagrees_with_the_payment_throws_and_does_not_update_status(): void
+    {
+        // M3 defense-in-depth: signature is verified, but the payload amount
+        // disagrees with what we wrote at intent-creation time. Refuse the
+        // transition rather than silently mark Succeeded for the wrong value.
+        Event::fake([PaymentSucceeded::class, PaymentFailed::class]);
+
+        $payment = $this->paymentWithReference('fake_pi_amount_mismatch', PaymentStatus::Pending);
+
+        $request = $this->gateway->simulateWebhook(
+            $payment,
+            PaymentStatus::Succeeded,
+            'evt_amount_mismatch',
+            amountOverride: 9999,
+        );
+
+        try {
+            ($this->process)('fake', $request);
+            $this->fail('Expected PaymentAmountMismatchException.');
+        } catch (PaymentAmountMismatchException) {
+            // expected
+        }
+
+        $payment->refresh();
+        $this->assertSame(PaymentStatus::Pending, $payment->status,
+            'Status must not advance when payload amount disagrees.');
+
+        Event::assertNotDispatched(PaymentSucceeded::class);
+
+        // The throw rolls back the idempotency row so a corrected retry can
+        // arrive — otherwise the wrong delivery would silently dedup the right
+        // one out of existence.
+        $this->assertSame(0, WebhookEvent::query()->count(),
+            'Idempotency row must roll back on amount-mismatch throw.');
+    }
+
+    #[Test]
+    public function a_webhook_whose_currency_disagrees_with_the_payment_throws_and_does_not_update_status(): void
+    {
+        Event::fake([PaymentSucceeded::class]);
+
+        $payment = $this->paymentWithReference('fake_pi_currency_mismatch', PaymentStatus::Pending);
+
+        $request = $this->gateway->simulateWebhook(
+            $payment,
+            PaymentStatus::Succeeded,
+            'evt_currency_mismatch',
+            currencyOverride: 'usd',
+        );
+
+        try {
+            ($this->process)('fake', $request);
+            $this->fail('Expected PaymentAmountMismatchException.');
+        } catch (PaymentAmountMismatchException) {
+            // expected
+        }
+
+        $payment->refresh();
+        $this->assertSame(PaymentStatus::Pending, $payment->status);
+        Event::assertNotDispatched(PaymentSucceeded::class);
+        $this->assertSame(0, WebhookEvent::query()->count());
     }
 
     #[Test]

@@ -16,5 +16,7 @@ final readonly class WebhookPayload
         public PaymentStatus $status,
         public ?string $eventId = null,
         public array $gatewayData = [],
+        public ?int $amount = null,
+        public ?string $currency = null,
     ) {}
 }
