@@ -16,22 +16,27 @@ Every directory under `src/` is a self-contained domain package. They are bundle
 
 ### Domain Dependency Graph
 
+Hard dep = concrete model, action, DTO, or exception import. Soft dep = contract, event, or registry call only. Logging is consumed by every audit-relevant domain via subscribers — listed inline rather than repeated below.
+
 ```
 Currency ─────── (independent, foundational)
 Translation ──── (independent, foundational)
-Logging ──────── (independent)
+Logging ──────── (independent — consumed by Commerce/FlowChain/Inventory/Payment/Pricing/Shipping/Agent)
 Location ─────── (independent)
 Media ────────── (independent)
-Inventory ────── (independent)
-Shipping ─────── (independent)
-FlowChain ────── (independent)
+FlowChain ────── (independent of domain code)
+Inventory ────── soft-dep on Translation (HasLocaleGroup instanceof in AdjustStock) ⚠ drift — to remove
 Pricing ──────── depends on Currency
 Taxonomy ─────── depends on Translation
 Payment ──────── depends on Currency
 Tax ──────────── depends on Location
-Commerce ─────── depends on Location, Currency, Payment, Shipping, Tax; soft-deps on Inventory (cart stock guard, opt-in via HasStock)
-Storefront ───── depends on Currency, Pricing, Taxonomy, Translation, Media, Inventory
+Shipping ─────── depends on Currency, Location; hard-dep on Commerce (OrderLine FK in ShipmentItem) ⚠ drift — creates cycle with Commerce
+Commerce ─────── depends on Currency, Location, Payment, Pricing, Shipping, Tax; depends on Inventory contracts + InsufficientStockException
+Storefront ───── depends on Currency, Inventory, Media, Pricing, Taxonomy, Translation
+Agent ────────── integration layer; depends on Commerce, Inventory, Storefront, Taxonomy — sits at the top, not extractable as a leaf
 ```
+
+The drift cases are tracked in [docs/audits/2026-05-13/dep-graph-audit.md](docs/audits/2026-05-13/dep-graph-audit.md) along with the fix shape for each.
 
 Adding a dependency between domains is a significant decision — it means those domains must be extracted together or one must depend on the other. Flag new cross-domain dependencies to the developer.
 
