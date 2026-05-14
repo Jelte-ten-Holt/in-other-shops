@@ -21,7 +21,8 @@ final class ToolRegistryTest extends TestCase
 
         $this->assertNotNull($registry->find('ping'));
         $this->assertNotNull($registry->find('adjust_stock'));
-        $this->assertSame(10, $registry->all()->count());
+        $this->assertNotNull($registry->find('get_recent_problems'));
+        $this->assertSame(11, $registry->all()->count());
     }
 
     #[Test]
@@ -33,7 +34,7 @@ final class ToolRegistryTest extends TestCase
 
         $this->assertNotNull($registry->find('ping'), 'Package tools must survive a consumer publishing its own config/agent.php.');
         $this->assertNotNull($registry->find('fake_consumer_tool'));
-        $this->assertSame(11, $registry->all()->count());
+        $this->assertSame(12, $registry->all()->count());
     }
 
     #[Test]

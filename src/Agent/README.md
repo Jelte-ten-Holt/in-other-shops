@@ -1,6 +1,6 @@
 # Agent Domain
 
-Bearer-gated MCP (Streamable HTTP) endpoint for locally-run Claude clients. Ships a `ToolRegistry`, library-adapter base class, audit log subscriber, and nine generic shop tools (ping, catalog, taxonomy, orders, stock). Consuming projects append their own tools via `config/agent.php`.
+Bearer-gated MCP (Streamable HTTP) endpoint for locally-run Claude clients. Ships a `ToolRegistry`, library-adapter base class, audit log subscriber, ten generic shop tools (ping, catalog, taxonomy, orders, stock), and an admin-only logging-dashboard tool (`get_recent_problems` — grouped, sanitised `domain_logs` summaries). Consuming projects append their own tools via `config/agent.php`.
 
 **Writing a new tool? Read [docs/agent-tool-conventions.md](../../docs/agent-tool-conventions.md) first.** It defines the input, output, and error conventions every tool — package or project — must follow.
 

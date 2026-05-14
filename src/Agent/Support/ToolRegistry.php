@@ -9,6 +9,7 @@ use Illuminate\Support\Collection;
 use InOtherShops\Agent\Contracts\AgentToolContract;
 use InOtherShops\Agent\Tools\AdjustStock;
 use InOtherShops\Agent\Tools\BrowseCatalog;
+use InOtherShops\Agent\Tools\GetRecentProblems;
 use InOtherShops\Agent\Tools\GetStockLevel;
 use InOtherShops\Agent\Tools\ListCategories;
 use InOtherShops\Agent\Tools\ListOrders;
@@ -40,6 +41,7 @@ final class ToolRegistry
         GetStockLevel::class,
         ListStockLevels::class,
         AdjustStock::class,
+        GetRecentProblems::class,
     ];
 
     /** @var array<string, AgentToolContract> */
