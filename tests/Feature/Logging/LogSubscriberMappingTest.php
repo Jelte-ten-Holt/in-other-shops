@@ -44,6 +44,7 @@ use InOtherShops\Payment\Events\PaymentRefunded;
 use InOtherShops\Payment\Events\PaymentSucceeded;
 use InOtherShops\Payment\Models\Payment;
 use InOtherShops\Pricing\Enums\VoucherType;
+use InOtherShops\Pricing\Events\CompareAtPriceExpired;
 use InOtherShops\Pricing\Events\PriceCreated;
 use InOtherShops\Pricing\Events\PriceDeleted;
 use InOtherShops\Pricing\Events\PriceUpdated;
@@ -324,6 +325,25 @@ final class LogSubscriberMappingTest extends TestCase
         $this->assertSame(42, $entry->context['price_id']);
         $this->assertSame('test_browsable', $entry->context['priceable_type']);
         $this->assertSame(7, $entry->context['priceable_id']);
+    }
+
+    #[Test]
+    public function compare_at_price_expired_routes_to_commerce_channel_at_info(): void
+    {
+        // The strikethrough cutover changes the money field on a timer — the
+        // log entry is what keeps that auditable rather than silent.
+        $price = Price::factory()->create([
+            'priceable_type' => 'test_browsable',
+            'priceable_id' => 1,
+            'amount' => 5000,
+        ]);
+
+        CompareAtPriceExpired::dispatch($price, 4000);
+
+        $entry = $this->assertSingleEntry('commerce', LogLevel::Info, 'Strikethrough price expired');
+        $this->assertSame($price->id, $entry->context['price_id']);
+        $this->assertSame(4000, $entry->context['previous_amount']);
+        $this->assertSame(5000, $entry->context['amount']);
     }
 
     // ─────────────────────────────────────────────────────────────────

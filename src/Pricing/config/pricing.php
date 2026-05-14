@@ -30,4 +30,20 @@ return [
         'price_list' => InOtherShops\Pricing\Models\PriceList::class,
         'voucher' => InOtherShops\Pricing\Models\Voucher::class,
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Scheduled Tasks
+    |--------------------------------------------------------------------------
+    |
+    | The pricing:expire-compare-at command promotes prices whose strikethrough
+    | window has closed. It is registered on the Laravel scheduler hourly so a
+    | strikethrough ends close to its configured time without anyone having to
+    | flip prices by hand. Disable this to run the command yourself.
+    |
+    */
+
+    'schedule' => [
+        'enabled' => true,
+    ],
 ];

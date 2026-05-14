@@ -7,6 +7,7 @@ namespace InOtherShops\Pricing\Listeners;
 use InOtherShops\Logging\DTOs\LogEntry;
 use InOtherShops\Logging\Enums\LogLevel;
 use InOtherShops\Logging\LogDispatcher;
+use InOtherShops\Pricing\Events\CompareAtPriceExpired;
 use InOtherShops\Pricing\Events\PriceCreated;
 use InOtherShops\Pricing\Events\PriceDeleted;
 use InOtherShops\Pricing\Events\PriceUpdated;
@@ -28,6 +29,7 @@ final class PricingLogSubscriber
             PriceCreated::class => 'handlePriceCreated',
             PriceUpdated::class => 'handlePriceUpdated',
             PriceDeleted::class => 'handlePriceDeleted',
+            CompareAtPriceExpired::class => 'handleCompareAtPriceExpired',
             VoucherApplied::class => 'handleVoucherApplied',
         ];
     }
@@ -62,6 +64,23 @@ final class PricingLogSubscriber
                 'price_id' => $event->priceId,
                 'priceable_type' => $event->priceableType,
                 'priceable_id' => $event->priceableId,
+            ],
+        ));
+    }
+
+    public function handleCompareAtPriceExpired(CompareAtPriceExpired $event): void
+    {
+        $this->dispatcher->log(new LogEntry(
+            level: LogLevel::Info,
+            channel: self::CHANNEL,
+            message: 'Strikethrough price expired.',
+            context: [
+                'price_id' => $event->price->id,
+                'priceable_type' => $event->price->priceable_type,
+                'priceable_id' => $event->price->priceable_id,
+                'currency' => $event->price->currency?->value,
+                'previous_amount' => $event->previousAmount,
+                'amount' => $event->price->amount,
             ],
         ));
     }

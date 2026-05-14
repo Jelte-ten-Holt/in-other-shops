@@ -4,18 +4,18 @@ declare(strict_types=1);
 
 namespace InOtherShops\Pricing\Filament\RelationManagers;
 
-use InOtherShops\Currency\Enums\Currency;
-use InOtherShops\Pricing\Actions\CreatePrice;
-use InOtherShops\Pricing\Actions\DeletePrice;
-use InOtherShops\Pricing\Actions\UpdatePrice;
-use InOtherShops\Pricing\Filament\PricingSchema;
 use Filament\Actions;
-use Filament\Forms\Components\Select;
-use Filament\Forms\Components\TextInput;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Support\Carbon;
+use InOtherShops\Currency\Enums\Currency;
+use InOtherShops\Pricing\Actions\CreatePrice;
+use InOtherShops\Pricing\Actions\DeletePrice;
+use InOtherShops\Pricing\Actions\UpdatePrice;
+use InOtherShops\Pricing\DTOs\PriceData;
+use InOtherShops\Pricing\Filament\PricingSchema;
 
 class PricesRelationManager extends RelationManager
 {
@@ -26,21 +26,11 @@ class PricesRelationManager extends RelationManager
         return $schema
             ->schema([
                 PricingSchema::currencySelect(),
-                TextInput::make('amount')
-                    ->required()
-                    ->numeric()
-                    ->minValue(0),
-                TextInput::make('compare_at_amount')
-                    ->numeric()
-                    ->minValue(0),
-                Select::make('price_list_id')
-                    ->relationship('priceList', 'name')
-                    ->searchable()
-                    ->preload(),
-                TextInput::make('minimum_quantity')
-                    ->numeric()
-                    ->default(1)
-                    ->minValue(1),
+                PricingSchema::amountField(),
+                PricingSchema::compareAtAmountField(),
+                PricingSchema::compareAtUntilField(),
+                PricingSchema::priceListSelect(),
+                PricingSchema::minimumQuantityField(),
             ]);
     }
 
@@ -54,10 +44,15 @@ class PricesRelationManager extends RelationManager
                     ->formatStateUsing(fn ($record) => $record->formattedAmount())
                     ->sortable(),
                 Tables\Columns\TextColumn::make('compare_at_amount')
+                    ->label('Strikethrough')
                     ->formatStateUsing(fn ($record) => $record->compare_at_amount
                         ? $record->currency->format($record->compare_at_amount)
                         : '—'
                     ),
+                Tables\Columns\TextColumn::make('compare_at_until')
+                    ->label('Strikethrough ends')
+                    ->dateTime()
+                    ->placeholder('—'),
                 Tables\Columns\TextColumn::make('priceList.name')
                     ->placeholder('Default'),
                 Tables\Columns\TextColumn::make('minimum_quantity')
@@ -67,22 +62,14 @@ class PricesRelationManager extends RelationManager
                 Actions\CreateAction::make()
                     ->using(fn (array $data) => (new CreatePrice)(
                         priceable: $this->getOwnerRecord(),
-                        amount: (int) $data['amount'],
-                        currency: Currency::from($data['currency']),
-                        compareAtAmount: isset($data['compare_at_amount']) ? (int) $data['compare_at_amount'] : null,
-                        priceListId: isset($data['price_list_id']) ? (int) $data['price_list_id'] : null,
-                        minimumQuantity: (int) ($data['minimum_quantity'] ?? 1),
+                        data: self::priceData($data),
                     )),
             ])
             ->actions([
                 Actions\EditAction::make()
                     ->using(fn ($record, array $data) => (new UpdatePrice)(
                         price: $record,
-                        amount: (int) $data['amount'],
-                        currency: Currency::from($data['currency']),
-                        compareAtAmount: isset($data['compare_at_amount']) ? (int) $data['compare_at_amount'] : null,
-                        priceListId: isset($data['price_list_id']) ? (int) $data['price_list_id'] : null,
-                        minimumQuantity: (int) ($data['minimum_quantity'] ?? 1),
+                        data: self::priceData($data),
                     )),
                 Actions\DeleteAction::make()
                     ->using(fn ($record) => (new DeletePrice)($record)),
@@ -92,5 +79,20 @@ class PricesRelationManager extends RelationManager
                     Actions\DeleteBulkAction::make(),
                 ]),
             ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    private static function priceData(array $data): PriceData
+    {
+        return new PriceData(
+            amount: (int) $data['amount'],
+            currency: Currency::from($data['currency']),
+            compareAtAmount: isset($data['compare_at_amount']) ? (int) $data['compare_at_amount'] : null,
+            compareAtUntil: isset($data['compare_at_until']) ? Carbon::parse($data['compare_at_until']) : null,
+            priceListId: isset($data['price_list_id']) ? (int) $data['price_list_id'] : null,
+            minimumQuantity: (int) ($data['minimum_quantity'] ?? 1),
+        );
     }
 }
