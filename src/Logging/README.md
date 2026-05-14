@@ -26,6 +26,7 @@ No Eloquent models. This domain is purely a dispatch layer.
 - **`Enums\LogLevel`** — PSR-3 compatible levels (Debug through Critical).
 - **`Contracts\LogHandler`** — interface for destinations (`handle(LogEntry): void`).
 - **`Handlers\FileLogHandler`** — writes to a named Laravel log channel.
+- **`Handlers\DatabaseLogHandler`** — writes to the `domain_logs` table for a queryable audit trail.
 - **`Handlers\FilteredLogHandler`** — decorator that filters entries by log level before passing to an inner handler.
 - **`LogDispatcher`** — routes entries to handlers by channel, with a default fallback.
 
@@ -58,6 +59,10 @@ Add a `levels` key to any handler entry to restrict which log levels it receives
 ```
 
 In this example, the file handler logs all commerce entries. The database handler only receives errors and criticals. The subscribers don't change — routing is purely a config concern.
+
+### Retention
+
+`DatabaseLogHandler` writes to the append-only `domain_logs` table — an observability *echo*, not a system of record (the StockMovement ledger, orders, and payments tables hold the durable history). The `logging:prune-domain-logs` command deletes rows older than `domain-log.retention_days` (default 90); with `domain-log.schedule.enabled` true it runs daily on the Laravel scheduler so the table stays bounded on its own. Pruned rows are deleted outright — no archive.
 
 ## Wiring Up a New Log Subscriber
 
@@ -145,12 +150,11 @@ $this->app->singleton(LogDispatcher::class, fn () => new LogDispatcher(
 
 ## Design Decisions
 
-- **No Eloquent models** — the domain is a routing layer, not a storage layer. A `DatabaseLogHandler` can be added later without changing the domain's core.
+- **No Eloquent models** — the domain is a routing layer, not a storage layer. `DatabaseLogHandler` was added without changing the domain's core: it implements `LogHandler` like any other destination and writes via the query builder.
 - **Channel-based routing** — subscribers tag entries with a logical channel. The config decides where each channel goes. This decouples "what to log" from "where to log it."
 - **Default fallback** — entries for unmapped channels go to the default handlers rather than being silently dropped.
 
 ## Future
 
-- `DatabaseLogHandler` for a queryable audit trail.
 - Context enrichment middleware (request ID, user ID).
 - Filament log viewer.

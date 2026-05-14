@@ -56,4 +56,23 @@ return [
         ['handler' => FileLogHandler::class, 'with' => ['channel' => 'daily']],
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Retention
+    |--------------------------------------------------------------------------
+    |
+    | The `domain_logs` table (written by DatabaseLogHandler) is an append-only
+    | observability echo — not a system of record. The
+    | `logging:prune-domain-logs` command deletes rows older than
+    | `retention_days`; when `schedule.enabled` is true it runs daily on the
+    | Laravel scheduler so the table stays bounded without manual intervention.
+    |
+    */
+
+    'retention_days' => env('DOMAIN_LOG_RETENTION_DAYS', 90),
+
+    'schedule' => [
+        'enabled' => true,
+    ],
+
 ];

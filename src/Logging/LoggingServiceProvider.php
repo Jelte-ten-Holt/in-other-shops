@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace InOtherShops\Logging;
 
+use Illuminate\Console\Scheduling\Schedule;
+use Illuminate\Support\ServiceProvider;
+use InOtherShops\Logging\Commands\PruneDomainLogsCommand;
 use InOtherShops\Logging\Contracts\LogHandler;
 use InOtherShops\Logging\Enums\LogLevel;
 use InOtherShops\Logging\Handlers\FilteredLogHandler;
-use Illuminate\Support\ServiceProvider;
 
 final class LoggingServiceProvider extends ServiceProvider
 {
@@ -34,6 +36,16 @@ final class LoggingServiceProvider extends ServiceProvider
         $this->publishes([
             __DIR__.'/config/domain-log.php' => config_path('domain-log.php'),
         ], 'logging-config');
+
+        $this->commands([PruneDomainLogsCommand::class]);
+
+        if (config('domain-log.schedule.enabled', true)) {
+            $this->app->booted(function () {
+                $this->app->make(Schedule::class)
+                    ->command('logging:prune-domain-logs')
+                    ->daily();
+            });
+        }
     }
 
     /**
