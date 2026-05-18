@@ -74,8 +74,7 @@ final class AddToCartTest extends TestCase
     public function it_snapshots_null_when_cartable_has_no_price(): void
     {
         $cart = Cart::factory()->create(['currency' => Currency::EUR->value]);
-        $cartable = TestCartable::factory()->create();
-        $cartable->testUnitPrice = null;
+        $cartable = TestCartable::factory()->create(['unit_price' => null]);
 
         $item = ($this->addToCart)($cart, $cartable);
 

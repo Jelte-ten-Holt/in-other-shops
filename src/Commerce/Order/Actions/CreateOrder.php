@@ -218,7 +218,7 @@ final class CreateOrder
     }
 
     /**
-     * @return array{description: string, sku: string|null, currency: string, unit_price: int, is_pre_order?: bool}
+     * @return array{description: string, sku: string|null, currency: string, unit_price: int, is_pre_order?: bool, expected_ship_date?: string|null}
      */
     private function resolveLineData(mixed $cartable, string $currencyCode, int $quantity, ?int $snapshotUnitPrice): array
     {

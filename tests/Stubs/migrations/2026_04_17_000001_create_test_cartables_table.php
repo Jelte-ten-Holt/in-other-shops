@@ -14,6 +14,9 @@ return new class extends Migration
             $table->id();
             $table->string('name');
             $table->text('description')->nullable();
+            $table->integer('unit_price')->nullable()->default(1500);
+            $table->boolean('is_pre_order')->default(false);
+            $table->date('expected_ship_date')->nullable();
             $table->timestamps();
         });
     }

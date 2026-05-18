@@ -113,6 +113,7 @@ final class ShowOrder extends AgentTool
             'line_total' => $line->getAttribute('line_total'),
             'currency' => $line->getAttribute('currency')?->value,
             'is_pre_order' => (bool) $line->getAttribute('is_pre_order'),
+            'expected_ship_date' => $line->getAttribute('expected_ship_date')?->toDateString(),
         ];
     }
 

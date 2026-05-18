@@ -33,6 +33,7 @@ class OrderLine extends Model
             'quantity' => 'integer',
             'line_total' => 'integer',
             'is_pre_order' => 'boolean',
+            'expected_ship_date' => 'date',
             'tax_category' => TaxCategory::class,
             'tax_rate_bps' => 'integer',
             'tax_amount' => 'integer',

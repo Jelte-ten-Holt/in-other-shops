@@ -18,6 +18,9 @@ final class TestCartableFactory extends Factory
         return [
             'name' => fake()->word(),
             'description' => fake()->sentence(),
+            'unit_price' => 1500,
+            'is_pre_order' => false,
+            'expected_ship_date' => null,
         ];
     }
 }

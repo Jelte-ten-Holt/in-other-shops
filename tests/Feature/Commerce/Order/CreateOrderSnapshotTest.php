@@ -140,12 +140,9 @@ final class CreateOrderSnapshotTest extends TestCase
         // across lines. The proportional shares are non-integer, so a naive
         // (tax / line_count) distribution would fail this test, and so would
         // an implementation that didn't reconcile rounding on the final line.
-        $cheap = TestCartable::factory()->create();
-        $cheap->testUnitPrice = 1234;
-        $mid = TestCartable::factory()->create();
-        $mid->testUnitPrice = 2345;
-        $pricey = TestCartable::factory()->create();
-        $pricey->testUnitPrice = 3456;
+        $cheap = TestCartable::factory()->create(['unit_price' => 1234]);
+        $mid = TestCartable::factory()->create(['unit_price' => 2345]);
+        $pricey = TestCartable::factory()->create(['unit_price' => 3456]);
 
         $cart = Cart::factory()->create(['session_token' => 'test-session']);
         ($this->addToCart)($cart, $cheap, quantity: 1);
@@ -210,6 +207,51 @@ final class CreateOrderSnapshotTest extends TestCase
         $line = $order->lines()->first();
 
         $this->assertSame(TaxCategory::PhysicalGoods, $line->tax_category);
+    }
+
+    #[Test]
+    public function it_snapshots_is_pre_order_and_expected_ship_date_from_the_cartable_per_line(): void
+    {
+        // Distinct values per line so a swap (e.g. lines assigned in reverse
+        // order) would fail. Mixed pre-order/non-pre-order also guards against
+        // an implementation that blanket-applies one line's value to all.
+        $stocked = TestCartable::factory()->create([
+            'is_pre_order' => false,
+            'expected_ship_date' => null,
+        ]);
+
+        $preorder = TestCartable::factory()->create([
+            'is_pre_order' => true,
+            'expected_ship_date' => '2026-09-15',
+        ]);
+
+        $cart = Cart::factory()->create(['session_token' => 'test-session']);
+        ($this->addToCart)($cart, $stocked);
+        ($this->addToCart)($cart, $preorder);
+
+        $breakdown = new PriceBreakdown(
+            subtotal: 3000,
+            discount: 0,
+            tax: 0,
+            shippingCost: 0,
+            total: 3000,
+            currency: Currency::EUR,
+            lines: [],
+        );
+
+        $order = ($this->createOrder)(
+            cart: $cart,
+            breakdown: $breakdown,
+            billingAddress: $this->billingAddress(),
+        );
+
+        $lines = $order->lines()->get()->keyBy(fn ($l) => $l->orderable_id);
+
+        $this->assertFalse((bool) $lines[$stocked->getKey()]->is_pre_order);
+        $this->assertNull($lines[$stocked->getKey()]->expected_ship_date);
+
+        $this->assertTrue((bool) $lines[$preorder->getKey()]->is_pre_order);
+        $this->assertSame('2026-09-15', $lines[$preorder->getKey()]->expected_ship_date->toDateString());
     }
 
     #[Test]

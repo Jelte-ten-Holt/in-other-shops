@@ -6,12 +6,13 @@ namespace InOtherShops\Tests\Stubs;
 
 use InOtherShops\Commerce\Cart\Concerns\InteractsWithCart;
 use InOtherShops\Commerce\Cart\Contracts\HasCart;
+use InOtherShops\Commerce\Order\Contracts\HasOrders;
 use InOtherShops\Currency\Enums\Currency;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-final class TestCartable extends Model implements HasCart
+final class TestCartable extends Model implements HasCart, HasOrders
 {
     use HasFactory;
     use InteractsWithCart;
@@ -20,9 +21,6 @@ final class TestCartable extends Model implements HasCart
 
     protected $table = 'test_cartables';
 
-    /** Price in cents, settable per-instance for test flexibility. */
-    public ?int $testUnitPrice = 1500;
-
     protected static function newFactory(): Factory
     {
         return new TestCartableFactory;
@@ -30,11 +28,34 @@ final class TestCartable extends Model implements HasCart
 
     public function getCartableUnitPrice(Currency $currency): ?int
     {
-        return $this->testUnitPrice;
+        return $this->unit_price;
+    }
+
+    public function toOrderLineData(string $currencyCode): array
+    {
+        return [
+            'description' => 'Test cartable #'.$this->getKey(),
+            'sku' => null,
+            'currency' => $currencyCode,
+            'unit_price' => $this->unit_price ?? 0,
+            'is_pre_order' => (bool) $this->is_pre_order,
+            'expected_ship_date' => $this->expected_ship_date instanceof \DateTimeInterface
+                ? $this->expected_ship_date->format('Y-m-d')
+                : $this->expected_ship_date,
+        ];
+    }
+
+    public function availableCurrencies(): array
+    {
+        return [Currency::EUR->value];
     }
 
     protected function casts(): array
     {
-        return [];
+        return [
+            'unit_price' => 'integer',
+            'is_pre_order' => 'boolean',
+            'expected_ship_date' => 'date',
+        ];
     }
 }
