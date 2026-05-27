@@ -32,7 +32,11 @@ use InOtherShops\FlowChain\PublishableFlowChain;
  * into your project namespace and reference your copy from the published
  * chain.
  */
-final class AddToCartChain extends PublishableFlowChain
+// Non-final: consumers extend this class in their app/Project/FlowChains/
+// published copies. Per FlowChain README §Publishing, the publish workflow
+// produces `class {ChainName} extends Package{ChainName}` — that requires
+// the package class to be extendable.
+class AddToCartChain extends PublishableFlowChain
 {
     public static function chainName(): string
     {
