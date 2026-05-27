@@ -205,6 +205,79 @@ Decision is deferred until the Payment domain is built, when the first real chil
 
 ---
 
+## Publishing
+
+A chain that extends `PublishableFlowChain` can be copied into the consuming app and modified there. This is the primary point of FlowChain — consumers insert, remove, reorder, or swap steps without forking the entire action.
+
+### The workflow
+
+```bash
+php artisan flowchain:publish 'InOtherShops\Commerce\Cart\FlowChains\AddToCartChain'
+```
+
+Output: `app/Project/FlowChains/Cart/AddToCart.php` (per the chain's `domain()` and `chainName()`). The published file:
+
+- Lives in the namespace `App\Project\FlowChains\{Domain}`.
+- Extends the package class via `extends Package{ChainName}` (with `use ... as Package{ChainName}` alias).
+- Only `steps()` typically needs overriding — `chainName()`, `domain()`, and `initialPayloadShape()` inherit from the package class.
+
+`FlowChainRegistry` discovers the published copy at resolution time by file existence at `app/Project/FlowChains/{Domain}/{ChainName}.php`. No config registration step needed.
+
+### Consumer step placement
+
+Consumer-owned steps inserted into a published chain live alongside the chain file at `app/Project/FlowChains/{Domain}/Steps/{StepName}.php`. They extend `AbstractFlowStep` like any other step. Example:
+
+```php
+// app/Project/FlowChains/Cart/Steps/RecordCartItemAttribution.php
+final class RecordCartItemAttribution extends AbstractFlowStep
+{
+    public function handle(FlowPayload $payload): void { /* ... */ }
+
+    public static function expectedInputs(): array
+    {
+        return ['cartItem' => CartItem::class, 'metadata' => 'array'];
+    }
+}
+```
+
+```php
+// app/Project/FlowChains/Cart/AddToCart.php
+final class AddToCart extends PackageAddToCart
+{
+    public static function steps(): array
+    {
+        return [
+            EnsureCartableInStockStep::class,
+            FindOrCreateCartItemStep::class,
+            RecordCartItemAttribution::class,  // <-- inserted
+            DispatchCartUpdatedStep::class,
+        ];
+    }
+}
+```
+
+### Forking package steps
+
+`flowchain:publish` copies the chain definition only. Step classes stay in the package, referenced by FQN. To modify a step's internals, copy the step file from `vendor/jelte-ten-holt/in-other-shops/src/{Domain}/FlowChains/Steps/{StepName}.php` into your project namespace and update the published chain's `steps()` to reference your copy. The published chain has no `--include-steps` mode — keeping the published surface minimal is intentional.
+
+### Contract validation
+
+`ChainContractValidator` checks at chain build time that every step's `expectedInputs()` is satisfied by upstream `producedOutputs()` (or the chain's `initialPayloadShape()`). Run `php artisan flowchain:check-contracts` to validate every registered chain — useful as a pre-commit hook. Validation fails loudly with the offending step and missing field; the chain doesn't silently run with a broken contract.
+
+### Tests
+
+`flowchain:verify-tests` checks each published chain has a corresponding `Tests\Feature\FlowChains\{ChainName}Test` class. Existence-only check; quality of the test is on the developer. Wire into pre-commit / CI if you want the gate.
+
+### Drift between published copy and package source
+
+There is no automatic drift detection between a consumer's published copy and the package's current default — the consumer owns the file forever and is responsible for merging upstream changes. The per-step shape hash (in `FlowStepFingerprint`) catches contract-level drift loudly at validation time: if a step's `producedOutputs()` changes upstream, downstream consumers that depend on those fields fail `flowchain:check-contracts` with the offending step and field. For semantic-only changes (same shape, different meaning), the changelog is the consumer's signal — bump the step's `version()` and note it.
+
+### When to use this
+
+A chain becomes publishable when consumers have a real reason to modify it — typically when the same chain serves multiple consumers with different needs (analytics insertion, fraud checks, regional variants). Don't make a chain publishable speculatively; the moment it ships, every step's payload contract is public API.
+
+---
+
 ## Outstanding
 
 ### Upstream-version-pin mechanism (deferred)
