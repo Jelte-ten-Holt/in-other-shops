@@ -205,6 +205,34 @@ Decision is deferred until the Payment domain is built, when the first real chil
 
 ---
 
+## Outstanding
+
+### Upstream-version-pin mechanism (deferred)
+
+Each `FlowStep` has a `version()` that bumps when its behavior changes in a way downstream needs to know about but the shape doesn't (the hash on `expectedInputs()`/`producedOutputs()` catches shape changes mechanically; `version()` catches the semantic changes the hash can't see).
+
+What's missing: a way for a downstream step to declare *which* upstream version it was written against, so a bump on an upstream step fails a downstream step that hasn't been audited. The natural API is `expectedUpstreamVersions(): array<class-string<FlowStep>, int>` — a map of upstream class → expected version, checked by `ChainContractValidator` at chain-definition time.
+
+This is intentionally deferred until the first time it's actually needed. A guard test at [`tests/Unit/FlowChain/StepVersionGuardTest.php`](../../tests/Unit/FlowChain/StepVersionGuardTest.php) fails the moment any step in `src/` bumps past version 1 — that's the forcing function. When it fires, the workflow is:
+
+1. Was the bump warranted? If the change was actually a shape change, the hash already catches it; revert the version bump.
+2. If the change is genuinely semantic-only at unchanged shape, build the upstream-version-pin mechanism. Sketch:
+   - Add `expectedUpstreamVersions(): array<class-string, int>` to `FlowStep`, default `[]` on `AbstractFlowStep`.
+   - Extend `ChainContractValidator` to walk each step's pin map, look up the named upstream step in the chain, throw if its `version()` doesn't match the pinned int.
+   - Throw if a pin references a class that isn't in the chain (configuration error — consumer probably swapped a step but forgot to update the pin).
+3. Migrate the offending step's downstream consumers to declare pins.
+4. Delete the guard test.
+
+Why deferred: pinning every downstream-to-upstream relationship adds API surface that may never earn its keep if step semantics rarely change. Building it speculatively risks a wrong shape (e.g. per-step pin vs. per-field pin) that we won't catch without a real use case.
+
+### Free-string types in step shape declarations
+
+`expectedInputs()` / `producedOutputs()` return `field-name => type-string` where the type is a free-form PHP type string. Typos in the string produce false hash mismatches (same semantic meaning, different hash). The convention is documented on `AbstractFlowStep::class` but not enforced.
+
+Upgrade path: capture types via reflection on a typed method instead (e.g. `producedOutputs(): SomeShapeDTO`). Less ergonomic to declare but type-checked. Deferred until free-string typos prove to be a real footgun.
+
+---
+
 ## Transaction Support
 
 `wrapInTransaction()` wraps the entire chain execution in a database transaction. If any step throws, everything rolls back — no orphaned orders, no partial state.

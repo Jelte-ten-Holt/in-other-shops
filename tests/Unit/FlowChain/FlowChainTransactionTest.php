@@ -7,8 +7,8 @@ namespace InOtherShops\Tests\Unit\FlowChain;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Database\Schema\Blueprint;
+use InOtherShops\FlowChain\AbstractFlowStep;
 use InOtherShops\FlowChain\Contracts\FlowPayload;
-use InOtherShops\FlowChain\Contracts\FlowStep;
 use InOtherShops\FlowChain\Enums\FlowChainStatus;
 use InOtherShops\FlowChain\FlowChain;
 use InOtherShops\Tests\TestCase;
@@ -82,7 +82,7 @@ final class FlowChainTransactionTest extends TestCase
 
 final class ProbePayload implements FlowPayload {}
 
-final class WriteProbeStep implements FlowStep
+final class WriteProbeStep extends AbstractFlowStep
 {
     public function handle(FlowPayload $payload): void
     {
@@ -94,7 +94,7 @@ final class WriteProbeStep implements FlowStep
     }
 }
 
-final class ThrowingStep implements FlowStep
+final class ThrowingStep extends AbstractFlowStep
 {
     public function handle(FlowPayload $payload): void
     {
