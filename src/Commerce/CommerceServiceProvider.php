@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace InOtherShops\Commerce;
 
 use InOtherShops\Commerce\Cart\Commands\PruneExpiredCartsCommand;
+use InOtherShops\Commerce\Cart\FlowChains\AddToCartChain;
 use InOtherShops\Commerce\Listeners\CommerceLogSubscriber;
 use InOtherShops\Commerce\Order\Events\OrderCreated;
 use InOtherShops\Commerce\Order\Listeners\CreateShipmentForNewOrder;
+use InOtherShops\FlowChain\FlowChainRegistry;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Route;
@@ -38,6 +40,8 @@ final class CommerceServiceProvider extends ServiceProvider
 
         Event::subscribe(CommerceLogSubscriber::class);
         Event::listen(OrderCreated::class, CreateShipmentForNewOrder::class);
+
+        $this->app->make(FlowChainRegistry::class)->register(AddToCartChain::class);
     }
 
     private function registerCartRoutes(): void

@@ -4,66 +4,62 @@ declare(strict_types=1);
 
 namespace InOtherShops\Commerce\Cart\Actions;
 
+use Illuminate\Database\Eloquent\Model;
 use InOtherShops\Commerce\Cart\Contracts\HasCart;
-use InOtherShops\Commerce\Cart\Events\CartUpdated;
+use InOtherShops\Commerce\Cart\FlowChains\AddToCartChain;
+use InOtherShops\Commerce\Cart\FlowChains\AddToCartPayload;
 use InOtherShops\Commerce\Cart\Models\Cart;
 use InOtherShops\Commerce\Cart\Models\CartItem;
-use InOtherShops\Currency\Enums\Currency;
-use Illuminate\Database\Eloquent\Model;
+use InOtherShops\FlowChain\Enums\FlowChainStatus;
+use InOtherShops\FlowChain\Exceptions\StepFailedException;
+use InOtherShops\FlowChain\FlowChainRegistry;
 
+/**
+ * Thin facade over AddToCartChain. Keeps the historical __invoke signature
+ * so existing call sites don't change, while delegating the actual
+ * orchestration to the publishable chain — which consumers can fork and
+ * modify per FlowChain README §Publishing.
+ *
+ * Failure handling unwraps the chain's StepFailedException so the
+ * underlying domain exceptions (e.g. InsufficientStockException) surface
+ * directly to callers, matching the pre-chain behavior.
+ */
 final class AddToCart
 {
     public function __construct(
-        private readonly EnsureCartableInStock $ensureCartableInStock,
+        private readonly FlowChainRegistry $registry,
     ) {}
 
     public function __invoke(Cart $cart, HasCart&Model $cartable, int $quantity = 1): CartItem
     {
-        $existing = $this->existingItem($cart, $cartable);
-        $runningQuantity = ($existing?->quantity ?? 0) + $quantity;
+        $chainClass = $this->registry->resolve(AddToCartChain::class);
+        $payload = new AddToCartPayload($cart, $cartable, $quantity);
 
-        ($this->ensureCartableInStock)($cartable, $runningQuantity);
+        /** @var AddToCartChain $chain */
+        $chain = new $chainClass;
+        $result = $chain->run($payload);
 
-        $item = $this->findOrCreateItem($cart, $cartable, $quantity, $existing);
-
-        CartUpdated::dispatch($cart);
-
-        return $item;
-    }
-
-    private function existingItem(Cart $cart, HasCart&Model $cartable): ?CartItem
-    {
-        return $cart->items()
-            ->where('cartable_type', $cartable->getMorphClass())
-            ->where('cartable_id', $cartable->getKey())
-            ->first();
-    }
-
-    private function findOrCreateItem(Cart $cart, HasCart&Model $cartable, int $quantity, ?CartItem $existing): CartItem
-    {
-        if ($existing !== null) {
-            $existing->increment('quantity', $quantity);
-
-            return $existing->refresh();
+        if ($result->status === FlowChainStatus::Failed) {
+            $this->rethrowUnderlyingException($result->exception);
         }
 
-        $currency = $this->resolveCurrency($cart);
+        assert($payload->cartItem !== null, 'AddToCartChain finished but cartItem was not set — chain step list is incomplete.');
 
-        return $cart->items()->create([
-            'cartable_type' => $cartable->getMorphClass(),
-            'cartable_id' => $cartable->getKey(),
-            'quantity' => $quantity,
-            'unit_price' => $cartable->getCartableUnitPrice($currency),
-            'currency' => $currency,
-        ]);
+        return $payload->cartItem;
     }
 
-    private function resolveCurrency(Cart $cart): Currency
+    private function rethrowUnderlyingException(?StepFailedException $exception): never
     {
-        if ($cart->currency instanceof Currency) {
-            return $cart->currency;
+        if ($exception === null) {
+            throw new \RuntimeException('AddToCartChain failed but no exception was attached to the result.');
         }
 
-        return Currency::from(config('commerce.cart.api.default_currency', 'EUR'));
+        $previous = $exception->getPrevious();
+
+        if ($previous === null) {
+            throw $exception;
+        }
+
+        throw $previous;
     }
 }
