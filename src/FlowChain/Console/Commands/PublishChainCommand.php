@@ -131,10 +131,10 @@ final class PublishChainCommand extends Command
         $shortName = $chainClass::chainName();
         $newNamespace = 'App\\Project\\FlowChains\\'.$chainClass::domain();
 
-        // Rewrite namespace, alias the package parent under its original
-        // short name so existing `extends ChainName` clauses keep working,
-        // and (defensively) leave the rest of the body alone. Consumers can
-        // edit anything after the boilerplate.
+        // Rewrite namespace and alias the package class as Package{chainName}
+        // so the published `extends Package{chainName}` resolves regardless
+        // of what the source class was actually named (chainName() doesn't
+        // have to match the source class's short name).
         $rewritten = preg_replace(
             '/^namespace\s+[^;]+;/m',
             "namespace {$newNamespace};\n\nuse {$chainClass} as Package{$shortName};",
@@ -142,12 +142,14 @@ final class PublishChainCommand extends Command
             limit: 1,
         );
 
-        // Swap `extends PublishableFlowChain` (the package abstract) or
-        // `extends {ChainName}` (already-extending) so the published class
-        // becomes a leaf subclass of the package class itself.
+        // Rewrite the class declaration to use chainName() as the class
+        // name, regardless of what the source called it. Strips abstract/final
+        // modifiers, normalizes to `final` (published copies are leaves), and
+        // sets the parent to the imported alias. Any `implements` clause on
+        // the source is preserved.
         $rewritten = (string) preg_replace(
-            '/class\s+'.preg_quote($shortName, '/').'\s+extends\s+\w+/',
-            "class {$shortName} extends Package{$shortName}",
+            '/(?:final\s+|abstract\s+)?class\s+\w+\s+extends\s+\w+/',
+            "final class {$shortName} extends Package{$shortName}",
             (string) $rewritten,
             limit: 1,
         );
