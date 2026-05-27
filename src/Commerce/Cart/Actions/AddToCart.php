@@ -30,10 +30,13 @@ final class AddToCart
         private readonly FlowChainRegistry $registry,
     ) {}
 
-    public function __invoke(Cart $cart, HasCart&Model $cartable, int $quantity = 1): CartItem
+    /**
+     * @param  array<string, mixed>  $metadata  Forwarded to AddToCartPayload::$metadata for consumer-published steps. Package steps don't read it.
+     */
+    public function __invoke(Cart $cart, HasCart&Model $cartable, int $quantity = 1, array $metadata = []): CartItem
     {
         $chainClass = $this->registry->resolve(AddToCartChain::class);
-        $payload = new AddToCartPayload($cart, $cartable, $quantity);
+        $payload = new AddToCartPayload($cart, $cartable, $quantity, $metadata);
 
         /** @var AddToCartChain $chain */
         $chain = new $chainClass;

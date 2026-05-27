@@ -26,7 +26,7 @@ final class CartItemController
         $cart = ($this->resolveCurrentCart)();
 
         try {
-            $addToCart($cart, $request->cartable(), $request->quantity());
+            $addToCart($cart, $request->cartable(), $request->quantity(), $request->metadata());
         } catch (DomainException $e) {
             return $this->cartRuleViolation($e);
         }

@@ -23,6 +23,13 @@ final class AddToCartRequest extends FormRequest
             'type' => ['required', 'string'],
             'id' => ['required'],
             'quantity' => ['nullable', 'integer', 'min:1'],
+            // Free-form passthrough to AddToCartPayload::$metadata so
+            // consumer-published chain steps can read context (attribution
+            // source, A/B variant, etc.). The package does not interpret
+            // contents — interpretation is the consumer step's
+            // responsibility. Capped at array (no nested validation here);
+            // Laravel's request size limits cover DoS shape.
+            'metadata' => ['nullable', 'array'],
         ];
     }
 
@@ -64,6 +71,16 @@ final class AddToCartRequest extends FormRequest
     public function quantity(): int
     {
         return (int) ($this->input('quantity') ?? 1);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function metadata(): array
+    {
+        $metadata = $this->input('metadata');
+
+        return is_array($metadata) ? $metadata : [];
     }
 
     /**

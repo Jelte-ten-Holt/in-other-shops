@@ -93,4 +93,33 @@ final class AddToCartTest extends TestCase
 
         Event::assertDispatched(CartUpdated::class, 1);
     }
+
+    #[Test]
+    public function metadata_defaults_to_empty_array_when_omitted(): void
+    {
+        // Backward-compat anchor for the new metadata param. Existing
+        // callers that don't pass metadata should keep working unchanged.
+        $cart = Cart::factory()->create(['currency' => Currency::EUR->value]);
+        $cartable = TestCartable::factory()->create();
+
+        $item = ($this->addToCart)($cart, $cartable);
+
+        $this->assertInstanceOf(CartItem::class, $item);
+        $this->assertSame(1, $item->quantity);
+    }
+
+    #[Test]
+    public function metadata_is_accepted_by_the_facade_without_affecting_cart_item_shape(): void
+    {
+        // The package doesn't read metadata — it's threaded through to
+        // AddToCartPayload for consumer-published chain steps. From the
+        // facade's perspective, the only observable difference is that
+        // arbitrary keys can be passed without error.
+        $cart = Cart::factory()->create(['currency' => Currency::EUR->value]);
+        $cartable = TestCartable::factory()->create();
+
+        $item = ($this->addToCart)($cart, $cartable, 1, ['source' => ['type' => 'content', 'id' => 42]]);
+
+        $this->assertInstanceOf(CartItem::class, $item);
+    }
 }

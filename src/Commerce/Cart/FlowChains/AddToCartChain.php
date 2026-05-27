@@ -50,6 +50,7 @@ final class AddToCartChain extends PublishableFlowChain
             'cart' => Cart::class,
             'cartable' => HasCart::class,
             'quantity' => 'int',
+            'metadata' => 'array',
         ];
     }
 
