@@ -87,7 +87,13 @@ How to write tests for this package — trust principles, what each Action/Liste
 
 ## Commands
 
-The package does not ship application-level CLI commands. Exceptions: inventory housekeeping (`inventory:release-expired`, gated behind config), cart cleanup (`commerce:prune-carts`, prunes expired guest carts), and webhook ledger pruning (`payment:prune-webhook-events`, retention via `payment.webhook_retention_days`, default 90).
+The package does not ship application-level CLI commands. Exceptions: inventory housekeeping (`inventory:release-expired`, gated behind config), cart cleanup (`commerce:prune-carts`, prunes expired guest carts), and webhook ledger pruning (`payment:prune-webhook-events`, retention via `payment.webhook_retention_days`, default 90). The full catalog of commands, their schedule state, and every other periphery actor this package contributes to consumers lives in [docs/data-flows.md](docs/data-flows.md).
+
+## Periphery
+
+`docs/data-flows.md` is the authoritative list of everything this package contributes to a consumer's runtime: auto-scheduled commands, registered-but-not-scheduled commands, event subscribers, listeners, model observers, model boot hooks (`saving`/`deleting`), and dispatched events. Consumers reference this doc rather than re-deriving the catalog from `vendor/`.
+
+**When adding, removing, or modifying any periphery actor** — a new `Schedule::command(...)` in a ServiceProvider, a new `Event::subscribe(...)`, a new model boot hook, a renamed dispatched event — **update `docs/data-flows.md` and refresh its "Last verified" date in the same change.** Same discipline as updating tests. Consumers pin a package version via `composer.lock`; the doc they see is the doc shipped with that version.
 
 ## Adding a New Domain
 

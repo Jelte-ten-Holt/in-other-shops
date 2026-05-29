@@ -13,11 +13,17 @@ use InOtherShops\Inventory\Models\StockReservation;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Release a single pending reservation — appends a `+X Released` ledger
- * movement and transitions the reservation Pending → Released.
+ * Release a single reservation — appends a `+X Released` ledger movement
+ * and transitions the reservation Pending|Confirmed → Released. The
+ * compensating `+X Released` entry returns the reserved stock to available
+ * regardless of which state the reservation was in (Confirmed reservations
+ * also held stock; confirming only moved the lifecycle marker, not the
+ * ledger).
  *
- * Returns null when the reservation is not (or no longer) Pending. The
- * locked select + status guard makes concurrent calls idempotent.
+ * Returns null when the reservation is already Released (or no longer
+ * exists). The locked select + status guard makes concurrent calls
+ * idempotent — safe to call from multiple paths (admin cancellation,
+ * payment-fail listener, status-change listener).
  */
 final class ReleaseReservation
 {
@@ -46,7 +52,7 @@ final class ReleaseReservation
         /** @var StockReservation|null $reservation */
         $reservation = $model::query()
             ->where('id', $reservationId)
-            ->where('status', ReservationStatus::Pending)
+            ->whereIn('status', [ReservationStatus::Pending, ReservationStatus::Confirmed])
             ->with('stockItem.stockable')
             ->lockForUpdate()
             ->first();

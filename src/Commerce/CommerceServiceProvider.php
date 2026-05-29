@@ -8,7 +8,9 @@ use InOtherShops\Commerce\Cart\Commands\PruneExpiredCartsCommand;
 use InOtherShops\Commerce\Cart\FlowChains\AddToCartChain;
 use InOtherShops\Commerce\Listeners\CommerceLogSubscriber;
 use InOtherShops\Commerce\Order\Events\OrderCreated;
+use InOtherShops\Commerce\Order\Events\OrderStatusChanged;
 use InOtherShops\Commerce\Order\Listeners\CreateShipmentForNewOrder;
+use InOtherShops\Commerce\Order\Listeners\SyncInventoryOnOrderStatusChange;
 use InOtherShops\FlowChain\FlowChainRegistry;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Facades\Event;
@@ -40,6 +42,7 @@ final class CommerceServiceProvider extends ServiceProvider
 
         Event::subscribe(CommerceLogSubscriber::class);
         Event::listen(OrderCreated::class, CreateShipmentForNewOrder::class);
+        Event::listen(OrderStatusChanged::class, SyncInventoryOnOrderStatusChange::class);
 
         $this->app->make(FlowChainRegistry::class)->register(AddToCartChain::class);
     }
