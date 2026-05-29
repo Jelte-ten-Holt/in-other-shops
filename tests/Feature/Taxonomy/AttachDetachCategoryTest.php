@@ -6,7 +6,9 @@ namespace InOtherShops\Tests\Feature\Taxonomy;
 
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
+use RuntimeException;
 use InOtherShops\Taxonomy\Actions\AttachCategory;
 use InOtherShops\Taxonomy\Actions\DetachCategory;
 use InOtherShops\Taxonomy\Events\CategoryAttached;
@@ -98,6 +100,34 @@ final class AttachDetachCategoryTest extends TestCase
         }
 
         Event::assertDispatchedTimes(CategoryAttached::class, 1);
+    }
+
+    #[Test]
+    public function a_listener_failure_rolls_back_the_pivot_write(): void
+    {
+        // B-2: attach commits the pivot, then synchronously walks ancestors to
+        // maintain counts. If anything in that reaction throws, the pivot must
+        // roll back too — otherwise the row is persisted with ancestor counts
+        // left half-updated and drift accumulates silently. A downstream
+        // CategoryAttached listener throwing stands in for any mid-walk failure.
+        $model = TestTaxonomized::factory()->create();
+        $category = Category::factory()->create();
+
+        Event::listen(CategoryAttached::class, function (): void {
+            throw new RuntimeException('downstream listener blew up');
+        });
+
+        try {
+            ($this->attach)($model, $category);
+            $this->fail('Expected the listener exception to propagate.');
+        } catch (RuntimeException) {
+            // expected
+        }
+
+        $this->assertSame(0, $model->categories()->count(),
+            'The pivot row must roll back when the count-maintenance reaction throws.');
+        $this->assertSame(0, DB::table('category_morph_counts')->count(),
+            'No count rows may survive a rolled-back attach.');
     }
 
     #[Test]

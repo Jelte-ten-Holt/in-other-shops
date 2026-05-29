@@ -4,13 +4,18 @@ declare(strict_types=1);
 
 namespace InOtherShops\Tests\Feature\Taxonomy;
 
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use InOtherShops\Taxonomy\Actions\AttachCategory;
 use InOtherShops\Taxonomy\Actions\DetachCategory;
+use InOtherShops\Taxonomy\Events\CategoryAttached;
 use InOtherShops\Taxonomy\Events\CategoryDeleted;
+use InOtherShops\Taxonomy\Events\CategoryMoved;
 use InOtherShops\Taxonomy\Exceptions\CategoryHasChildrenException;
+use InOtherShops\Taxonomy\Exceptions\MorphAliasTooLongException;
+use InOtherShops\Taxonomy\Listeners\MaintainCategoryCounts;
 use InOtherShops\Taxonomy\Models\Category;
 use InOtherShops\Tests\Stubs\TestTaxonomized;
 use InOtherShops\Tests\TestCase;
@@ -242,6 +247,41 @@ final class MaintainCategoryCountsTest extends TestCase
     }
 
     #[Test]
+    public function recompute_command_overwrites_inflated_counts_and_clears_orphan_rows(): void
+    {
+        // B-4 / T-7: drift is not always "rows are missing" — counts can be
+        // inflated, and orphan (alias, category) rows can linger for items that
+        // no longer exist. The rebuild must reset to the pivot truth, not add
+        // on top of the drifted values. (The concurrent-writer guarantee — the
+        // advisory lock and upsert final write — needs multiple connections and
+        // can't be exercised on SQLite's single writer; it's covered by code
+        // review against MySQL/Postgres.)
+        [$root, $mid, $leaf] = $this->tree();
+        $model = TestTaxonomized::factory()->create();
+        ($this->attach)($model, $leaf);
+
+        DB::table('category_morph_counts')
+            ->where('category_id', $root->id)
+            ->update(['count' => 99]);
+        DB::table('category_morph_counts')->insert([
+            'category_id' => $mid->id,
+            'morph_alias' => 'ghost_alias',
+            'count' => 7,
+        ]);
+
+        $this->artisan('taxonomy:recompute-category-counts')->assertExitCode(0);
+
+        $this->assertSubtreeCount('test_taxonomized', $root, 1);
+        $this->assertSubtreeCount('test_taxonomized', $mid, 1);
+        $this->assertSubtreeCount('test_taxonomized', $leaf, 1);
+        $this->assertSame(
+            0,
+            DB::table('category_morph_counts')->where('morph_alias', 'ghost_alias')->count(),
+            'Orphan drift rows must be cleared by the rebuild.',
+        );
+    }
+
+    #[Test]
     public function recompute_command_is_idempotent(): void
     {
         [$root, $mid, $leaf] = $this->tree();
@@ -264,6 +304,102 @@ final class MaintainCategoryCountsTest extends TestCase
         $this->artisan('taxonomy:recompute-category-counts')->assertExitCode(0);
 
         $this->assertSame(0, DB::table('category_morph_counts')->count());
+    }
+
+    #[Test]
+    public function attach_rejects_a_morph_alias_longer_than_the_counts_column(): void
+    {
+        // B-3: an over-length morph alias — typically an unregistered FQCN —
+        // would truncate silently on MySQL and diverge the counts table from
+        // the pivot forever. The listener rejects it before writing anything.
+        // SQLite ignores varchar length, so the column can't catch this; the
+        // application-level guard must.
+        [$root, $mid, $leaf] = $this->tree();
+
+        $model = new class extends Model
+        {
+            public function getMorphClass(): string
+            {
+                return str_repeat('A', 256);
+            }
+
+            public function getKey(): int
+            {
+                return 1;
+            }
+        };
+
+        try {
+            (new MaintainCategoryCounts)->onAttached(new CategoryAttached($model, $leaf));
+            $this->fail('Expected MorphAliasTooLongException.');
+        } catch (MorphAliasTooLongException) {
+            // expected
+        }
+
+        $this->assertSame(0, DB::table('category_morph_counts')->count(),
+            'No count rows may be written when the alias is rejected.');
+    }
+
+    #[Test]
+    public function a_listener_failure_during_a_move_rolls_back_the_reparent_and_the_counts(): void
+    {
+        // B-2 (observer path): Category::save() wraps the parent_id UPDATE and
+        // the CategoryMoved count-shift in one transaction. A downstream
+        // CategoryMoved listener throwing must roll BOTH back — leaving the node
+        // where it was with counts intact, not reparented with counts shifted.
+        [$root, $mid, $leaf] = $this->tree();
+        $otherRoot = Category::factory()->create();
+        $model = TestTaxonomized::factory()->create();
+        ($this->attach)($model, $leaf);
+
+        \Illuminate\Support\Facades\Event::listen(CategoryMoved::class, function (): void {
+            throw new \RuntimeException('downstream move listener blew up');
+        });
+
+        $leaf->parent_id = $otherRoot->id;
+
+        try {
+            $leaf->save();
+            $this->fail('Expected the listener exception to propagate.');
+        } catch (\RuntimeException) {
+            // expected
+        }
+
+        $this->assertSame($mid->id, $leaf->fresh()->parent_id,
+            'The reparent must roll back when the move reaction throws.');
+        $this->assertSubtreeCount('test_taxonomized', $root, 1);
+        $this->assertSubtreeCount('test_taxonomized', $mid, 1);
+        $this->assertSubtreeCount('test_taxonomized', $leaf, 1);
+        $this->assertSubtreeCount('test_taxonomized', $otherRoot, 0);
+    }
+
+    #[Test]
+    public function a_listener_failure_during_a_delete_rolls_back_the_delete_and_the_counts(): void
+    {
+        // B-2 (observer path): Category::delete() wraps the row delete and the
+        // CategoryDeleted ancestor decrement in one transaction. A downstream
+        // CategoryDeleted listener throwing must leave the row present and the
+        // counts untouched.
+        [$root, $mid, $leaf] = $this->tree();
+        $model = TestTaxonomized::factory()->create();
+        ($this->attach)($model, $leaf);
+
+        \Illuminate\Support\Facades\Event::listen(CategoryDeleted::class, function (): void {
+            throw new \RuntimeException('downstream delete listener blew up');
+        });
+
+        try {
+            $leaf->delete();
+            $this->fail('Expected the listener exception to propagate.');
+        } catch (\RuntimeException) {
+            // expected
+        }
+
+        $this->assertTrue(Category::query()->whereKey($leaf->id)->exists(),
+            'The category row must survive a rolled-back delete.');
+        $this->assertSubtreeCount('test_taxonomized', $root, 1);
+        $this->assertSubtreeCount('test_taxonomized', $mid, 1);
+        $this->assertSubtreeCount('test_taxonomized', $leaf, 1);
     }
 
     /**

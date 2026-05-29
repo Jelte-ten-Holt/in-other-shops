@@ -157,6 +157,32 @@ final class SyncInventoryOnOrderStatusChangeTest extends TestCase
             .'without any consumer-side wiring.');
     }
 
+    #[Test]
+    public function it_releases_a_confirmed_reservation_on_confirmed_to_cancelled_via_update_order_status(): void
+    {
+        // T-2: the original v0.23.0 regression case driven end-to-end through
+        // UpdateOrderStatus (not a hand-built event). Admin cancels an order
+        // whose payment already succeeded; the previously-confirmed reservation
+        // must be released and its stock returned to available. Fixture reaches
+        // Confirmed via ConfirmReservation so it matches the production
+        // lifecycle rather than a raw status write.
+        $stockable = $this->stockableWithLevel(10);
+        $order = $this->orderWithStatus(OrderStatus::Confirmed);
+
+        $reservation = ($this->reserve)($stockable, quantity: 2, reference: $order);
+        (new ConfirmReservation)($order, 'Payment succeeded');
+        $this->assertSame(ReservationStatus::Confirmed, $reservation->fresh()->status);
+        $this->assertSame(8, $stockable->stockItem()->first()->fresh()->stock_level);
+
+        ($this->updateOrderStatus)($order, OrderStatus::Cancelled);
+
+        $this->assertSame(OrderStatus::Cancelled, $order->fresh()->status);
+        $this->assertSame(ReservationStatus::Released, $reservation->fresh()->status,
+            'Confirmed → Cancelled via UpdateOrderStatus must release the committed reservation.');
+        $this->assertSame(10, $stockable->stockItem()->first()->fresh()->stock_level,
+            'The held stock must return to available on cancellation.');
+    }
+
     private function stockableWithLevel(int $level): TestStockable
     {
         $stockable = TestStockable::factory()->create();

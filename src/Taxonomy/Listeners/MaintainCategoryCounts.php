@@ -10,6 +10,7 @@ use InOtherShops\Taxonomy\Events\CategoryAttached;
 use InOtherShops\Taxonomy\Events\CategoryDeleted;
 use InOtherShops\Taxonomy\Events\CategoryDetached;
 use InOtherShops\Taxonomy\Events\CategoryMoved;
+use InOtherShops\Taxonomy\Exceptions\MorphAliasTooLongException;
 
 /**
  * Keeps `category_morph_counts` consistent with the categorizables pivot
@@ -27,6 +28,14 @@ use InOtherShops\Taxonomy\Events\CategoryMoved;
  */
 final class MaintainCategoryCounts
 {
+    /**
+     * Must match the width of category_morph_counts.morph_alias. On MySQL with
+     * strict mode off an over-length alias truncates silently — the truncated
+     * value never matches the pivot's categorizable_type, so incremental
+     * updates and recompute diverge permanently. We reject it up front instead.
+     */
+    private const int MORPH_ALIAS_MAX_LENGTH = 255;
+
     public function subscribe(Dispatcher $events): array
     {
         return [
@@ -39,7 +48,7 @@ final class MaintainCategoryCounts
 
     public function onAttached(CategoryAttached $event): void
     {
-        $alias = $event->model->getMorphClass();
+        $alias = $this->guardAlias($event->model->getMorphClass());
 
         $this->walkAncestors((int) $event->category->getKey(), function (int $categoryId) use ($alias): void {
             $this->applyDelta($categoryId, $alias, 1);
@@ -48,11 +57,20 @@ final class MaintainCategoryCounts
 
     public function onDetached(CategoryDetached $event): void
     {
-        $alias = $event->model->getMorphClass();
+        $alias = $this->guardAlias($event->model->getMorphClass());
 
         $this->walkAncestors((int) $event->category->getKey(), function (int $categoryId) use ($alias): void {
             $this->applyDelta($categoryId, $alias, -1);
         });
+    }
+
+    private function guardAlias(string $alias): string
+    {
+        if (strlen($alias) > self::MORPH_ALIAS_MAX_LENGTH) {
+            throw MorphAliasTooLongException::for($alias, self::MORPH_ALIAS_MAX_LENGTH);
+        }
+
+        return $alias;
     }
 
     public function onMoved(CategoryMoved $event): void

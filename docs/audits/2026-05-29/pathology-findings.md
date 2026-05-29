@@ -101,7 +101,7 @@ Decision needed: reject at DTO (typed validation), or accept-and-let-the-schedul
 
 ## Taxonomy domain (Run B)
 
-### B-1. [high, systemic] Filament `DetachBulkAction` bypasses events entirely — OPEN
+### B-1. [high, systemic] Filament `DetachBulkAction` bypasses events entirely — FIXED 2026-05-29
 
 Evidence: [`src/Taxonomy/Filament/RelationManagers/CategoriesRelationManager.php:96-99`](../../../src/Taxonomy/Filament/RelationManagers/CategoriesRelationManager.php#L96-L99) — `BulkActionGroup` wraps only `DetachBulkAction::make()` with no `->after()` hook. The single-row `DetachAction` at line 86 dispatches `CategoryDetached`; the bulk variant does not.
 
@@ -113,7 +113,7 @@ Probe: in a Filament feature test, attach three categories to a `TestTaxonomized
 
 Fix shape: wrap `DetachBulkAction::make()->after(fn ($records, $owner) => $records->each(fn ($cat) => CategoryDetached::dispatch($owner, $cat)))` — or replace the helper with a project-owned bulk action that goes through the `DetachCategory` action.
 
-### B-2. [high, systemic] Pivot write commits then counts listener can leave ancestors half-updated on failure — OPEN
+### B-2. [high, systemic] Pivot write commits then counts listener can leave ancestors half-updated on failure — FIXED 2026-05-29
 
 Evidence:
 - [`src/Taxonomy/Actions/AttachCategory.php:16-18`](../../../src/Taxonomy/Actions/AttachCategory.php#L16-L18) — `attach` then dispatch, no transaction
@@ -128,7 +128,7 @@ Probe: in a test, stub `DB::statement` on the second `applyDelta` call to throw;
 
 Fix shape: wrap `AttachCategory::__invoke` / `DetachCategory::__invoke` / the model `updated`/`deleting` flows in `DB::transaction(...)` that also encloses the ancestor walk — pivot write and count updates must commit atomically. Alternative: queue the count maintenance as a job that re-derives from the pivot rather than incrementing, eliminating the drift class entirely.
 
-### B-3. [high, systemic] 64-char `morph_alias` column silently truncates or throws — OPEN
+### B-3. [high, systemic] 64-char `morph_alias` column silently truncates or throws — FIXED 2026-05-29
 
 Evidence:
 - [`src/Taxonomy/Database/Migrations/2026_05_11_000001_create_category_morph_counts_table.php:16`](../../../src/Taxonomy/Database/Migrations/2026_05_11_000001_create_category_morph_counts_table.php#L16) — `->string('morph_alias', 64)`
@@ -141,7 +141,7 @@ Probe: a test that attaches a model whose `getMorphClass()` returns a 65-char st
 
 Fix shape: bump the column to `varchar(255)` to match the pivot, AND add a defensive guard in `MaintainCategoryCounts` that throws on length mismatch with a clear "register the morph map" error message. The migration bump is non-breaking; the guard is the durable safety net.
 
-### B-4. [medium, systemic] Recompute command races with concurrent writes — OPEN
+### B-4. [medium, systemic] Recompute command races with concurrent writes — FIXED 2026-05-29
 
 Evidence: [`src/Taxonomy/Commands/RecomputeCategoryCountsCommand.php:26-81`](../../../src/Taxonomy/Commands/RecomputeCategoryCountsCommand.php#L26-L81) — `DB::transaction(... delete then bulk insert ...)`, no table lock, no advisory lock, final write is `DB::table('category_morph_counts')->insert($rows)` (no upsert).
 
@@ -191,7 +191,7 @@ Fix shape: a single up-front recursive CTE (`WITH RECURSIVE`) loads the full anc
 
 ## v0.23.0 fix self-review (Run C)
 
-### C-1. [medium, user-facing] `UpdateOrderStatus` commits the status update before the listener runs, with no transactional wrap — the sync-wipe shape being fixed re-emerges as a partial-failure — OPEN
+### C-1. [medium, user-facing] `UpdateOrderStatus` commits the status update before the listener runs, with no transactional wrap — the sync-wipe shape being fixed re-emerges as a partial-failure — FIXED 2026-05-29
 
 Evidence: [`src/Commerce/Order/Actions/UpdateOrderStatus.php:20-22`](../../../src/Commerce/Order/Actions/UpdateOrderStatus.php#L20-L22) — `$order->update([...])` commits, then `OrderStatusChanged::dispatch(...)` synchronously invokes the listener.
 
@@ -235,7 +235,7 @@ Reality (per [`src/Pricing/Actions/ExpireCompareAtPrices.php:45-49`](../../../sr
 
 Fixed 2026-05-29: row now accurately describes the promotion + dual-null + carries-pre-promotion-amount, with a note that `prices.amount` is effectively cron-owned on the hour.
 
-### D-2. `PricingLogSubscriber` channel mismatch — DOC FIXED, CODE OPEN
+### D-2. `PricingLogSubscriber` channel mismatch — RESOLVED 2026-05-29 (kept `commerce`, intentional)
 
 Evidence: previously said `domain_logs (pricing channel)`. Reality at [`src/Pricing/Listeners/PricingLogSubscriber.php:19`](../../../src/Pricing/Listeners/PricingLogSubscriber.php#L19): `private const string CHANNEL = 'commerce';`.
 
@@ -302,3 +302,20 @@ For a single-release-window fix (matches [[feedback_package_breaking_changes]]: 
 The pricing findings (A-1 through A-5) plus B-5/B-6/B-7 are second-pass. None are user-facing today; all become real concerns at scale or post-launch.
 
 Test backlog (T-1 through T-20) can be picked up incrementally and doesn't gate any of the above. Highest-value early tests: T-2 (the missing e2e for the actual v0.23.0 regression case), T-4 (`ReleaseReservationTest` covering the broadening), T-10 (catches B-1 in regression).
+
+---
+
+## Resolution log — 2026-05-29 (release-window set)
+
+The six release-window findings were fixed in one window (consumers pre-launch, single-release posture). All fixes shipped with tests; full suite green (595 tests).
+
+| Finding | Fix | Tests |
+|---|---|---|
+| **B-1** | `CategoriesRelationManager` bulk-detach now dispatches `CategoryDetached` per record (extracted `detachBulkAction()` + shared `dispatchCategoryDetached()`), matching the single-row action. | `CategoriesRelationManagerBulkDetachTest` (T-10) |
+| **B-2** | `AttachCategory`/`DetachCategory` wrap pivot write + count walk in `DB::transaction`. `Category::save()`/`delete()` overridden to wrap the move/delete lifecycle + count reaction atomically (observer paths). | `AttachDetachCategoryTest::a_listener_failure_rolls_back_the_pivot_write` (T-11); `MaintainCategoryCountsTest` move/delete rollback tests |
+| **B-3** | New forward migration `2026_05_29_000001_widen_category_morph_counts_morph_alias` (64→255, SQLite-skipped). `MaintainCategoryCounts` guards alias length, throws `MorphAliasTooLongException`. | `MaintainCategoryCountsTest::attach_rejects_a_morph_alias_longer_than_the_counts_column` (T-12) |
+| **B-4** | `RecomputeCategoryCountsCommand` takes a cross-driver advisory lock (recompute-vs-recompute) and writes the rebuild via upsert (no crash on a concurrent listener row). Listener hot path untouched — no checkout serialization. Residual: exact correctness under simultaneous heavy writes is not guaranteed (recovery tool, meant for quiet windows). | `MaintainCategoryCountsTest::recompute_command_overwrites_inflated_counts_and_clears_orphan_rows` (T-7) |
+| **C-1** | `UpdateOrderStatus` wraps status write + event dispatch + synchronous listeners in `DB::transaction` — a listener failure rolls the status change back to a recoverable state. | `UpdateOrderStatusTest` (rollback, happy-path, invalid-transition); `SyncInventoryOnOrderStatusChangeTest` Confirmed→Cancelled e2e (T-2, T-3) |
+| **D-2** | Decided: keep `commerce` channel as the intentional exception (price changes are commercial audit events; no separate `pricing` channel exists). Documented in code + periphery.md. | n/a (decision) |
+
+Deferred (unchanged, still OPEN): pricing A-1…A-5; taxonomy B-5 (migration cycle guard), B-6 (move reads drifted counts), B-7 (N+1 walk); order C-2 (webhook-retry double-dispatch), C-3 (reservation snapshot race). Test backlog T-1, T-4…T-6, T-8, T-9, T-13…T-20 not yet picked up.

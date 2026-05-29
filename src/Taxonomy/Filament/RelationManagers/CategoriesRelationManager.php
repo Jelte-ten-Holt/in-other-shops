@@ -18,6 +18,7 @@ use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Collection;
 
 class CategoriesRelationManager extends RelationManager
 {
@@ -94,8 +95,28 @@ class CategoriesRelationManager extends RelationManager
             ])
             ->bulkActions([
                 Actions\BulkActionGroup::make([
-                    Actions\DetachBulkAction::make(),
+                    $this->detachBulkAction(),
                 ]),
             ]);
+    }
+
+    /**
+     * Bulk detach must dispatch `CategoryDetached` for every removed record,
+     * the same way the single-row `DetachAction` does — otherwise
+     * `MaintainCategoryCounts` never decrements `category_morph_counts` and the
+     * filter UI keeps reporting detached categories as populated. Filament's
+     * stock `DetachBulkAction` fires no event on its own.
+     */
+    private function detachBulkAction(): Actions\DetachBulkAction
+    {
+        return Actions\DetachBulkAction::make()
+            ->after(fn (Collection $records) => $this->dispatchCategoryDetached($records));
+    }
+
+    private function dispatchCategoryDetached(Collection $records): void
+    {
+        $owner = $this->getOwnerRecord();
+
+        $records->each(fn (Category $record) => CategoryDetached::dispatch($owner, $record));
     }
 }

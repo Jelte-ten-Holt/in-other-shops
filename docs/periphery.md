@@ -8,7 +8,7 @@ Consumers reference this file from their own `docs/periphery.md` rather than re-
 
 Scope split: sections "Auto-scheduled commands" through "Tables owned by subsystem" cover the **runtime periphery** — what fires in a consumer's app when the package is installed. The "External surface" section at the bottom covers the **API contract** — what consumers depend on at the type level. Both are this package's contract with its consumers.
 
-Last verified against codebase: 2026-05-29 (runtime sections refreshed for `SyncInventoryOnOrderStatusChange` in v0.23.0; External surface section added 2026-05-29 — initial population is opportunistic from CLAUDE.md, deepen on next audit; pricing:expire-compare-at row corrected and PricingLogSubscriber channel-mismatch flagged 2026-05-29 via pathology-reviewer cross-check)
+Last verified against codebase: 2026-05-29 (runtime sections refreshed for `SyncInventoryOnOrderStatusChange` in v0.23.0; External surface section added 2026-05-29 — initial population is opportunistic from CLAUDE.md, deepen on next audit; pricing:expire-compare-at row corrected via pathology-reviewer cross-check; 2026-05-29 pathology fixes applied — B-1 bulk-detach now dispatches `CategoryDetached`, B-2 attach/detach/move/delete now transactional, B-3 `morph_alias` widened to 255 + over-length guard, B-4 recompute advisory-locked + upsert, C-1 `UpdateOrderStatus` transactional, D-2 PricingLogSubscriber `commerce` channel confirmed intentional)
 
 ---
 
@@ -30,7 +30,7 @@ Registered via `$this->commands([...])` but not scheduled — consumers wire the
 | --- | --- | --- |
 | `commerce:prune-carts` | Commerce | deletes guest carts with `expires_at <= now()` (no-op if consumer never stamps `expires_at` on carts) |
 | `payment:prune-webhook-events` | Payment | deletes `webhook_events` older than `config('payment.webhook_retention_days')` (default 90); accepts `--days=N` |
-| `taxonomy:recompute-category-counts` | Taxonomy | rebuilds `category_morph_counts` denormalization table from scratch; **recovery command — use only if counts drift** |
+| `taxonomy:recompute-category-counts` | Taxonomy | rebuilds `category_morph_counts` denormalization table from scratch; **recovery command — use only if counts drift**. Takes an advisory lock (MySQL `GET_LOCK` / Postgres `pg_try_advisory_lock`; no-op on SQLite) so two runs can't collide, and writes the rebuild via upsert so a concurrent attach/detach during recovery can't crash it on a duplicate key |
 | `flowchain:publish` | FlowChain | publishes a chain definition from the package into the consumer app (dev/ops only) |
 | `flowchain:list` | FlowChain | lists all registered chains (ops) |
 | `flowchain:check-contracts` | FlowChain | validates step payload contracts against `initialPayloadShape()` (dev) |
@@ -47,9 +47,9 @@ Auto-subscribed by their domain's ServiceProvider via `Event::subscribe(...)`. E
 | `FlowChainLogSubscriber` | FlowChain | `FlowChainStarted`, `FlowChainCompleted`, `FlowChainFailed`, `FlowChainStepFailed`, `FlowChainStepCompleted` | `domain_logs` (flowchain channel) |
 | `InventoryLogSubscriber` | Inventory | `StockAdjusted`, `StockReleased`, `StockReservationFailed`, `ReservationCreated`, `ReservationConfirmed`, `ReservationReleased` | `domain_logs` (inventory channel) |
 | `PaymentLogSubscriber` | Payment | `PaymentSucceeded`, `PaymentFailed`, `PaymentRefunded` | `domain_logs` (payment channel) |
-| `PricingLogSubscriber` | Pricing | `PriceCreated`, `PriceUpdated`, `PriceDeleted`, `CompareAtPriceExpired`, `VoucherApplied` | `domain_logs` (**`commerce` channel** — appears to be drift from the per-domain channel convention every other subscriber follows; co-mingles with `CommerceLogSubscriber` output; flagged for code fix) |
+| `PricingLogSubscriber` | Pricing | `PriceCreated`, `PriceUpdated`, `PriceDeleted`, `CompareAtPriceExpired`, `VoucherApplied` | `domain_logs` (**`commerce` channel — intentional**, per audit D-2: price changes are commercial audit events and stream alongside orders/payments; there is no separate `pricing` channel in the default Logging config. The one deliberate exception to the per-domain channel convention) |
 | `ShipmentLogSubscriber` | Shipping | `ShipmentCreated`, `ShipmentReady`, `ShipmentDispatched`, `ShipmentDelivered`, `ShipmentReturnedToSender`, `ShipmentLost` | `domain_logs` (shipping channel) |
-| `MaintainCategoryCounts` | Taxonomy | `CategoryAttached`, `CategoryDetached`, `CategoryMoved`, `CategoryDeleted` | `category_morph_counts` (incremental delta updates) |
+| `MaintainCategoryCounts` | Taxonomy | `CategoryAttached`, `CategoryDetached`, `CategoryMoved`, `CategoryDeleted` | `category_morph_counts` (incremental delta updates; rejects morph aliases over 255 chars with `MorphAliasTooLongException` — an unregistered FQCN morph map. The Attach/Detach actions and `Category::save()`/`delete()` wrap the pivot/lifecycle write and this walk in one transaction so a failed delta rolls the write back too) |
 
 ## Event listeners
 

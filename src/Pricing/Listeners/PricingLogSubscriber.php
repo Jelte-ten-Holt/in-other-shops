@@ -16,6 +16,15 @@ use Illuminate\Contracts\Events\Dispatcher;
 
 final class PricingLogSubscriber
 {
+    /**
+     * Deliberately 'commerce', not 'pricing'. Price changes are commercial
+     * audit events and belong in the same stream as orders/payments; there is
+     * no separate 'pricing' channel in the default Logging config. This is the
+     * intentional exception to the otherwise per-domain channel convention —
+     * do not "fix" it to 'pricing' without first adding a pricing channel to
+     * the package default config and every consumer's domain-log config.
+     * See audit finding D-2.
+     */
     private const string CHANNEL = 'commerce';
 
     public function __construct(
