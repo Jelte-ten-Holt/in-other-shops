@@ -87,13 +87,18 @@ How to write tests for this package — trust principles, what each Action/Liste
 
 ## Commands
 
-The package does not ship application-level CLI commands. Exceptions: inventory housekeeping (`inventory:release-expired`, gated behind config), cart cleanup (`commerce:prune-carts`, prunes expired guest carts), and webhook ledger pruning (`payment:prune-webhook-events`, retention via `payment.webhook_retention_days`, default 90). The full catalog of commands, their schedule state, and every other periphery actor this package contributes to consumers lives in [docs/data-flows.md](docs/data-flows.md).
+The package does not ship application-level CLI commands. Exceptions: inventory housekeeping (`inventory:release-expired`, gated behind config), cart cleanup (`commerce:prune-carts`, prunes expired guest carts), and webhook ledger pruning (`payment:prune-webhook-events`, retention via `payment.webhook_retention_days`, default 90). The full catalog of commands, their schedule state, and every other periphery actor this package contributes to consumers lives in [docs/periphery.md](docs/periphery.md).
 
 ## Periphery
 
-`docs/data-flows.md` is the authoritative list of everything this package contributes to a consumer's runtime: auto-scheduled commands, registered-but-not-scheduled commands, event subscribers, listeners, model observers, model boot hooks (`saving`/`deleting`), and dispatched events. Consumers reference this doc rather than re-deriving the catalog from `vendor/`.
+`docs/periphery.md` is the authoritative list of everything this package contributes to a consumer's runtime **plus** the external API surface consumers depend on. It has two halves:
 
-**When adding, removing, or modifying any periphery actor** — a new `Schedule::command(...)` in a ServiceProvider, a new `Event::subscribe(...)`, a new model boot hook, a renamed dispatched event — **update `docs/data-flows.md` and refresh its "Last verified" date in the same change.** Same discipline as updating tests. Consumers pin a package version via `composer.lock`; the doc they see is the doc shipped with that version.
+- **Runtime sections** — auto-scheduled commands, registered-but-not-scheduled commands, event subscribers, listeners, model observers, model boot hooks (`saving`/`deleting`), and dispatched events. What fires in a consumer's app when this package is installed.
+- **External surface section** — `Has*` contracts, `InteractsWith*` traits, public action signatures, dispatched events with consumer subscribers, Filament Schema static factories, FlowChain published chains and step payload contracts, and the per-consumer shape-parity wrapper files (`ClaimGuestCart`, `HandlePaymentSucceeded`, `HandlePaymentFailed`, `ReserveItems`, etc.). What consumers depend on at the type level.
+
+Consumers reference this doc rather than re-deriving the catalog from `vendor/`. The version that applies is whatever is pinned in their `composer.lock`.
+
+**When adding, removing, or modifying any periphery actor or external-surface symbol** — a new `Schedule::command(...)` in a ServiceProvider, a new `Event::subscribe(...)`, a new model boot hook, a renamed dispatched event, a method added to a `Has*` contract, a public action signature change, a FlowChain step payload field renamed — **update `docs/periphery.md` and refresh its "Last verified" date in the same change.** Same discipline as updating tests. Cross-consumer audit: External surface changes affect every consumer; sweep both consumer `docs/periphery.md` files for impact before releasing.
 
 ## Adding a New Domain
 
