@@ -341,6 +341,35 @@ final class MaintainCategoryCountsTest extends TestCase
     }
 
     #[Test]
+    public function moving_a_drifted_node_shifts_the_true_subtree_total_not_the_drift(): void
+    {
+        // B-6: if the moved node's counts row has drifted, reading that row to
+        // compute the shift would smear the drift onto two ancestor chains.
+        // Deriving the shift from the pivot keeps drift contained to the node.
+        [$rootA, $mid, $leaf] = $this->tree();
+        $rootB = Category::factory()->create();
+        $model = TestTaxonomized::factory()->create();
+        ($this->attach)($model, $leaf);
+
+        // Inject +5 of drift onto the leaf's own counts row.
+        DB::table('category_morph_counts')
+            ->where('category_id', $leaf->id)
+            ->where('morph_alias', 'test_taxonomized')
+            ->increment('count', 5);
+
+        $leaf->parent_id = $rootB->id;
+        $leaf->save();
+
+        // Old chain loses the true subtree total (1), not the drifted 6.
+        $this->assertSubtreeCount('test_taxonomized', $mid, 0);
+        $this->assertSubtreeCount('test_taxonomized', $rootA, 0);
+        // New chain gains the true total (1).
+        $this->assertSubtreeCount('test_taxonomized', $rootB, 1);
+        // The node's own drift stays put — localized, not spread.
+        $this->assertSubtreeCount('test_taxonomized', $leaf, 6);
+    }
+
+    #[Test]
     public function a_listener_failure_during_a_move_rolls_back_the_reparent_and_the_counts(): void
     {
         // B-2 (observer path): Category::save() wraps the parent_id UPDATE and

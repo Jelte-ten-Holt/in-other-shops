@@ -155,7 +155,7 @@ Probe: spawn a concurrent process that calls `AttachCategory` in a tight loop on
 
 Fix shape: acquire an advisory lock around the recompute (`SELECT GET_LOCK(...)` on MySQL, `pg_advisory_lock` on Postgres) so concurrent listener calls queue; OR use `INSERT ... ON DUPLICATE KEY UPDATE` semantics for the final write so collisions are resolved deterministically. The lock approach is simpler and matches the "recovery tool, used rarely" usage pattern.
 
-### B-5. [medium, contained] Migration backfill has no cycle guard — OPEN
+### B-5. [medium, contained] Migration backfill has no cycle guard — PARTIAL 2026-05-29 (shared CategoryAncestry helper now backs the listener + recompute walks; migration backfill guard not applied — editing the tracked migration is guardrailed, and the backfill no-ops on a fresh install where categorizables is empty)
 
 Evidence:
 - [`src/Taxonomy/Database/Migrations/2026_05_11_000001_create_category_morph_counts_table.php:48-58`](../../../src/Taxonomy/Database/Migrations/2026_05_11_000001_create_category_morph_counts_table.php#L48-L58) — `while ($current !== null)` with no `$seen` set
@@ -167,7 +167,7 @@ Probe: insert a cycle into a fresh `categories` table by raw SQL, then run the m
 
 Fix shape: lift the cycle guard from `walkAncestors` into a shared helper and use it in all three places. The drift between three implementations of the same walk is itself a smell.
 
-### B-6. [medium, user-facing] `onMoved` reads its delta from `category_morph_counts` itself — drift propagates instead of self-correcting — OPEN
+### B-6. [medium, user-facing] `onMoved` reads its delta from `category_morph_counts` itself — drift propagates instead of self-correcting — FIXED 2026-05-29 (onMoved re-derives the subtree total from the categorizables pivot)
 
 Evidence: [`src/Taxonomy/Listeners/MaintainCategoryCounts.php:60`](../../../src/Taxonomy/Listeners/MaintainCategoryCounts.php#L60) — `$counts = $this->loadCounts(...)` reads from `category_morph_counts`.
 
@@ -177,7 +177,7 @@ Probe: manually `UPDATE category_morph_counts SET count = count + 5 WHERE catego
 
 Fix shape: derive the move delta from the source of truth (`categorizables` count via a fresh query), not from the drifted aggregate. This makes the move handler self-correcting in the presence of existing drift instead of amplifying it.
 
-### B-7. [medium, contained] `walkAncestors` does N+1 SELECTs per ancestor — OPEN, low priority
+### B-7. [medium, contained] `walkAncestors` does N+1 SELECTs per ancestor — FIXED 2026-05-29 (listener preloads the parent map once via CategoryAncestry; one SELECT replaces the per-ancestor N+1)
 
 Evidence: [`src/Taxonomy/Listeners/MaintainCategoryCounts.php:113`](../../../src/Taxonomy/Listeners/MaintainCategoryCounts.php#L113) — `DB::table('categories')->where('id', $current)->value('parent_id')` inside the while-loop.
 

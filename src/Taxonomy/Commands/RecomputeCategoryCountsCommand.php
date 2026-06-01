@@ -6,6 +6,7 @@ namespace InOtherShops\Taxonomy\Commands;
 
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
+use InOtherShops\Taxonomy\Support\CategoryAncestry;
 
 /**
  * Rebuilds `category_morph_counts` from scratch by aggregating the
@@ -68,32 +69,17 @@ final class RecomputeCategoryCountsCommand extends Command
                 return;
             }
 
-            $parents = DB::table('categories')
-                ->pluck('parent_id', 'id')
-                ->all();
+            $parents = CategoryAncestry::parentMap();
 
             $aggregated = [];
 
             foreach ($directCounts as $row) {
-                $categoryId = (int) $row->category_id;
                 $alias = (string) $row->morph_alias;
                 $count = (int) $row->count;
 
-                $current = $categoryId;
-                $seen = [];
-
-                while ($current !== null) {
-                    if (isset($seen[$current])) {
-                        break;
-                    }
-
-                    $seen[$current] = true;
-
-                    $aggregated[$current][$alias] = ($aggregated[$current][$alias] ?? 0) + $count;
-
-                    $parent = $parents[$current] ?? null;
-                    $current = $parent === null ? null : (int) $parent;
-                }
+                CategoryAncestry::walkUp((int) $row->category_id, $parents, function (int $categoryId) use (&$aggregated, $alias, $count): void {
+                    $aggregated[$categoryId][$alias] = ($aggregated[$categoryId][$alias] ?? 0) + $count;
+                });
             }
 
             $rows = [];

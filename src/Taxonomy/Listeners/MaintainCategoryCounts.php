@@ -11,6 +11,7 @@ use InOtherShops\Taxonomy\Events\CategoryDeleted;
 use InOtherShops\Taxonomy\Events\CategoryDetached;
 use InOtherShops\Taxonomy\Events\CategoryMoved;
 use InOtherShops\Taxonomy\Exceptions\MorphAliasTooLongException;
+use InOtherShops\Taxonomy\Support\CategoryAncestry;
 
 /**
  * Keeps `category_morph_counts` consistent with the categorizables pivot
@@ -21,10 +22,12 @@ use InOtherShops\Taxonomy\Exceptions\MorphAliasTooLongException;
  * Reads on the nav side query this table directly — no recursion at read
  * time. Writes happen here, on the four lifecycle events above.
  *
- * Tree mutations (move, delete) propagate by shifting the moved/deleted
- * category's existing row totals up the relevant ancestor chains, not by
- * rebuilding from the pivot. The recovery command rebuilds from scratch
- * if the invariant ever drifts.
+ * Attach/detach shift a single +1/-1 up the ancestor chain. A move re-derives
+ * the moved subtree's totals from the categorizables pivot (source of truth)
+ * and shifts that off the old ancestor chain and onto the new one, so a move
+ * over a drifted node corrects rather than spreads. A delete decrements the
+ * snapshot the observer captured before the row (and its cascade) vanished.
+ * The recovery command rebuilds from scratch if the invariant ever drifts.
  */
 final class MaintainCategoryCounts
 {
@@ -49,8 +52,9 @@ final class MaintainCategoryCounts
     public function onAttached(CategoryAttached $event): void
     {
         $alias = $this->guardAlias($event->model->getMorphClass());
+        $parents = CategoryAncestry::parentMap();
 
-        $this->walkAncestors((int) $event->category->getKey(), function (int $categoryId) use ($alias): void {
+        CategoryAncestry::walkUp((int) $event->category->getKey(), $parents, function (int $categoryId) use ($alias): void {
             $this->applyDelta($categoryId, $alias, 1);
         });
     }
@@ -58,8 +62,9 @@ final class MaintainCategoryCounts
     public function onDetached(CategoryDetached $event): void
     {
         $alias = $this->guardAlias($event->model->getMorphClass());
+        $parents = CategoryAncestry::parentMap();
 
-        $this->walkAncestors((int) $event->category->getKey(), function (int $categoryId) use ($alias): void {
+        CategoryAncestry::walkUp((int) $event->category->getKey(), $parents, function (int $categoryId) use ($alias): void {
             $this->applyDelta($categoryId, $alias, -1);
         });
     }
@@ -75,14 +80,21 @@ final class MaintainCategoryCounts
 
     public function onMoved(CategoryMoved $event): void
     {
-        $counts = $this->loadCounts((int) $event->category->getKey());
+        $parents = CategoryAncestry::parentMap();
+
+        // Re-derive the moved subtree's totals from the pivot (source of truth)
+        // rather than reading them off category_morph_counts. If the moved
+        // node's counts row had drifted, reading it would shift a wrong delta
+        // onto two ancestor chains and spread the drift; deriving from the
+        // pivot keeps the move self-correcting. See audit B-6.
+        $counts = $this->subtreeCounts((int) $event->category->getKey(), $parents);
 
         if ($counts === []) {
             return;
         }
 
         if ($event->oldParentId !== null) {
-            $this->walkAncestors($event->oldParentId, function (int $categoryId) use ($counts): void {
+            CategoryAncestry::walkUp($event->oldParentId, $parents, function (int $categoryId) use ($counts): void {
                 foreach ($counts as $alias => $count) {
                     $this->applyDelta($categoryId, $alias, -$count);
                 }
@@ -90,7 +102,7 @@ final class MaintainCategoryCounts
         }
 
         if ($event->newParentId !== null) {
-            $this->walkAncestors($event->newParentId, function (int $categoryId) use ($counts): void {
+            CategoryAncestry::walkUp($event->newParentId, $parents, function (int $categoryId) use ($counts): void {
                 foreach ($counts as $alias => $count) {
                     $this->applyDelta($categoryId, $alias, $count);
                 }
@@ -104,7 +116,9 @@ final class MaintainCategoryCounts
             return;
         }
 
-        $this->walkAncestors($event->parentId, function (int $categoryId) use ($event): void {
+        $parents = CategoryAncestry::parentMap();
+
+        CategoryAncestry::walkUp($event->parentId, $parents, function (int $categoryId) use ($event): void {
             foreach ($event->counts as $alias => $count) {
                 $this->applyDelta($categoryId, $alias, -$count);
             }
@@ -112,35 +126,22 @@ final class MaintainCategoryCounts
     }
 
     /**
-     * @param  callable(int): void  $apply
-     */
-    private function walkAncestors(int $startId, callable $apply): void
-    {
-        $current = $startId;
-        $seen = [];
-
-        while ($current !== null) {
-            if (isset($seen[$current])) {
-                return;
-            }
-
-            $seen[$current] = true;
-
-            $apply($current);
-
-            $parent = DB::table('categories')->where('id', $current)->value('parent_id');
-            $current = $parent === null ? null : (int) $parent;
-        }
-    }
-
-    /**
+     * Total items per morph alias attached to the category or any descendant,
+     * counted from the categorizables pivot — the same aggregation the recompute
+     * command performs, scoped to one subtree.
+     *
+     * @param  array<int, int|null>  $parents
      * @return array<string, int>
      */
-    private function loadCounts(int $categoryId): array
+    private function subtreeCounts(int $categoryId, array $parents): array
     {
-        return DB::table('category_morph_counts')
-            ->where('category_id', $categoryId)
-            ->pluck('count', 'morph_alias')
+        $subtreeIds = CategoryAncestry::descendants($categoryId, $parents);
+
+        return DB::table('categorizables')
+            ->whereIn('category_id', $subtreeIds)
+            ->selectRaw('categorizable_type AS morph_alias, COUNT(*) AS aggregate')
+            ->groupBy('categorizable_type')
+            ->pluck('aggregate', 'morph_alias')
             ->map(fn ($value) => (int) $value)
             ->all();
     }
