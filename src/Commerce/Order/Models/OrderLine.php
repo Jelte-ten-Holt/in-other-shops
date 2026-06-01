@@ -8,6 +8,7 @@ use InOtherShops\Commerce\Commerce;
 use InOtherShops\Commerce\Database\Factories\OrderLineFactory;
 use InOtherShops\Currency\Enums\Currency;
 use InOtherShops\Tax\Enums\TaxCategory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -48,5 +49,16 @@ class OrderLine extends Model
     public function orderable(): MorphTo
     {
         return $this->morphTo();
+    }
+
+    /**
+     * Lines bought as a pre-order. Shipment-agnostic — says nothing about
+     * fulfilment state; callers add their own order-status / shipment filters.
+     *
+     * @param  Builder<OrderLine>  $query
+     */
+    public function scopePreOrder(Builder $query): void
+    {
+        $query->where('is_pre_order', true);
     }
 }

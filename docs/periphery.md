@@ -8,7 +8,7 @@ Consumers reference this file from their own `docs/periphery.md` rather than re-
 
 Scope split: sections "Auto-scheduled commands" through "Tables owned by subsystem" cover the **runtime periphery** — what fires in a consumer's app when the package is installed. The "External surface" section at the bottom covers the **API contract** — what consumers depend on at the type level. Both are this package's contract with its consumers.
 
-Last verified against codebase: 2026-05-29 (runtime sections refreshed for `SyncInventoryOnOrderStatusChange` in v0.23.0; External surface section added 2026-05-29 — initial population is opportunistic from CLAUDE.md, deepen on next audit; pricing:expire-compare-at row corrected via pathology-reviewer cross-check; 2026-05-29 pathology fixes applied — B-1 bulk-detach now dispatches `CategoryDetached`, B-2 attach/detach/move/delete now transactional, B-3 `morph_alias` widened to 255 + over-length guard, B-4 recompute advisory-locked + upsert, C-1 `UpdateOrderStatus` transactional, D-2 PricingLogSubscriber `commerce` channel confirmed intentional; 2026-05-29 second-pass — A-3/A-5 `PriceData` rejects orphan/past strikethrough, A-4 expiry also dispatches `PriceUpdated(fromExpiry)`, A-1 picker timezone pinned, B-6 `onMoved` re-derives from pivot, B-7 listener N+1 removed via `CategoryAncestry`, C-2 `UpdateOrderStatus` locks + idempotent same-status no-op)
+Last verified against codebase: 2026-05-29 (runtime sections refreshed for `SyncInventoryOnOrderStatusChange` in v0.23.0; External surface section added 2026-05-29 — initial population is opportunistic from CLAUDE.md, deepen on next audit; pricing:expire-compare-at row corrected via pathology-reviewer cross-check; 2026-05-29 pathology fixes applied — B-1 bulk-detach now dispatches `CategoryDetached`, B-2 attach/detach/move/delete now transactional, B-3 `morph_alias` widened to 255 + over-length guard, B-4 recompute advisory-locked + upsert, C-1 `UpdateOrderStatus` transactional, D-2 PricingLogSubscriber `commerce` channel confirmed intentional; 2026-05-29 second-pass — A-3/A-5 `PriceData` rejects orphan/past strikethrough, A-4 expiry also dispatches `PriceUpdated(fromExpiry)`, A-1 picker timezone pinned, B-6 `onMoved` re-derives from pivot, B-7 listener N+1 removed via `CategoryAncestry`, C-2 `UpdateOrderStatus` locks + idempotent same-status no-op; 2026-06-01 added `Commerce\Order\Actions\ResolvePreOrderAudience` + `PreOrderRecipient` DTO + `OrderLine::scopePreOrder()` to the External surface — pre-order engagement)
 
 ---
 
@@ -164,6 +164,9 @@ Actions consumers invoke directly. Constructor + `__invoke` signature is the con
 | `Inventory\Actions\ReleaseReservation` | Inventory | in-other-worlds: `App\Listeners\HandlePaymentFailed` |
 | `Inventory\Actions\AdjustStock` | Inventory | in-other-worlds: admin only (`StockMovementResource`) |
 | `Commerce\Cart\Http\Support\ResolveCurrentCart` | Commerce | in-other-worlds: `App\Http\Middleware\HandleInertiaRequests::cartSummary()`. bianka: planned for the same. |
+| `Commerce\Order\Actions\ResolvePreOrderAudience` | Commerce | `__invoke(Model $purchasable): Collection<PreOrderRecipient>` — distinct pre-order recipients (guests + customers) for a purchasable, deduped by normalized email, shipment-agnostic. in-other-worlds: planned for the `PreOrderReleased` notification + Filament pre-order broadcast (pre-order engagement brief). |
+
+Returns the `Commerce\Order\DTOs\PreOrderRecipient` DTO (`email`, `name`, `locale`, `customerId`) — also part of the surface. Pairs with the `OrderLine::scopePreOrder()` query scope (public).
 
 ### Public events dispatched (consumer-subscribable)
 
