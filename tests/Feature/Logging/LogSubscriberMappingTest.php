@@ -314,6 +314,24 @@ final class LogSubscriberMappingTest extends TestCase
     }
 
     #[Test]
+    public function price_updated_from_expiry_is_not_logged_separately(): void
+    {
+        // A-4: the scheduled strikethrough promotion dispatches PriceUpdated
+        // (so cache/index consumers react) AND CompareAtPriceExpired (the
+        // audited specialization). The generic "Price updated" line must be
+        // suppressed for the expiry path so the audit log keeps one entry.
+        $price = Price::factory()->create([
+            'priceable_type' => 'test_browsable',
+            'priceable_id' => 1,
+        ]);
+
+        PriceUpdated::dispatch($price, fromExpiry: true);
+
+        $this->assertCount(0, $this->recorder()->entries(),
+            'An expiry-originated PriceUpdated must not produce its own log entry.');
+    }
+
+    #[Test]
     public function price_deleted_routes_to_commerce_channel_at_info(): void
     {
         // PriceDeleted carries (priceId, priceableType, priceableId) — the row

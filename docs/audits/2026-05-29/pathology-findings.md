@@ -33,7 +33,7 @@ Rule reference: [`~/.claude/agents/pathology-reviewer.md`](/home/jelte/.claude/a
 
 ## Pricing domain (Run A)
 
-### A-1. [high, user-facing] DST / app-timezone drift on `compare_at_until` — OPEN
+### A-1. [high, user-facing] DST / app-timezone drift on `compare_at_until` — PARTIAL 2026-05-29 (picker pinned to app tz; residual is consumer app.timezone config)
 
 Evidence:
 - [`src/Pricing/Database/Migrations/2026_05_14_000001_add_compare_at_until_to_prices_table.php:14`](../../../src/Pricing/Database/Migrations/2026_05_14_000001_add_compare_at_until_to_prices_table.php#L14) — plain `timestamp` column, no per-field timezone
@@ -46,7 +46,7 @@ Probe: in tinker under `config(['app.timezone' => 'UTC'])`, create a price with 
 
 Fix shape: explicit `->timezone(config('app.timezone'))` on the Filament picker AND either pin `app.timezone` per-consumer or store the value with an explicit zone (`timestampTz` column). The cleanest is the per-field timezone on the picker since the column is fine as long as both write and read paths agree.
 
-### A-2. [medium, user-facing] Scheduler-vs-admin TOCTOU undoes a promotion — OPEN
+### A-2. [medium, user-facing] Scheduler-vs-admin TOCTOU undoes a promotion — MITIGATED 2026-05-29 (existing `->after('now')` already rejects the stale save; no code change)
 
 Evidence:
 - [`src/Pricing/Actions/ExpireCompareAtPrices.php:45-49`](../../../src/Pricing/Actions/ExpireCompareAtPrices.php#L45-L49)
@@ -60,7 +60,7 @@ Probe: open the Filament edit form for a price with `compare_at_until` one minut
 
 Fix shape: optimistic-locking on `prices` (version column or `updated_at` checked in the UPDATE), Filament edit page detects stale form and reloads. Cheaper interim: warn the admin if `compare_at_until` is now in the past at submit time.
 
-### A-3. [medium, user-facing] Expiry skips orphan `compare_at_until`, leaving rows permanently in a half-state — OPEN
+### A-3. [medium, user-facing] Expiry skips orphan `compare_at_until`, leaving rows permanently in a half-state — FIXED 2026-05-29 (rejected at PriceData write boundary)
 
 Evidence:
 - [`src/Pricing/Actions/ExpireCompareAtPrices.php:30-34`](../../../src/Pricing/Actions/ExpireCompareAtPrices.php#L30-L34) — filter requires both columns non-null
@@ -72,7 +72,7 @@ Probe: `UPDATE prices SET compare_at_amount=NULL WHERE id=X` on a row with `comp
 
 Fix shape: either broaden the expiry to also clean orphan timestamps, or reject the orphan state at write time (`UpdatePrice`/`CreatePrice` validate that the two compare-at columns are set/cleared together).
 
-### A-4. [medium, user-facing] Expiry-driven amount change does not dispatch `PriceUpdated` — OPEN, DECIDE
+### A-4. [medium, user-facing] Expiry-driven amount change does not dispatch `PriceUpdated` — FIXED 2026-05-29 (expiry dispatches both; PriceUpdated.fromExpiry suppresses double-log)
 
 Evidence:
 - [`src/Pricing/Actions/ExpireCompareAtPrices.php:45-51`](../../../src/Pricing/Actions/ExpireCompareAtPrices.php#L45-L51) — dispatches only `CompareAtPriceExpired`
@@ -87,7 +87,7 @@ Probe: subscribe a no-op listener to `PriceUpdated` that increments a counter; t
 
 Decision needed: is the periphery doc's contract "`PriceUpdated` fires on every `prices.amount` write" (bug in the action — also dispatch `PriceUpdated`) OR "the expiry path is its own channel and consumers must subscribe to both events" (doc needs a callout)? The first is more honest to the event's name; the second avoids double-logging.
 
-### A-5. [low, contained] `PriceData` accepts a past `compareAtUntil` programmatically — OPEN, DECIDE
+### A-5. [low, contained] `PriceData` accepts a past `compareAtUntil` programmatically — FIXED 2026-05-29 (rejected at PriceData constructor)
 
 Evidence: [`src/Pricing/DTOs/PriceData.php:21`](../../../src/Pricing/DTOs/PriceData.php#L21) — `?DateTimeInterface $compareAtUntil = null` with no validation. The Filament rule `->after('now')` at [`PricingSchema.php:115`](../../../src/Pricing/Filament/PricingSchema.php#L115) catches this only for the form; programmatic callers accept arbitrary dates.
 

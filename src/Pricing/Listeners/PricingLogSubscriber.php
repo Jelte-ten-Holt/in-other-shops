@@ -55,6 +55,13 @@ final class PricingLogSubscriber
 
     public function handlePriceUpdated(PriceUpdated $event): void
     {
+        // The scheduled strikethrough promotion dispatches PriceUpdated (for
+        // side-effect consumers) alongside CompareAtPriceExpired (which this
+        // subscriber logs). Skip the generic line so the audit keeps one entry.
+        if ($event->fromExpiry) {
+            return;
+        }
+
         $this->dispatcher->log(new LogEntry(
             level: LogLevel::Info,
             channel: self::CHANNEL,

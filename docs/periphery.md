@@ -19,7 +19,7 @@ These commands register themselves into the consumer's Laravel scheduler via `ap
 | Command | Cadence | Subsystem | Config gate (default) | Effect |
 | --- | --- | --- | --- | --- |
 | `inventory:release-expired` | every 5 min | Inventory | `inventory.schedule.enabled` (`true`) | finds `stock_reservations` with `status='pending'` and `expires_at < now()`, releases them (deletes the reservation row, creates a release `stock_movements` entry), dispatches `ReservationReleased` |
-| `pricing:expire-compare-at` | hourly | Pricing | `pricing.schedule.enabled` (`true`) | finds `prices` where `compare_at_until < now()` and `compare_at_amount` is not null, **promotes `compare_at_amount` into `amount`**, then nulls both `compare_at_amount` and `compare_at_until`, dispatches `CompareAtPriceExpired` carrying the pre-promotion amount. The amount rewrite means `prices.amount` is effectively owned by this scheduler on the hour — other writers must coordinate (see also: cron-owned-column concurrency in pathology-reviewer rulebook) |
+| `pricing:expire-compare-at` | hourly | Pricing | `pricing.schedule.enabled` (`true`) | finds `prices` where `compare_at_until < now()` and `compare_at_amount` is not null, **promotes `compare_at_amount` into `amount`**, then nulls both `compare_at_amount` and `compare_at_until`. Dispatches `CompareAtPriceExpired` (carries the pre-promotion amount) **and `PriceUpdated` with `fromExpiry: true`** (generic amount-change signal for cache/index/denorm consumers; the log subscriber skips the generic line for this path). The amount rewrite means `prices.amount` is effectively owned by this scheduler on the hour — other writers must coordinate (see also: cron-owned-column concurrency in pathology-reviewer rulebook) |
 | `logging:prune-domain-logs` | daily | Logging | `domain-log.schedule.enabled` (`true`) | deletes `domain_logs` rows older than `config('domain-log.retention_days')` (default 90) |
 
 ## Console commands (registered, not auto-scheduled)
@@ -90,7 +90,7 @@ State changes the package emits. Past-tense, `final readonly class`, `Dispatchab
 
 **Payment.** `PaymentSucceeded`, `PaymentFailed`, `PaymentRefunded`.
 
-**Pricing.** `PriceCreated`, `PriceUpdated`, `PriceDeleted`, `CompareAtPriceExpired`, `VoucherApplied`.
+**Pricing.** `PriceCreated`, `PriceUpdated` (fires on every `prices.amount` change including the scheduled strikethrough promotion, where `fromExpiry: true`), `PriceDeleted`, `CompareAtPriceExpired`, `VoucherApplied`. A consumer wiring cache-bust / search-reindex / denormalized-price listeners should subscribe to `PriceUpdated` alone — it covers both direct edits and scheduled promotions. `CreatePrice`/`UpdatePrice` reject an orphan or past-dated strikethrough at the `PriceData` boundary (`InvalidCompareAtPriceException`); direct model writes (the expiry sweep, factories) bypass that guard deliberately.
 
 **Shipping.** `ShipmentCreated`, `ShipmentReady`, `ShipmentDispatched`, `ShipmentDelivered`, `ShipmentReturnedToSender`, `ShipmentLost`.
 

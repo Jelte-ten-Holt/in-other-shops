@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Event;
 use InOtherShops\Currency\Enums\Currency;
 use InOtherShops\Pricing\Actions\ExpireCompareAtPrices;
 use InOtherShops\Pricing\Events\CompareAtPriceExpired;
+use InOtherShops\Pricing\Events\PriceUpdated;
 use InOtherShops\Tests\Stubs\TestPriceable;
 use InOtherShops\Tests\TestCase;
 use PHPUnit\Framework\Attributes\Test;
@@ -111,6 +112,29 @@ final class ExpireCompareAtPricesTest extends TestCase
             fn (CompareAtPriceExpired $event): bool => $event->price->id === $price->id
                 && $event->previousAmount === 4000
                 && $event->price->amount === 5000,
+        );
+    }
+
+    #[Test]
+    public function it_dispatches_price_updated_marked_from_expiry_so_side_effect_listeners_react(): void
+    {
+        // A-4: the promotion changes prices.amount, so it must fire the generic
+        // PriceUpdated event a consumer wires cache/index/denorm listeners to —
+        // marked fromExpiry so the package log subscriber doesn't double-log it.
+        Event::fake([PriceUpdated::class]);
+
+        $price = $this->priceWith([
+            'amount' => 4000,
+            'compare_at_amount' => 5000,
+            'compare_at_until' => now()->subMinute(),
+        ]);
+
+        ($this->expire)();
+
+        Event::assertDispatched(
+            PriceUpdated::class,
+            fn (PriceUpdated $event): bool => $event->price->id === $price->id
+                && $event->fromExpiry === true,
         );
     }
 

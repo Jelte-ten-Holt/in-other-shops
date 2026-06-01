@@ -106,6 +106,15 @@ final class PricingSchema
      * The instant the strikethrough window closes. When it passes, the
      * pricing:expire-compare-at command promotes compare_at_amount to the
      * actual price. Only meaningful while a strikethrough is set.
+     *
+     * The picker is pinned to the app timezone explicitly (audit A-1): the
+     * column stores naive timestamps and the expiry command compares against
+     * `now()`, both in `config('app.timezone')`. Pinning the picker to the same
+     * zone keeps the admin's wall-clock entry, the stored value, and the
+     * scheduler consistent — and documents that the consumer should set
+     * `app.timezone` to the shop's operating zone (e.g. Europe/Berlin) so the
+     * admin isn't entering UTC by accident. Leaving it implicit invites a
+     * silent one-to-two-hour drift on the strikethrough end time.
      */
     public static function compareAtUntilField(): DateTimePicker
     {
@@ -113,8 +122,9 @@ final class PricingSchema
             ->label('Strikethrough ends')
             ->seconds(false)
             ->after('now')
+            ->timezone(config('app.timezone'))
             ->visible(fn (Get $get): bool => filled($get('compare_at_amount')))
-            ->helperText('When this passes, the strikethrough price becomes the actual price and the strikethrough is cleared.');
+            ->helperText('When this passes, the strikethrough price becomes the actual price and the strikethrough is cleared. Times are in the shop’s configured timezone ('.config('app.timezone').').');
     }
 
     public static function priceListSelect(): Select

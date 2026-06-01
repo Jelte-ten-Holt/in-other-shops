@@ -6,6 +6,7 @@ namespace InOtherShops\Pricing\Actions;
 
 use Illuminate\Support\Collection;
 use InOtherShops\Pricing\Events\CompareAtPriceExpired;
+use InOtherShops\Pricing\Events\PriceUpdated;
 use InOtherShops\Pricing\Models\Price;
 use InOtherShops\Pricing\Pricing;
 
@@ -48,6 +49,12 @@ final class ExpireCompareAtPrices
             'compare_at_until' => null,
         ]);
 
+        // The promotion changes prices.amount, so it is a price change like any
+        // other — fire PriceUpdated so cache/index/denorm listeners stay in sync,
+        // and CompareAtPriceExpired for the specialized side (carries the
+        // pre-promotion amount). `fromExpiry` lets PricingLogSubscriber skip the
+        // generic "Price updated" line so the audit log keeps one entry. See A-4.
+        PriceUpdated::dispatch($price, fromExpiry: true);
         CompareAtPriceExpired::dispatch($price, $previousAmount);
 
         return $price;
