@@ -121,7 +121,7 @@ Represents completed purchases. Orders snapshot all pricing and product data at 
 
 ### Actions
 
-- **`UpdateOrderStatus`** — transitions an order to a new status. Validates the transition against `OrderStatus::allowedTransitions()` (throws `InvalidArgumentException` if invalid). Dispatches `OrderStatusChanged` event on success.
+- **`UpdateOrderStatus`** — transitions an order to a new status. Locks and re-reads the row inside a transaction, then validates the transition against `OrderStatus::allowedTransitions()` (throws `InvalidOrderStatusTransitionException` if invalid). Dispatches `OrderStatusChanged` on success. The status write, the event, and its synchronous listeners commit or roll back together. Transitioning to the status the order already holds is an idempotent no-op (no event) so concurrent callers — a retried webhook, an admin double-submit — fire the cascade exactly once.
 
 ### Status Transitions
 

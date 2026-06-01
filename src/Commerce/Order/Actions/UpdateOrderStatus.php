@@ -21,26 +21,51 @@ final class UpdateOrderStatus
      * applied and no retry path (the retry would fail `validateTransition`).
      * Wrapping the dispatch means any listener failure rolls the status back to
      * a recoverable state instead. See audit finding C-1.
+     *
+     * The row is locked and re-read inside the transaction so concurrent callers
+     * serialize: the second waits for the first to commit, then sees the new
+     * status. If that status already equals the target it is an idempotent
+     * no-op (no second event), so two racing callers — an admin double-submit,
+     * or an admin clicking confirm as a webhook lands — dispatch
+     * `OrderStatusChanged` exactly once rather than double-logging and
+     * double-firing side effects. See audit finding C-2. (The webhook path is
+     * already idempotent at the Payment layer via the `webhook_events` ledger;
+     * this guards every other caller.)
      */
     public function __invoke(Order $order, OrderStatus $newStatus): Order
     {
-        $this->validateTransition($order, $newStatus);
+        return DB::transaction(function () use ($order, $newStatus): Order {
+            $locked = $order->newQuery()->lockForUpdate()->find($order->getKey());
 
-        $oldStatus = $order->status;
+            if ($locked === null) {
+                return $order;
+            }
 
-        DB::transaction(function () use ($order, $oldStatus, $newStatus): void {
-            $order->update(['status' => $newStatus]);
+            $currentStatus = $locked->status;
 
-            OrderStatusChanged::dispatch($order, $oldStatus, $newStatus);
+            if ($currentStatus === $newStatus) {
+                // Already there — a racing caller beat us to it. Sync the
+                // caller's instance and return without re-dispatching.
+                $order->setRawAttributes($locked->getAttributes(), true);
+
+                return $order;
+            }
+
+            $this->validateTransition($currentStatus, $newStatus);
+
+            $locked->update(['status' => $newStatus]);
+            $order->setRawAttributes($locked->getAttributes(), true);
+
+            OrderStatusChanged::dispatch($order, $currentStatus, $newStatus);
+
+            return $order;
         });
-
-        return $order;
     }
 
-    private function validateTransition(Order $order, OrderStatus $newStatus): void
+    private function validateTransition(OrderStatus $currentStatus, OrderStatus $newStatus): void
     {
-        if (! $order->status->canTransitionTo($newStatus)) {
-            throw InvalidOrderStatusTransitionException::between($order->status, $newStatus);
+        if (! $currentStatus->canTransitionTo($newStatus)) {
+            throw InvalidOrderStatusTransitionException::between($currentStatus, $newStatus);
         }
     }
 }

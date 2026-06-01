@@ -67,6 +67,39 @@ final class UpdateOrderStatusTest extends TestCase
     }
 
     #[Test]
+    public function transitioning_to_the_current_status_is_an_idempotent_no_op(): void
+    {
+        // C-2: re-confirming an already-Confirmed order is a quiet no-op, not a
+        // thrown invalid-transition — so a redundant call can't error or
+        // re-fire side effects.
+        Event::fake([OrderStatusChanged::class]);
+        $order = $this->orderWithStatus(OrderStatus::Confirmed);
+
+        (new UpdateOrderStatus)($order, OrderStatus::Confirmed);
+
+        $this->assertSame(OrderStatus::Confirmed, $order->fresh()->status);
+        Event::assertNotDispatched(OrderStatusChanged::class);
+    }
+
+    #[Test]
+    public function a_stale_caller_does_not_re_dispatch_after_another_caller_transitioned(): void
+    {
+        // C-2: the row is locked and re-read, so a caller holding a stale
+        // Pending handle (e.g. an admin submit racing a webhook) sees the
+        // committed Confirmed status and short-circuits instead of dispatching
+        // OrderStatusChanged a second time (double log / double side effects).
+        Event::fake([OrderStatusChanged::class]);
+        $order = $this->orderWithStatus(OrderStatus::Pending);
+        $staleHandle = Order::find($order->getKey()); // still Pending in memory
+
+        (new UpdateOrderStatus)($order, OrderStatus::Confirmed);
+        (new UpdateOrderStatus)($staleHandle, OrderStatus::Confirmed);
+
+        Event::assertDispatchedTimes(OrderStatusChanged::class, 1);
+        $this->assertSame(OrderStatus::Confirmed, $staleHandle->fresh()->status);
+    }
+
+    #[Test]
     public function a_listener_failure_rolls_back_the_status_change_and_its_inventory_side_effects(): void
     {
         // The C-1 scenario: a downstream OrderStatusChanged listener throws

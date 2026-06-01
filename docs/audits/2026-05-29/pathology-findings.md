@@ -201,7 +201,7 @@ Probe: register a second `OrderStatusChanged` listener that throws after the pac
 
 Fix shape: wrap the status update + dispatch + listener execution in `DB::transaction(...)`. The synchronous listener runs inside the transaction; any listener throw rolls back the status change. The cost is admins seeing transient failures on retry — but a failed write is a recoverable state, while a half-written cancellation is not.
 
-### C-2. [medium, contained] Two trigger paths in a webhook-retry window both pass `validateTransition` and both dispatch the event — OPEN
+### C-2. [medium, contained] Two trigger paths in a webhook-retry window both pass `validateTransition` and both dispatch the event — FIXED 2026-05-29 (UpdateOrderStatus locks + re-reads the row; same-status is an idempotent no-op. Note: the webhook path was already idempotent at the Payment `webhook_events` ledger; this hardens every other concurrent caller)
 
 Evidence: [`src/Commerce/Order/Actions/UpdateOrderStatus.php:14-25`](../../../src/Commerce/Order/Actions/UpdateOrderStatus.php#L14-L25) — no `lockForUpdate` on the order row, no transaction. "Check status" and "write status" are non-atomic.
 
@@ -211,7 +211,7 @@ Probe: run two `HandlePaymentSucceeded` invocations against the same Pending ord
 
 Fix shape: `lockForUpdate` on the order row inside `UpdateOrderStatus` so the second caller waits for the first to commit, then sees the new status and short-circuits. Alternatively / additionally: webhook deduplication at the package's `webhook_events` table (already present for the event-id; might need to also dedupe at the order-level for the cascade).
 
-### C-3. [low, contained] Listener's `releaseReservationsFor` reads the reservation set outside any transaction — OPEN
+### C-3. [low, contained] Listener's `releaseReservationsFor` reads the reservation set outside any transaction — DOCUMENTED 2026-05-29 (narrowed by C-1's transaction; the proper guard — reject reservations for a non-Pending order — belongs in the consumer's checkout ReserveItems step, not the package's reference-agnostic ReserveStock, which must not depend on Commerce/Order. No package code change; flagged for the consumer checkout flow)
 
 Evidence: [`src/Commerce/Order/Listeners/SyncInventoryOnOrderStatusChange.php:57-65`](../../../src/Commerce/Order/Listeners/SyncInventoryOnOrderStatusChange.php#L57-L65) — `whereIn('status', [...])->get()` outside any transaction; per-row `ReleaseReservation` locks individually.
 
