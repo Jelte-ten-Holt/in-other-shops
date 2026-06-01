@@ -319,3 +319,23 @@ The six release-window findings were fixed in one window (consumers pre-launch, 
 | **D-2** | Decided: keep `commerce` channel as the intentional exception (price changes are commercial audit events; no separate `pricing` channel exists). Documented in code + periphery.md. | n/a (decision) |
 
 Deferred (unchanged, still OPEN): pricing A-1…A-5; taxonomy B-5 (migration cycle guard), B-6 (move reads drifted counts), B-7 (N+1 walk); order C-2 (webhook-retry double-dispatch), C-3 (reservation snapshot race). Test backlog T-1, T-4…T-6, T-8, T-9, T-13…T-20 not yet picked up.
+
+---
+
+## Resolution log — 2026-05-29 (second pass)
+
+Picked up after the release-window set. Shipped in v0.25.0.
+
+| Finding | Resolution |
+|---|---|
+| **A-1** | `compare_at_until` picker pinned to `config('app.timezone')` + helperText; write/read/scheduler now explicitly agree. Residual (consumer must set `app.timezone` to the shop zone) noted — not package-fixable. |
+| **A-2** | No change — confirmed already mitigated by the field's existing `->after('now')`, which rejects any stale save once the scheduler has promoted. |
+| **A-3 / A-5** | `PriceData` rejects an orphan (end-date without amount) or past-dated strikethrough at construction, covering `CreatePrice`/`UpdatePrice` and the Filament admin. Direct model writes (expiry sweep, factories) bypass it deliberately. |
+| **A-4** | Expiry dispatches `PriceUpdated(fromExpiry: true)` for cache/index/denorm consumers alongside `CompareAtPriceExpired`; the log subscriber skips the generic line on the expiry path so the audit keeps one entry. |
+| **B-5** | Partial. `CategoryAncestry` centralizes the cycle-guarded walk for the listener + recompute. The migration backfill's missing guard is left — editing the tracked migration is guardrailed, and the backfill no-ops on a fresh install (empty `categorizables`), so the cycle path is unreachable there. Lift the guard into the migration if/when `ALLOW_MIGRATION_EDITS` is set. |
+| **B-6** | `onMoved` re-derives the moved subtree's totals from the `categorizables` pivot instead of the (possibly drifted) counts row, so a move over a drifted node shifts the true delta and keeps drift localized. |
+| **B-7** | The listener preloads the parent map once via `CategoryAncestry::parentMap()`; one SELECT replaces the per-ancestor N+1 it ran inside checkout transactions. |
+| **C-2** | `UpdateOrderStatus` locks + re-reads the row; same-status is an idempotent no-op. The webhook path was already idempotent at the Payment ledger — this hardens admin/other concurrent callers. |
+| **C-3** | Documented. Narrowed by C-1; the proper invariant (no reservations for a non-Pending order) belongs in the consumer checkout flow, not the dependency-constrained `ReserveStock`. |
+
+Still OPEN after this pass: B-5's migration-backfill cycle guard (guardrailed, low risk) and C-3's consumer-side reservation guard. Test backlog T-1, T-5, T-8, T-9, T-13, T-14, T-16, T-19 remain (several superseded by tests added in these two passes — e.g. T-15/T-18/T-19 pricing, T-7/T-11/T-12 taxonomy, T-2/T-3 order).
