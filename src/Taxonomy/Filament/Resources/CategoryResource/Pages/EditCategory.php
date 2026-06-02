@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace InOtherShops\Taxonomy\Filament\Resources\CategoryResource\Pages;
 
+use InOtherShops\Media\Filament\MediaSchema;
 use InOtherShops\Taxonomy\Filament\Resources\CategoryResource;
 use InOtherShops\Translation\Filament\TranslationSchema;
 use Filament\Actions;
@@ -25,12 +26,14 @@ final class EditCategory extends EditRecord
     {
         $this->record->load('translations');
 
-        return array_merge($data, TranslationSchema::fillFormData($this->record));
+        $data = array_merge($data, TranslationSchema::fillFormData($this->record));
+
+        return MediaSchema::fillFormData($this->record, $data);
     }
 
     protected function mutateFormDataBeforeSave(array $data): array
     {
-        unset($data['translations']);
+        unset($data['translations'], $data['_media']);
 
         return $data;
     }
@@ -38,5 +41,6 @@ final class EditCategory extends EditRecord
     protected function afterSave(): void
     {
         TranslationSchema::saveFormData($this->record, $this->data);
+        MediaSchema::saveFormData($this->record, $this->data);
     }
 }

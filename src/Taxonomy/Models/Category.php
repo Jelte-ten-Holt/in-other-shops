@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace InOtherShops\Taxonomy\Models;
 
+use InOtherShops\Media\Concerns\InteractsWithMedia;
+use InOtherShops\Media\Contracts\HasMedia;
+use InOtherShops\Taxonomy\Concerns\InteractsWithTags;
+use InOtherShops\Taxonomy\Contracts\HasTags;
 use InOtherShops\Taxonomy\Database\Factories\CategoryFactory;
 use InOtherShops\Taxonomy\Taxonomy;
 use InOtherShops\Translation\Concerns\InteractsWithTranslations;
@@ -15,9 +19,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\DB;
 
-class Category extends Model implements HasTranslations
+class Category extends Model implements HasMedia, HasTags, HasTranslations
 {
     use HasFactory;
+    use InteractsWithMedia;
+    use InteractsWithTags;
     use InteractsWithTranslations;
 
     protected $guarded = [];

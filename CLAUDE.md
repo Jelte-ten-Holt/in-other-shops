@@ -27,7 +27,7 @@ Media ────────── (independent)
 FlowChain ────── (independent of domain code)
 Inventory ────── soft-dep on Translation (HasLocaleGroup instanceof in AdjustStock) ⚠ drift — to remove
 Pricing ──────── depends on Currency
-Taxonomy ─────── depends on Translation
+Taxonomy ─────── depends on Translation, Media (Category implements HasMedia for a cover image)
 Payment ──────── depends on Currency
 Tax ──────────── depends on Location
 Shipping ─────── depends on Currency, Location; hard-dep on Commerce (OrderLine FK in ShipmentItem) ⚠ drift — creates cycle with Commerce

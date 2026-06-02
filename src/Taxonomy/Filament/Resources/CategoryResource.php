@@ -16,6 +16,7 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
+use InOtherShops\Media\Filament\MediaSchema;
 use InOtherShops\Taxonomy\Filament\Resources\CategoryResource\Pages;
 use InOtherShops\Taxonomy\Models\Category;
 use InOtherShops\Translation\Filament\TranslationSchema;
@@ -60,6 +61,21 @@ final class CategoryResource extends Resource
                         Toggle::make('is_active')
                             ->label('Active')
                             ->default(true),
+                        Select::make('tags')
+                            ->label('Tags')
+                            ->relationship('tags')
+                            ->getOptionLabelFromRecordUsing(fn ($record) => $record->translated('name'))
+                            ->multiple()
+                            ->searchable()
+                            ->preload()
+                            ->helperText('Flags for this category — e.g. a "featured" tag to surface it on the storefront home page.'),
+                    ]),
+                Section::make('Cover Image')
+                    ->schema([
+                        MediaSchema::mediaRepeater('images')
+                            ->label('Cover image')
+                            ->helperText('Shown on category teasers and listings.')
+                            ->maxItems(1),
                     ]),
             ]);
     }
