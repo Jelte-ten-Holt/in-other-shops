@@ -104,10 +104,20 @@ Commerce (cart-able variant), Pricing, Inventory, Media, Translation. Variants
 is an integration-tier domain, not an extractable leaf — see the dependency
 table in the root `CLAUDE.md`.
 
-## Not yet in this domain (later phases)
+## Filament
 
-- **Phase 3:** `OptionResource` (manage the global catalog) and `VariantsSchema`
-  (attach to consumer resources via the manual-sync convention).
+- `OptionResource` — standalone admin for the global Option/OptionValue catalog
+  (translated name + per-value labels; manual-sync values repeater).
+  Consumer-registered, like the other package resources.
+- `VariantsSchema` — reusable fragment for a consumer's variant-owning resource:
+  `axesField` (declare axes), `variantsRepeater` + `fillFormData`/`saveFormData`
+  (edit existing variants' SKU/price/stock, sync axes, delete removed).
+
+## Not yet in this domain
+
+- **Consumer-side (Phase 5, built against the real product form):** generating
+  new variant combinations (call `GenerateVariants` from a Filament Action) and
+  the owner-price cascade modal.
 - **Deferred:** Storefront-API variant surfacing ("from $X" in `BrowsableResource`)
   — no consumer browses variants through the Storefront API yet; consumers call
   `lowestVariantPrice()` directly when rendering.

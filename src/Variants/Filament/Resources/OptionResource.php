@@ -1,0 +1,199 @@
+<?php
+
+declare(strict_types=1);
+
+namespace InOtherShops\Variants\Filament\Resources;
+
+use Filament\Actions;
+use Filament\Forms\Components\Repeater;
+use Filament\Forms\Components\TextInput;
+use Filament\Resources\Resource;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Schema;
+use Filament\Tables;
+use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Str;
+use InOtherShops\Translation\Filament\TranslationSchema;
+use InOtherShops\Variants\Filament\Resources\OptionResource\Pages;
+use InOtherShops\Variants\Models\Option;
+use InOtherShops\Variants\Models\OptionValue;
+use InOtherShops\Variants\Variants;
+
+/**
+ * Standalone admin for the global Option catalog (Metal, Ring Size, …) and each
+ * option's ordered values. Option name and value labels are translatable; slug
+ * and value code are the stable identifiers.
+ *
+ * Values are managed via a manual-sync repeater (`_values`) — see
+ * {@see self::fillValues()} / {@see self::saveValues()}, wired from the pages.
+ */
+final class OptionResource extends Resource
+{
+    protected static ?string $model = Option::class;
+
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-adjustments-horizontal';
+
+    protected static string|\UnitEnum|null $navigationGroup = 'Shop';
+
+    public static function form(Schema $schema): Schema
+    {
+        return $schema
+            ->schema([
+                Section::make('Option')
+                    ->schema([
+                        TranslationSchema::fields(
+                            fields: ['name' => TextInput::make('name')->required()->maxLength(255)],
+                            slugSource: 'name',
+                            slugTarget: 'slug',
+                        ),
+                        TextInput::make('slug')
+                            ->required()
+                            ->maxLength(255)
+                            ->unique(ignoreRecord: true),
+                        TextInput::make('position')
+                            ->numeric()
+                            ->default(0)
+                            ->minValue(0),
+                    ]),
+                Section::make('Values')
+                    ->schema([self::valuesRepeater()]),
+            ]);
+    }
+
+    public static function valuesRepeater(): Repeater
+    {
+        return Repeater::make('_values')
+            ->label('Values')
+            ->orderColumn('position')
+            ->schema([
+                ...self::labelInputs(),
+                TextInput::make('value')
+                    ->label('Code')
+                    ->required()
+                    ->maxLength(255)
+                    ->helperText('Stable identifier, unique within this option (e.g. "silver", "size-7").'),
+            ])
+            ->columns(2)
+            ->defaultItems(0);
+    }
+
+    /** @return array<int, TextInput> One label input per configured locale. */
+    private static function labelInputs(): array
+    {
+        $default = config('translation.default', 'en');
+
+        return array_map(
+            fn (string $locale): TextInput => TextInput::make("labels.{$locale}")
+                ->label('Label ('.strtoupper($locale).')')
+                ->required($locale === $default)
+                ->maxLength(255),
+            config('translation.locales', ['en']),
+        );
+    }
+
+    public static function table(Table $table): Table
+    {
+        return $table
+            ->columns([
+                Tables\Columns\TextColumn::make('name')
+                    ->searchable(query: fn (Builder $query, string $search) => $query->whereTranslation('name', 'like', "%{$search}%"))
+                    ->sortable(query: fn (Builder $query, string $direction) => $query->orderByTranslation('name', $direction)),
+                Tables\Columns\TextColumn::make('slug')
+                    ->searchable(),
+                Tables\Columns\TextColumn::make('values_count')
+                    ->label('Values')
+                    ->counts('values'),
+                Tables\Columns\TextColumn::make('position')
+                    ->sortable(),
+            ])
+            ->defaultSort('position')
+            ->reorderable('position')
+            ->actions([
+                Actions\EditAction::make(),
+                Actions\DeleteAction::make(),
+            ]);
+    }
+
+    /**
+     * Load the option's values (with per-locale labels) into repeater state.
+     *
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    public static function fillValues(Option $record, array $data): array
+    {
+        $locales = config('translation.locales', ['en']);
+
+        $record->load('values.translations');
+
+        $data['_values'] = $record->values
+            ->map(fn (OptionValue $value): array => [
+                'id' => $value->id,
+                'value' => $value->value,
+                'position' => $value->position,
+                'labels' => collect($locales)
+                    ->mapWithKeys(fn (string $locale): array => [
+                        $locale => $value->translations
+                            ->where('locale', $locale)
+                            ->where('field', 'label')
+                            ->first()?->value ?? '',
+                    ])
+                    ->all(),
+            ])
+            ->all();
+
+        return $data;
+    }
+
+    /**
+     * Persist repeater state back to the option's values: upsert present rows,
+     * delete removed ones, and sync each value's label translations.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    public static function saveValues(Option $record, array $data): void
+    {
+        $rows = $data['_values'] ?? [];
+        $keptIds = [];
+
+        foreach (array_values($rows) as $position => $row) {
+            $attributes = ['value' => $row['value'], 'position' => $position];
+
+            if (! empty($row['id'])) {
+                $value = $record->values()->findOrFail($row['id']);
+                $value->update($attributes);
+            } else {
+                $value = $record->values()->create($attributes);
+            }
+
+            self::syncValueLabels($value, $row['labels'] ?? []);
+            $keptIds[] = $value->id;
+        }
+
+        $record->values()->whereNotIn('id', $keptIds)->each(fn (OptionValue $value) => $value->delete());
+    }
+
+    /** @param array<string, string> $labels */
+    private static function syncValueLabels(OptionValue $value, array $labels): void
+    {
+        foreach ($labels as $locale => $label) {
+            if ($label === '' || $label === null) {
+                $value->translations()->where('locale', $locale)->where('field', 'label')->delete();
+
+                continue;
+            }
+
+            $value->setTranslation('label', $locale, $label);
+        }
+    }
+
+    public static function getPages(): array
+    {
+        return [
+            'index' => Pages\ListOptions::route('/'),
+            'create' => Pages\CreateOption::route('/create'),
+            'edit' => Pages\EditOption::route('/{record}/edit'),
+        ];
+    }
+}
