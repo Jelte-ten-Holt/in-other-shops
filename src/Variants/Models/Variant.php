@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace InOtherShops\Variants\Models;
 
+use InOtherShops\Commerce\Cart\Concerns\InteractsWithCart;
+use InOtherShops\Commerce\Cart\Contracts\HasCart;
+use InOtherShops\Currency\Enums\Currency;
 use InOtherShops\Inventory\Concerns\InteractsWithStock;
 use InOtherShops\Inventory\Contracts\HasStock;
 use InOtherShops\Media\Concerns\InteractsWithMedia;
@@ -21,15 +24,16 @@ use Illuminate\Database\Eloquent\Relations\MorphTo;
 /**
  * A sellable SKU representing one combination of OptionValues, owned
  * polymorphically by a consumer model that implements `HasVariants`. Carries
- * its own price, stock, and media via the package's polymorphic capabilities.
+ * its own price, stock, and media via the package's polymorphic capabilities,
+ * and is the cart-able unit when an owner has variants.
  *
- * The package model is intentionally cart-agnostic in this phase; a consumer
- * swaps it (via `variants.models.variant`) for a subclass that adds `HasCart`
- * and its own purchasable role contract.
+ * A consumer may swap it (via `variants.models.variant`) for a subclass that
+ * adds its own purchasable role contract on top of these package mechanics.
  */
-class Variant extends Model implements HasMedia, HasPrices, HasStock
+class Variant extends Model implements HasCart, HasMedia, HasPrices, HasStock
 {
     use HasFactory;
+    use InteractsWithCart;
     use InteractsWithMedia;
     use InteractsWithPrices;
     use InteractsWithStock;
@@ -70,5 +74,36 @@ class Variant extends Model implements HasMedia, HasPrices, HasStock
             ->sortBy(fn (OptionValue $value): int => $value->option->position)
             ->map(fn (OptionValue $value): string => $value->translated('label', $locale) ?? $value->value)
             ->implode(', ');
+    }
+
+    /**
+     * Cart-line label: the owner's label plus this variant's option summary
+     * ("Pendant — Silver, 45cm"). Falls back to the summary alone when the
+     * owner doesn't expose a cart-able label.
+     */
+    public function getCartableLabel(): string
+    {
+        $summary = $this->optionSummary();
+        $owner = $this->variantable;
+
+        if ($owner instanceof HasCart) {
+            return $summary === ''
+                ? $owner->getCartableLabel()
+                : $owner->getCartableLabel().' — '.$summary;
+        }
+
+        return $summary;
+    }
+
+    public function getCartableDescription(): ?string
+    {
+        $owner = $this->variantable;
+
+        return $owner instanceof HasCart ? $owner->getCartableDescription() : null;
+    }
+
+    public function getCartableUnitPrice(Currency $currency): ?int
+    {
+        return $this->priceFor($currency)?->amount;
     }
 }

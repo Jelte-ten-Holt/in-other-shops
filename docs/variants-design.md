@@ -4,7 +4,7 @@
 
 This doc is the rebrief: it records the settled decisions, the resolved forks, the dependency-graph impact, the planned periphery, and the phased build plan. Start construction from the Build Plan at the bottom.
 
-**Build status:** Phase 1 (package domain core) complete and green — models, migrations, contracts/concerns, factories, event classes, morph map; 20 tests, full suite 637/637. Unreleased. Phases 2–5 pending. `docs/periphery.md`, `CLAUDE.md`, and `README.md` are kept current per phase (not batched to release).
+**Build status:** Phases 1–2 complete and green (unreleased). Phase 1: models, migrations, contracts/concerns, factories, event classes, morph map. Phase 2: package `Variant` implements `HasCart`; `InteractsWithCart` cart-deletion guard (config-gateable, all cart-ables); `lowestVariantPrice`/stock aggregation on `InteractsWithVariants`; actions `CreateVariant`, `GenerateVariants`, `CreateDefaultVariant`, `DeleteVariant` (events dispatched). Full suite 663/663. Two adjustments from the original plan: **`EnsureDefaultVariant` renamed to `CreateDefaultVariant`** (`Ensure` is reserved for void guards in the verb glossary; this creates a record), and **`Generate` registered as a new cross-domain verb**. Storefront variant surfacing deferred (no consumer browses variants via the Storefront API). Phases 3–5 pending. Docs kept current per phase.
 
 ## Decisions
 
@@ -115,7 +115,7 @@ Release scope (chosen): **package domain + Filament + storefront helpers, then b
 
 **Phase 1 — Package domain core.** Scaffold per `docs/adding-a-new-domain.md`: `VariantsServiceProvider`, `config/variants.php` (`models` key), `Variants` registry, composer autoload + `extra.laravel.providers`, `README.md`. Migrations: `options`, `option_values`, `variants` (morphs `variantable`, `sku` nullable+unique), `option_value_variant` pivot (one value per option per variant — app-guarded), `optionables` (owner→Option). Models: `Option`, `OptionValue`, `Variant`. Contracts/concerns: `HasVariants` + `InteractsWithVariants`. Factories. Morph map. Events. PHPUnit.
 
-**Phase 2 — Cross-domain wiring (package).** Inventory: owner stock aggregation in `InteractsWithVariants`. Pricing: `lowestVariantPrice()`. Commerce: `InteractsWithCart` deleting guard (config-gateable) + package `Variant` implements `HasCart`. Storefront: surface "from" price via the `HasVariants` contract. Actions: `GenerateVariants` (cartesian product + price template + zero-stock StockItem), `CreateVariant`, `EnsureDefaultVariant`, `DeleteVariant`. Tests per action/behaviour.
+**Phase 2 — Cross-domain wiring (package). ✅ Done.** Owner stock aggregation (`hasVariantInStock`/`variantStockTotal`) + `lowestVariantPrice()` on `InteractsWithVariants` (contract extended, trait-defaulted). Commerce: `InteractsWithCart` cart-deletion `deleting` guard (config-gateable, all cart-ables) + package `Variant` implements `HasCart`. Actions: `CreateVariant` (validates options, copies price template), `GenerateVariants` (cartesian product, skips existing, declares axes), `CreateDefaultVariant` (flat-owner migration, carries price + stock via `AdjustStock`), `DeleteVariant` (cleans owned price/stock/media, guard-protected). Events dispatched. Storefront surfacing **deferred** (no consumer uses the Storefront API for variant catalog; consumers call `lowestVariantPrice()` directly).
 
 **Phase 3 — Filament.** `OptionResource` (global Option + OptionValue management). `VariantsSchema` (declare axes, tick in-play values, generate, per-variant SKU/price/stock/media; manual-sync). Tests.
 

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace InOtherShops\Variants\Contracts;
 
+use InOtherShops\Currency\Enums\Currency;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\Relations\MorphToMany;
 
@@ -26,4 +27,11 @@ interface HasVariants
     public function options(): MorphToMany;
 
     public function hasVariants(): bool;
+
+    /** The "from" price — lowest resolved unit price across the owner's variants. */
+    public function lowestVariantPrice(Currency $currency): ?int;
+
+    public function hasVariantInStock(): bool;
+
+    public function variantStockTotal(): int;
 }

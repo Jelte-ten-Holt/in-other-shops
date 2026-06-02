@@ -42,10 +42,9 @@ the variant-creation actions). `optionSummary($locale)` joins the value labels
 in option order ("Silver, 45cm"); consumers prefix the owner's name to compose a
 full display name.
 
-> The package `Variant` is intentionally cart-agnostic at the model level in
-> Phase 1. A consumer swaps it via `config('variants.models.variant')` for a
-> subclass that adds `HasCart` and its own purchasable role contract. Phase 2
-> wires the package model itself to `HasCart` plus the cart-deletion guard.
+> The package `Variant` implements `HasCart` — it is the cart-able unit. A
+> consumer may still swap it via `config('variants.models.variant')` for a
+> subclass that adds its own purchasable role contract on top.
 
 ## Ownership — `HasVariants`
 
@@ -72,6 +71,10 @@ This provides:
   derived from the variants themselves — there is no second owner→value table.
 - `hasVariants()` — true once the owner has at least one variant; reads a loaded
   relation without a query when available.
+- `lowestVariantPrice($currency)` — the "from $X" price (min across variants).
+- `hasVariantInStock()` / `variantStockTotal()` — stock aggregation for an
+  owner whose stock lives on its variants. A consumer branches its own
+  `isInStock()`/`stockLevel()` on `hasVariants()` to delegate here.
 
 There is deliberately **no public `HasOptions` contract** on the owner — the
 owner→option relation is internal to this domain.
@@ -82,18 +85,29 @@ Models resolve through `Variants::option()` / `::optionValue()` / `::variant()`
 (config `variants.models.*`), so consumers can swap any of them. The service
 provider registers the morph aliases `option`, `option_value`, `variant`.
 
+## Actions
+
+- `CreateVariant` — single variant from a set of option values; validates
+  one-value-per-option and options-declared-on-owner; copies the owner's price
+  template; dispatches `VariantCreated`.
+- `GenerateVariants` — declares the axes, then creates the cartesian product of
+  the selected values, skipping combinations that already exist (re-runnable).
+- `CreateDefaultVariant` — flat-owner migration: one default variant carrying
+  the owner's current price and stock (the latter via `AdjustStock`, so it hits
+  the audit ledger). No-op when the owner already has variants.
+- `DeleteVariant` — deletes the variant and its owned price/stock/media rows;
+  the cart-deletion guard fires first (blocks if a live cart references it).
+
 ## Dependencies
 
-Pricing, Inventory, Media, Translation (and, from Phase 2, Commerce for the
-cart-able variant). Variants is an integration-tier domain, not an extractable
-leaf — see the dependency table in the root `CLAUDE.md`.
+Commerce (cart-able variant), Pricing, Inventory, Media, Translation. Variants
+is an integration-tier domain, not an extractable leaf — see the dependency
+table in the root `CLAUDE.md`.
 
 ## Not yet in this domain (later phases)
 
-- **Phase 2:** `GenerateVariants` / `CreateVariant` / `EnsureDefaultVariant` /
-  `DeleteVariant` actions; `HasCart` on the package `Variant`; the cart-deletion
-  guard in Commerce's `InteractsWithCart`; owner stock aggregation and
-  `lowestVariantPrice()` ("from $X"); `VariantCreated` / `VariantDeleted`
-  dispatch.
 - **Phase 3:** `OptionResource` (manage the global catalog) and `VariantsSchema`
   (attach to consumer resources via the manual-sync convention).
+- **Deferred:** Storefront-API variant surfacing ("from $X" in `BrowsableResource`)
+  — no consumer browses variants through the Storefront API yet; consumers call
+  `lowestVariantPrice()` directly when rendering.

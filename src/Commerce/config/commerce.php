@@ -60,5 +60,13 @@ return [
             'middleware' => ['web'],
             'default_currency' => 'EUR',
         ],
+
+        /*
+        | Block deleting any cart-able model (Product, Bundle, Variant, …) while
+        | a live cart still references it, preventing stranded cart lines. Set
+        | to false to allow deletion regardless (order lines snapshot, so order
+        | history is never affected either way).
+        */
+        'guard_cartable_deletion' => true,
     ],
 ];

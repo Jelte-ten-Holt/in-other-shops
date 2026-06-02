@@ -29,7 +29,7 @@ Each domain under `src/` is a self-contained package with its own service provid
 | **Payment** | Gateway-agnostic payments, refunds, webhooks | Currency |
 | **Commerce** | Cart, Order, Customer lifecycle | Location, Currency, Payment, Shipping |
 | **Storefront** | Read-only API layer for browsable catalog | Currency, Pricing, Taxonomy, Translation, Media, Inventory |
-| **Variants** | Product options/values and purchasable variants | Pricing, Inventory, Media, Translation (Commerce from Phase 2) |
+| **Variants** | Product options/values and purchasable variants | Commerce, Pricing, Inventory, Media, Translation |
 | **Agent** | MCP Streamable HTTP endpoint for locally-run Claudes (bearer or OAuth 2.1 + DCR) | — |
 | **Navigation** | Configurable menus | Planned |
 

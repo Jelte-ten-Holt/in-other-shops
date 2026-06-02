@@ -29,6 +29,7 @@ These verbs mean the same thing wherever they appear. Don't overload them within
 | `List` | Read many records, possibly paginated/filtered. | No. |
 | `Ensure` | Guard / assertion. Returns void on success, throws on failure. Always private or test-helper-flavor; not a primary user action. | No (just throws). |
 | `Store` | Persist content where the **bytes are the point** (uploads, audit log entries). Use instead of `Create` when "creating" understates "saving the artifact." | Yes. |
+| `Generate` | Produce a set of records by expanding a combinatorial / derived input (e.g. the cartesian product of option values). Use instead of `Create` when the operation is bulk-and-derived, not a single explicit create. | Yes — bulk create + per-record events. |
 
 If your operation doesn't fit any of these, that's a signal to think harder before inventing a new verb — the family is small on purpose.
 
@@ -148,6 +149,19 @@ Open question (not blocking): should `UpdateOrderStatus` become `TransitionOrder
 Defaulting to **leave as-is** — the validation is still there, the verb still says what it does, and renaming touches every callsite. Revisit if Order grows more state-machine actions (e.g. `CancelOrder`, `RefundOrder`).
 
 Current actions: `CreateOrder`, `UpdateOrderStatus`. ✅ Compliant (modulo open question).
+
+### Variants
+
+**Primary family: CRUD + combinatorial generation.**
+
+- `Create` — single explicit variant creation (`CreateVariant`).
+- `Generate` — bulk combinatorial creation, the cartesian product of selected option values (`GenerateVariants`). New cross-domain verb introduced by this domain (see glossary).
+- `CreateDefaultVariant` — `Create` family (creates one default variant + emits `VariantCreated`); the flat-owner migration path. **Not** `Ensure` — `Ensure` is reserved for void-returning guards, and this creates a record.
+- `Delete` — `DeleteVariant`.
+
+Banned conflation: don't name the migration action `EnsureDefaultVariant` — that reads as a guard but it creates a record. Don't use `Create` for the cartesian expansion — that's `Generate`.
+
+Current actions: `CreateVariant`, `GenerateVariants`, `CreateDefaultVariant`, `DeleteVariant`. ✅ Compliant.
 
 ---
 

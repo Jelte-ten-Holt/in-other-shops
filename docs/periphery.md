@@ -8,7 +8,7 @@ Consumers reference this file from their own `docs/periphery.md` rather than re-
 
 Scope split: sections "Auto-scheduled commands" through "Tables owned by subsystem" cover the **runtime periphery** — what fires in a consumer's app when the package is installed. The "External surface" section at the bottom covers the **API contract** — what consumers depend on at the type level. Both are this package's contract with its consumers.
 
-Last verified against codebase: 2026-05-29 (runtime sections refreshed for `SyncInventoryOnOrderStatusChange` in v0.23.0; External surface section added 2026-05-29 — initial population is opportunistic from CLAUDE.md, deepen on next audit; pricing:expire-compare-at row corrected via pathology-reviewer cross-check; 2026-05-29 pathology fixes applied — B-1 bulk-detach now dispatches `CategoryDetached`, B-2 attach/detach/move/delete now transactional, B-3 `morph_alias` widened to 255 + over-length guard, B-4 recompute advisory-locked + upsert, C-1 `UpdateOrderStatus` transactional, D-2 PricingLogSubscriber `commerce` channel confirmed intentional; 2026-05-29 second-pass — A-3/A-5 `PriceData` rejects orphan/past strikethrough, A-4 expiry also dispatches `PriceUpdated(fromExpiry)`, A-1 picker timezone pinned, B-6 `onMoved` re-derives from pivot, B-7 listener N+1 removed via `CategoryAncestry`, C-2 `UpdateOrderStatus` locks + idempotent same-status no-op; 2026-06-01 added `Commerce\Order\Actions\ResolvePreOrderAudience` + `PreOrderRecipient` DTO + `OrderLine::scopePreOrder()` to the External surface — pre-order engagement; 2026-06-01 `Taxonomy\Category` now implements `HasMedia` (cover image) — new Taxonomy→Media soft dependency, no migration (polymorphic `mediables` pivot, `category` morph alias already registered); `Taxonomy\Category` also now implements `HasTags` (intra-domain, no new cross-domain edge) for a `featured`-style category flag, no migration (`taggables` pivot, same `category` morph alias); 2026-06-02 **Variants domain Phase 1 landed** (unreleased) — new `Variants` subsystem (`options`, `option_values`, `variants`, `option_value_variant`, `optionables` tables; morph aliases `option`/`option_value`/`variant`); `HasVariants`/`InteractsWithVariants` contract+trait now ship; package `Variant` adopts `HasPrices`/`HasStock`/`HasMedia`, `Option`/`OptionValue` adopt `HasTranslations`; `VariantCreated`/`VariantDeleted` event classes exist but are **not yet dispatched** (Phase 2 actions). Cross-domain edges to Commerce (`HasCart`), the cart-deletion guard, actions, stock aggregation, and `lowestVariantPrice` are Phase 2 — not yet present)
+Last verified against codebase: 2026-05-29 (runtime sections refreshed for `SyncInventoryOnOrderStatusChange` in v0.23.0; External surface section added 2026-05-29 — initial population is opportunistic from CLAUDE.md, deepen on next audit; pricing:expire-compare-at row corrected via pathology-reviewer cross-check; 2026-05-29 pathology fixes applied — B-1 bulk-detach now dispatches `CategoryDetached`, B-2 attach/detach/move/delete now transactional, B-3 `morph_alias` widened to 255 + over-length guard, B-4 recompute advisory-locked + upsert, C-1 `UpdateOrderStatus` transactional, D-2 PricingLogSubscriber `commerce` channel confirmed intentional; 2026-05-29 second-pass — A-3/A-5 `PriceData` rejects orphan/past strikethrough, A-4 expiry also dispatches `PriceUpdated(fromExpiry)`, A-1 picker timezone pinned, B-6 `onMoved` re-derives from pivot, B-7 listener N+1 removed via `CategoryAncestry`, C-2 `UpdateOrderStatus` locks + idempotent same-status no-op; 2026-06-01 added `Commerce\Order\Actions\ResolvePreOrderAudience` + `PreOrderRecipient` DTO + `OrderLine::scopePreOrder()` to the External surface — pre-order engagement; 2026-06-01 `Taxonomy\Category` now implements `HasMedia` (cover image) — new Taxonomy→Media soft dependency, no migration (polymorphic `mediables` pivot, `category` morph alias already registered); `Taxonomy\Category` also now implements `HasTags` (intra-domain, no new cross-domain edge) for a `featured`-style category flag, no migration (`taggables` pivot, same `category` morph alias); 2026-06-02 **Variants domain Phase 1 landed** (unreleased) — new `Variants` subsystem (`options`, `option_values`, `variants`, `option_value_variant`, `optionables` tables; morph aliases `option`/`option_value`/`variant`); `HasVariants`/`InteractsWithVariants` contract+trait now ship; package `Variant` adopts `HasPrices`/`HasStock`/`HasMedia`, `Option`/`OptionValue` adopt `HasTranslations`; `VariantCreated`/`VariantDeleted` event classes exist but are not yet dispatched (Phase 2 actions); 2026-06-02 **Variants Phase 2 landed** (unreleased) — package `Variant` now implements `HasCart` (Variants→Commerce edge); **new `InteractsWithCart` `deleting` guard blocks deleting any cart-able referenced by a live cart** (config `commerce.cart.guard_cartable_deletion`, default true — affects Product/Bundle in both consumers, verify in-other-worlds before release); public actions `CreateVariant`/`GenerateVariants`/`CreateDefaultVariant`/`DeleteVariant` (the last three dispatch `VariantCreated`/`VariantDeleted`); `HasVariants` contract extended with `lowestVariantPrice`/`hasVariantInStock`/`variantStockTotal` (trait-defaulted, non-breaking); `CartReferencesCartableException` added. Storefront variant surfacing deferred — no consumer browses variants via the Storefront API)
 
 ---
 
@@ -73,6 +73,7 @@ These live inside model classes themselves, not in observers.
 | --- | --- | --- |
 | `Media\Models\Media` | `deleting` | if `type=Upload`, deletes the physical file from disk via `Storage::disk($media->disk)->delete($media->path)` |
 | `Pricing\Models\Price` | `saving` | validates `compare_at_amount > amount`; throws `InvalidCompareAtPriceException` if violated |
+| **Any model using `Commerce\Cart\Concerns\InteractsWithCart`** (Variant + every consumer cart-able: Product, Bundle, …) | `deleting` | blocks deletion when a **live** cart (`expires_at` null or future) references it — throws `CartReferencesCartableException`. Gated by `commerce.cart.guard_cartable_deletion` (default true). Affects both consumers; expired guest carts don't block (they're pruned) |
 
 ## Events dispatched (public surface — consumers may subscribe)
 
@@ -96,7 +97,7 @@ State changes the package emits. Past-tense, `final readonly class`, `Dispatchab
 
 **Taxonomy.** `CategoryAttached`, `CategoryDetached`, `CategoryMoved`, `CategoryDeleted`, `TagAttached`, `TagDetached`. *(No package LogSubscriber — only `MaintainCategoryCounts` listens.)*
 
-**Variants.** `VariantCreated`, `VariantDeleted` — classes exist (`final readonly`, `Dispatchable`) but **nothing dispatches them yet**; dispatch is wired in the Phase 2 variant actions. No LogSubscriber (catalog-structure edits are admin activity, deferred until multi-user — same posture as Media/Taxonomy).
+**Variants.** `VariantCreated` (dispatched by `CreateVariant`, and thus by `GenerateVariants`/`CreateDefaultVariant`), `VariantDeleted` (dispatched by `DeleteVariant`). No LogSubscriber (catalog-structure edits are admin activity, deferred until multi-user — same posture as Media/Taxonomy).
 
 ## Tables owned by subsystem
 
@@ -144,7 +145,7 @@ The trait companions (`InteractsWith*`) are documented alongside their contracts
 
 | Domain | Contract | Trait | Used by |
 | --- | --- | --- | --- |
-| Commerce | `HasCart` | `InteractsWithCart` | in-other-worlds: Product, Bundle. bianka: Product, Bundle, Variant. *(package `Variants\Variant` adopts this in Phase 2 — not yet)* |
+| Commerce | `HasCart` | `InteractsWithCart` | **package model: `Variants\Variant`** (cart-able unit). in-other-worlds: Product, Bundle. bianka: Product, Bundle, Variant. *Trait now also carries the cart-deletion `deleting` guard (see Model boot hooks).* |
 | Inventory | `HasStock` | `InteractsWithStock` | **package model: `Variants\Variant`** (per-variant stock). in-other-worlds: Product, Bundle. bianka: Product, Bundle, Variant |
 | Media | `HasMedia` | `InteractsWithMedia` | **package models: `Taxonomy\Category`** (cover image), **`Variants\Variant`**. in-other-worlds: Content, Product, Bundle. bianka: Product, Bundle |
 | Pricing | `HasPrices` | `InteractsWithPrices` | **package model: `Variants\Variant`** (per-variant price). in-other-worlds: Product, Bundle. bianka: Product, Bundle, Variant |
@@ -152,7 +153,7 @@ The trait companions (`InteractsWith*`) are documented alongside their contracts
 | Taxonomy | `HasCategories`, `HasTags` | `InteractsWithCategories`, `InteractsWithTags` | **package model: `Taxonomy\Category` adopts `HasTags`** (intra-domain; enables a `featured`-style category flag, semantics consumer-side). in-other-worlds: Content, Product, Bundle. bianka: Product, Bundle |
 | Translation | `HasTranslations` | `InteractsWithTranslations` | **package models: `Variants\Option`** (name), **`Variants\OptionValue`** (label) — column-translation. bianka: Product, Bundle, Category, Tag |
 | Translation | `HasLocaleGroup` | `InteractsWithLocaleGroup` | in-other-worlds: Product, Bundle (deliberately not adopted in bianka — see bianka BRIEF §4.9) |
-| Variants | `HasVariants` | `InteractsWithVariants` | **Contract + trait now ship (unreleased).** No public `HasOptions` contract — owner→option link is internal to the domain. bianka: Product (planned). in-other-worlds: not adopted — flat SKUs only |
+| Variants | `HasVariants` | `InteractsWithVariants` | **Contract + trait ship (unreleased).** Methods: `variants`, `options` (declared axes), `hasVariants`, `lowestVariantPrice`, `hasVariantInStock`, `variantStockTotal` (all trait-defaulted). No public `HasOptions` contract — owner→option link is internal. bianka: Product (planned). in-other-worlds: not adopted — flat SKUs only |
 
 **Adding/removing/renaming a contract or trait** breaks every consumer that opts in. Adding a new method to an existing contract is breaking unless the trait provides a default. Removing or retyping a method is always breaking.
 
@@ -170,6 +171,15 @@ Actions consumers invoke directly. Constructor + `__invoke` signature is the con
 | `Commerce\Order\Actions\ResolvePreOrderAudience` | Commerce | `__invoke(Model $purchasable): Collection<PreOrderRecipient>` — distinct pre-order recipients (guests + customers) for a purchasable, deduped by normalized email, shipment-agnostic. in-other-worlds: planned for the `PreOrderReleased` notification + Filament pre-order broadcast (pre-order engagement brief). |
 
 Returns the `Commerce\Order\DTOs\PreOrderRecipient` DTO (`email`, `name`, `locale`, `customerId`) — also part of the surface. Pairs with the `OrderLine::scopePreOrder()` query scope (public).
+
+Variants actions (consumer Filament / admin flows call these; Phase 3 wraps them in `VariantsSchema`):
+
+| Action | Domain | Signature |
+| --- | --- | --- |
+| `Variants\Actions\CreateVariant` | Variants | `__invoke(Model&HasVariants $owner, array $optionValueIds = [], ?string $sku = null, ?int $position = null): Variant` — validates one-value-per-option + options-declared-on-owner, copies the owner's price template, dispatches `VariantCreated` |
+| `Variants\Actions\GenerateVariants` | Variants | `__invoke(Model&HasVariants $owner, array $valueIdsByOption): Collection<Variant>` — declares axes, generates the cartesian product, skips existing combinations |
+| `Variants\Actions\CreateDefaultVariant` | Variants | `__invoke(Model&HasVariants $owner): ?Variant` — flat-owner migration; carries price + stock to one default variant; null if already has variants |
+| `Variants\Actions\DeleteVariant` | Variants | `__invoke(Variant $variant): void` — deletes variant + owned price/stock/media rows; cart-deletion guard fires first; dispatches `VariantDeleted` |
 
 ### Public events dispatched (consumer-subscribable)
 
