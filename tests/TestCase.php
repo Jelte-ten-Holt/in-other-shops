@@ -29,7 +29,9 @@ use InOtherShops\Tests\Stubs\TestShippableCartable;
 use InOtherShops\Tests\Stubs\TestStockable;
 use InOtherShops\Tests\Stubs\TestStockableCartable;
 use InOtherShops\Tests\Stubs\TestStockableLocalizable;
+use InOtherShops\Tests\Stubs\TestVariantable;
 use InOtherShops\Translation\TranslationServiceProvider;
+use InOtherShops\Variants\VariantsServiceProvider;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use OPGG\LaravelMcpServer\LaravelMcpServerServiceProvider;
 use Orchestra\Testbench\TestCase as Orchestra;
@@ -58,6 +60,7 @@ abstract class TestCase extends Orchestra
             'test_mediable' => TestMediable::class,
             'test_priceable' => TestPriceable::class,
             'test_taxonomized' => TestTaxonomized::class,
+            'test_variantable' => TestVariantable::class,
         ]);
     }
 
@@ -81,6 +84,7 @@ abstract class TestCase extends Orchestra
             ShippingServiceProvider::class,
             PaymentServiceProvider::class,
             CommerceServiceProvider::class,
+            VariantsServiceProvider::class,
             FlowChainServiceProvider::class,
             StorefrontServiceProvider::class,
             LaravelMcpServerServiceProvider::class,

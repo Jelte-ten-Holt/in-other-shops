@@ -33,6 +33,7 @@ Tax ──────────── depends on Location
 Shipping ─────── depends on Currency, Location; hard-dep on Commerce (OrderLine FK in ShipmentItem) ⚠ drift — creates cycle with Commerce
 Commerce ─────── depends on Currency, Location, Payment, Pricing, Shipping, Tax; depends on Inventory contracts + InsufficientStockException
 Storefront ───── depends on Currency, Inventory, Media, Pricing, Taxonomy, Translation
+Variants ─────── depends on Inventory, Media, Pricing, Translation (Commerce edge added in Phase 2: package Variant implements HasCart). Integration-tier, not a leaf — soft-dep from Storefront ("from" price via the HasVariants contract). Adopted only by consumers with variant catalogs (bianka), not in-other-worlds (flat SKUs)
 Agent ────────── integration layer; depends on Commerce, Inventory, Storefront, Taxonomy — sits at the top, not extractable as a leaf
 ```
 

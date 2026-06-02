@@ -56,7 +56,8 @@
             "InOtherShops\\Storefront\\": "src/Storefront/",
             "InOtherShops\\Tax\\": "src/Tax/",
             "InOtherShops\\Taxonomy\\": "src/Taxonomy/",
-            "InOtherShops\\Translation\\": "src/Translation/"
+            "InOtherShops\\Translation\\": "src/Translation/",
+            "InOtherShops\\Variants\\": "src/Variants/"
         }
     },
     "autoload-dev": {
@@ -87,6 +88,7 @@
                 "InOtherShops\\Payment\\PaymentServiceProvider",
                 "InOtherShops\\Payment\\Drivers\\Stripe\\StripeGatewayServiceProvider",
                 "InOtherShops\\Commerce\\CommerceServiceProvider",
+                "InOtherShops\\Variants\\VariantsServiceProvider",
                 "InOtherShops\\FlowChain\\FlowChainServiceProvider",
                 "InOtherShops\\Storefront\\StorefrontServiceProvider",
                 "InOtherShops\\Agent\\AgentServiceProvider"

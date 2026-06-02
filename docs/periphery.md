@@ -8,7 +8,7 @@ Consumers reference this file from their own `docs/periphery.md` rather than re-
 
 Scope split: sections "Auto-scheduled commands" through "Tables owned by subsystem" cover the **runtime periphery** — what fires in a consumer's app when the package is installed. The "External surface" section at the bottom covers the **API contract** — what consumers depend on at the type level. Both are this package's contract with its consumers.
 
-Last verified against codebase: 2026-05-29 (runtime sections refreshed for `SyncInventoryOnOrderStatusChange` in v0.23.0; External surface section added 2026-05-29 — initial population is opportunistic from CLAUDE.md, deepen on next audit; pricing:expire-compare-at row corrected via pathology-reviewer cross-check; 2026-05-29 pathology fixes applied — B-1 bulk-detach now dispatches `CategoryDetached`, B-2 attach/detach/move/delete now transactional, B-3 `morph_alias` widened to 255 + over-length guard, B-4 recompute advisory-locked + upsert, C-1 `UpdateOrderStatus` transactional, D-2 PricingLogSubscriber `commerce` channel confirmed intentional; 2026-05-29 second-pass — A-3/A-5 `PriceData` rejects orphan/past strikethrough, A-4 expiry also dispatches `PriceUpdated(fromExpiry)`, A-1 picker timezone pinned, B-6 `onMoved` re-derives from pivot, B-7 listener N+1 removed via `CategoryAncestry`, C-2 `UpdateOrderStatus` locks + idempotent same-status no-op; 2026-06-01 added `Commerce\Order\Actions\ResolvePreOrderAudience` + `PreOrderRecipient` DTO + `OrderLine::scopePreOrder()` to the External surface — pre-order engagement; 2026-06-01 `Taxonomy\Category` now implements `HasMedia` (cover image) — new Taxonomy→Media soft dependency, no migration (polymorphic `mediables` pivot, `category` morph alias already registered); `Taxonomy\Category` also now implements `HasTags` (intra-domain, no new cross-domain edge) for a `featured`-style category flag, no migration (`taggables` pivot, same `category` morph alias))
+Last verified against codebase: 2026-05-29 (runtime sections refreshed for `SyncInventoryOnOrderStatusChange` in v0.23.0; External surface section added 2026-05-29 — initial population is opportunistic from CLAUDE.md, deepen on next audit; pricing:expire-compare-at row corrected via pathology-reviewer cross-check; 2026-05-29 pathology fixes applied — B-1 bulk-detach now dispatches `CategoryDetached`, B-2 attach/detach/move/delete now transactional, B-3 `morph_alias` widened to 255 + over-length guard, B-4 recompute advisory-locked + upsert, C-1 `UpdateOrderStatus` transactional, D-2 PricingLogSubscriber `commerce` channel confirmed intentional; 2026-05-29 second-pass — A-3/A-5 `PriceData` rejects orphan/past strikethrough, A-4 expiry also dispatches `PriceUpdated(fromExpiry)`, A-1 picker timezone pinned, B-6 `onMoved` re-derives from pivot, B-7 listener N+1 removed via `CategoryAncestry`, C-2 `UpdateOrderStatus` locks + idempotent same-status no-op; 2026-06-01 added `Commerce\Order\Actions\ResolvePreOrderAudience` + `PreOrderRecipient` DTO + `OrderLine::scopePreOrder()` to the External surface — pre-order engagement; 2026-06-01 `Taxonomy\Category` now implements `HasMedia` (cover image) — new Taxonomy→Media soft dependency, no migration (polymorphic `mediables` pivot, `category` morph alias already registered); `Taxonomy\Category` also now implements `HasTags` (intra-domain, no new cross-domain edge) for a `featured`-style category flag, no migration (`taggables` pivot, same `category` morph alias); 2026-06-02 **Variants domain Phase 1 landed** (unreleased) — new `Variants` subsystem (`options`, `option_values`, `variants`, `option_value_variant`, `optionables` tables; morph aliases `option`/`option_value`/`variant`); `HasVariants`/`InteractsWithVariants` contract+trait now ship; package `Variant` adopts `HasPrices`/`HasStock`/`HasMedia`, `Option`/`OptionValue` adopt `HasTranslations`; `VariantCreated`/`VariantDeleted` event classes exist but are **not yet dispatched** (Phase 2 actions). Cross-domain edges to Commerce (`HasCart`), the cart-deletion guard, actions, stock aggregation, and `lowestVariantPrice` are Phase 2 — not yet present)
 
 ---
 
@@ -96,6 +96,8 @@ State changes the package emits. Past-tense, `final readonly class`, `Dispatchab
 
 **Taxonomy.** `CategoryAttached`, `CategoryDetached`, `CategoryMoved`, `CategoryDeleted`, `TagAttached`, `TagDetached`. *(No package LogSubscriber — only `MaintainCategoryCounts` listens.)*
 
+**Variants.** `VariantCreated`, `VariantDeleted` — classes exist (`final readonly`, `Dispatchable`) but **nothing dispatches them yet**; dispatch is wired in the Phase 2 variant actions. No LogSubscriber (catalog-structure edits are admin activity, deferred until multi-user — same posture as Media/Taxonomy).
+
 ## Tables owned by subsystem
 
 What each subsystem reads from and writes to. Consumers should not write to these tables directly except through the package's actions.
@@ -113,6 +115,7 @@ What each subsystem reads from and writes to. Consumers should not write to thes
 | Tax | `tax_rates` |
 | Taxonomy | `categories`, `categorizables`, `tags`, `taggables`, `category_morph_counts` |
 | Translation | `translations`, `locale_groups` |
+| Variants | `options`, `option_values`, `variants`, `option_value_variant`, `optionables` |
 | Currency / FlowChain / Storefront / Agent | no tables — enum, orchestration, read-aggregation, or integration layers |
 
 ## Subsystems with no periphery
@@ -141,15 +144,15 @@ The trait companions (`InteractsWith*`) are documented alongside their contracts
 
 | Domain | Contract | Trait | Used by |
 | --- | --- | --- | --- |
-| Commerce | `HasCart` | `InteractsWithCart` | in-other-worlds: Product, Bundle. bianka: Product, Bundle, Variant |
-| Inventory | `HasStock` | `InteractsWithStock` | in-other-worlds: Product, Bundle. bianka: Product, Bundle, Variant |
-| Media | `HasMedia` | `InteractsWithMedia` | **package model: `Taxonomy\Category`** (cover image). in-other-worlds: Content, Product, Bundle. bianka: Product, Bundle |
-| Pricing | `HasPrices` | `InteractsWithPrices` | in-other-worlds: Product, Bundle. bianka: Product, Bundle, Variant |
+| Commerce | `HasCart` | `InteractsWithCart` | in-other-worlds: Product, Bundle. bianka: Product, Bundle, Variant. *(package `Variants\Variant` adopts this in Phase 2 — not yet)* |
+| Inventory | `HasStock` | `InteractsWithStock` | **package model: `Variants\Variant`** (per-variant stock). in-other-worlds: Product, Bundle. bianka: Product, Bundle, Variant |
+| Media | `HasMedia` | `InteractsWithMedia` | **package models: `Taxonomy\Category`** (cover image), **`Variants\Variant`**. in-other-worlds: Content, Product, Bundle. bianka: Product, Bundle |
+| Pricing | `HasPrices` | `InteractsWithPrices` | **package model: `Variants\Variant`** (per-variant price). in-other-worlds: Product, Bundle. bianka: Product, Bundle, Variant |
 | Storefront | `HasStorefrontPresence` | `InteractsWithStorefrontPresence` | in-other-worlds: Product, Bundle. bianka: Product, Bundle |
 | Taxonomy | `HasCategories`, `HasTags` | `InteractsWithCategories`, `InteractsWithTags` | **package model: `Taxonomy\Category` adopts `HasTags`** (intra-domain; enables a `featured`-style category flag, semantics consumer-side). in-other-worlds: Content, Product, Bundle. bianka: Product, Bundle |
-| Translation | `HasTranslations` | `InteractsWithTranslations` | bianka: Product, Bundle, Category, Tag, OptionValue |
+| Translation | `HasTranslations` | `InteractsWithTranslations` | **package models: `Variants\Option`** (name), **`Variants\OptionValue`** (label) — column-translation. bianka: Product, Bundle, Category, Tag |
 | Translation | `HasLocaleGroup` | `InteractsWithLocaleGroup` | in-other-worlds: Product, Bundle (deliberately not adopted in bianka — see bianka BRIEF §4.9) |
-| Variants (Phase 1.5) | `HasVariants` | `InteractsWithVariants` | bianka: Product (in-other-worlds: not adopted — flat SKUs only) |
+| Variants | `HasVariants` | `InteractsWithVariants` | **Contract + trait now ship (unreleased).** No public `HasOptions` contract — owner→option link is internal to the domain. bianka: Product (planned). in-other-worlds: not adopted — flat SKUs only |
 
 **Adding/removing/renaming a contract or trait** breaks every consumer that opts in. Adding a new method to an existing contract is breaking unless the trait provides a default. Removing or retyping a method is always breaking.
 
@@ -192,7 +195,7 @@ Static-factory schemas consumers call from their own Filament Resources. Adding 
 | `Taxonomy\Filament\TaxonomySchema` | static factories | in-other-worlds, bianka |
 | `Inventory\Filament\InventorySchema` | `stockFields`, static factories | in-other-worlds, bianka |
 | `Translation\Filament\TranslationSchema` | `fillFormData`, `saveFormData` | bianka (in-other-worlds uses HasLocaleGroup pattern instead) |
-| `Variants\Filament\VariantsSchema` (Phase 1.5) | `fillFormData`, `saveFormData` | bianka |
+| `Variants\Filament\VariantsSchema` *(planned, Phase 3 — not yet built)* | `fillFormData`, `saveFormData` | bianka |
 
 ### FlowChain published surface
 
