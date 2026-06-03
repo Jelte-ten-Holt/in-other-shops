@@ -102,7 +102,7 @@ that changes before release.)
 - product-page price == amount charged at checkout (the F8 invariant, end-to-end).
 - mixed-rate cart: a 7% line + a 19% line → two per-line rates; `order.tax == sum(per-line tax at own rate)`.
 - voucher: proportional allocation keeps `sum(line tax) == order.tax`; 0%/no-op voucher changes nothing.
-- `prices_include_tax=false` still does add-on-top (the B2B path) — one regression test so the flag is real.
+- exclusive mode (`prices_include_tax=false`) is **plumbed-but-unbuilt** (round-2 decision below) — one test pins that it *throws*, so the seam is real and can't silently fall through to wrong math. (Add-on-top is built only if/when a B2B consumer needs it.)
 - F10: non-EU destination → 0% export by design (pinned); destination inside jurisdiction with tax==0 → flagged.
 
 ## Breaking changes (single release window, all consumers pre-launch)
@@ -137,11 +137,17 @@ in any consumer. bianka has no usage. So the break is **one consumer call site +
   `allocateDiscountAcrossBrackets` / `buildTaxBracket`); `PriceBreakdown`/`PriceBreakdownLine` + `TaxBreakdownLine`;
   `CreateOrder` stores `orders.tax_summary` + per-line `tax_rate_bps`, drops `allocateTaxToLines`; `Order::taxSummary()`;
   migration (tax_summary, tax_amount nullable). Periphery doc updated.
-- ⏳ **Next: step 6 (consumer)** — symlink `../in-other-shops`; update `CalculateTotals` (pass per-line rates) +
-  `ResolveTaxRateForOrder` (resolve per tax_category); fold in F10 (flag in-jurisdiction zero-tax); run consumer
-  suite. Then release + bump + bianka TODO.
+- ✅ **Consumer (step 6) done 2026-06-03**, suite green (667): `CalculateTotals` passes per-line rates;
+  `ResolveTaxRateForOrder` resolves per tax_category + folds in F10 (flags in-jurisdiction zero-tax via
+  `Log::warning`); `CreateCheckoutOrder` derives the headline rate (single bracket, or null for mixed).
+  `CheckoutControllerTest` mispinned add-on-top assertions rewritten to inclusive; new `mixed_rate_cart`
+  test pins per-bracket tax + null headline rate (F9).
+- ✅ **Released 2026-06-03**: package **v0.30.0** tagged + pushed; in-other-worlds bumped `^0.26.0` → `^0.30.0`
+  (off the temporary symlink, real Packagist release); **bianka TODO added** (Phase 3 checkout — new
+  `CalculateTotal` signature + gross-inclusive/per-bracket note, cross-linked to the VAT-regime decision).
 
-Brief is final. Next: set up the temporary `../in-other-shops` symlink, then implement package-first
-(config + tax mode → included-tax math → per-bracket `CalculateTotal` + `taxBreakdown` → `CreateOrder` summary),
-with boundary-input tests at each step; update in-other-worlds's `CalculateTotals` + `ResolveTaxRateForOrder` in
-the same window; add a bianka TODO. Check in after the core math lands.
+- ✅ **F10 pinned 2026-06-03**: consumer `ResolveTaxRateForOrderTest` — in-jurisdiction zero → `Log::warning`,
+  out-of-jurisdiction export zero → not flagged, normal in-jurisdiction rate → not flagged.
+
+**Done.** VAT work is complete and pinned end-to-end (package 688 + consumer 670 green). Remaining VAT-adjacent items
+live under the broader silent-correctness audit follow-up in in-other-worlds's TODO (refunds R9, audit-log R7, etc.).
