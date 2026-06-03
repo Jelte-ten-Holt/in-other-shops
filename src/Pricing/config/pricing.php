@@ -17,6 +17,21 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Default Tax Mode
+    |--------------------------------------------------------------------------
+    |
+    | Whether stored prices are treated as gross (tax-inclusive) or net
+    | (tax-exclusive) when an order doesn't specify a mode. EU B2C shops use
+    | 'inclusive' — the displayed price is what the customer pays, with VAT
+    | derived from it. 'exclusive' is the B2B/reverse-charge seam (not yet
+    | implemented). The mode is resolvable per order; this is the default.
+    |
+    */
+
+    'default_tax_mode' => 'inclusive',
+
+    /*
+    |--------------------------------------------------------------------------
     | Models
     |--------------------------------------------------------------------------
     |

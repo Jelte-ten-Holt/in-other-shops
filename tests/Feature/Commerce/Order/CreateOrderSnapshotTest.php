@@ -13,6 +13,8 @@ use InOtherShops\Commerce\Order\DTOs\TaxSnapshot;
 use InOtherShops\Currency\Enums\Currency;
 use InOtherShops\Pricing\Actions\ApplyVoucher;
 use InOtherShops\Pricing\DTOs\PriceBreakdown;
+use InOtherShops\Pricing\DTOs\PriceBreakdownLine;
+use InOtherShops\Pricing\DTOs\TaxBreakdownLine;
 use InOtherShops\Tax\Enums\TaxCategory;
 use InOtherShops\Tests\Stubs\TestCartable;
 use InOtherShops\Tests\Stubs\TestShippableCartable;
@@ -99,22 +101,28 @@ final class CreateOrderSnapshotTest extends TestCase
     }
 
     #[Test]
-    public function it_snapshots_tax_category_and_rate_per_line(): void
+    public function it_snapshots_tax_category_and_per_line_rate_from_the_breakdown(): void
     {
+        // A digital line and a physical line at *different* rates — proving the
+        // per-line rate comes from the priced breakdown, not one cart-wide rate.
         $cart = Cart::factory()->create(['session_token' => 'test-session']);
         ($this->addToCart)($cart, TestShippableCartable::factory()->create([
             'tax_category' => TaxCategory::DigitalServices->value,
         ]));
         ($this->addToCart)($cart, TestCartable::factory()->create());
 
+        // Breakdown lines are aligned by position with the cart items.
         $breakdown = new PriceBreakdown(
             subtotal: 3000,
             discount: 0,
-            tax: 570,
+            tax: 384,
             shippingCost: 0,
-            total: 3570,
+            total: 3000,
             currency: Currency::EUR,
-            lines: [],
+            lines: [
+                new PriceBreakdownLine(description: 'Digital', unitPrice: 1000, quantity: 1, lineTotal: 1000, taxRateBps: 1900),
+                new PriceBreakdownLine(description: 'Physical', unitPrice: 2000, quantity: 1, lineTotal: 2000, taxRateBps: 700),
+            ],
         );
 
         $order = ($this->createOrder)(
@@ -130,56 +138,48 @@ final class CreateOrderSnapshotTest extends TestCase
         $categories = $lines->map(fn ($l) => $l->tax_category)->all();
         $this->assertContains(TaxCategory::DigitalServices, $categories);
         $this->assertContains(TaxCategory::PhysicalGoods, $categories);
-        $this->assertSame([1900, 1900], $lines->pluck('tax_rate_bps')->all());
+        // Each line carries its own rate, in cart order — not a single shared rate.
+        $this->assertSame([1900, 700], $lines->pluck('tax_rate_bps')->all());
     }
 
     #[Test]
-    public function line_tax_amounts_distribute_proportionally_with_the_last_line_absorbing_rounding(): void
+    public function it_stores_the_per_bracket_tax_summary_and_no_per_line_tax_amount(): void
     {
-        // Non-uniform unit prices + a tax total that doesn't divide evenly
-        // across lines. The proportional shares are non-integer, so a naive
-        // (tax / line_count) distribution would fail this test, and so would
-        // an implementation that didn't reconcile rounding on the final line.
-        $cheap = TestCartable::factory()->create(['unit_price' => 1234]);
-        $mid = TestCartable::factory()->create(['unit_price' => 2345]);
-        $pricey = TestCartable::factory()->create(['unit_price' => 3456]);
+        $cart = $this->cartWithItem();
 
-        $cart = Cart::factory()->create(['session_token' => 'test-session']);
-        ($this->addToCart)($cart, $cheap, quantity: 1);
-        ($this->addToCart)($cart, $mid, quantity: 1);
-        ($this->addToCart)($cart, $pricey, quantity: 1);
-
-        // Subtotal: 1234 + 2345 + 3456 = 7035
-        // Tax 1711 distributed: floor(1234/7035*1711) = 300, floor(2345/7035*1711) = 570,
-        // last line absorbs: 1711 - 300 - 570 = 841 (true proportional would be ~840.58).
         $breakdown = new PriceBreakdown(
-            subtotal: 7035,
+            subtotal: 3000,
             discount: 0,
-            tax: 1711,
+            tax: 384,
             shippingCost: 0,
-            total: 8746,
+            total: 3000,
             currency: Currency::EUR,
-            lines: [],
+            lines: [
+                new PriceBreakdownLine(description: 'Item', unitPrice: 3000, quantity: 1, lineTotal: 3000, taxRateBps: 1900),
+            ],
+            taxBreakdown: [
+                new TaxBreakdownLine(rateBps: 700, taxableBase: 935, tax: 65),
+                new TaxBreakdownLine(rateBps: 1900, taxableBase: 1681, tax: 319),
+            ],
         );
 
         $order = ($this->createOrder)(
             cart: $cart,
             breakdown: $breakdown,
             billingAddress: $this->billingAddress(),
-            taxSnapshot: new TaxSnapshot(rateBps: 2433, countryCode: 'DE'),
+            taxSnapshot: new TaxSnapshot(rateBps: 1900, countryCode: 'DE'),
         );
 
-        $lineTaxes = $order->lines()
-            ->orderBy('line_total')
-            ->pluck('tax_amount')
-            ->map(fn ($v) => (int) $v)
-            ->all();
+        // The per-bracket summary round-trips through the accessor.
+        $summary = $order->fresh()->taxSummary();
+        $this->assertCount(2, $summary);
+        $this->assertSame(700, $summary[0]->rateBps);
+        $this->assertSame(65, $summary[0]->tax);
+        $this->assertSame(1900, $summary[1]->rateBps);
+        $this->assertSame(319, $summary[1]->tax);
 
-        $this->assertSame([300, 570, 841], $lineTaxes,
-            'Each line must receive its proportional share of order tax; the most expensive line absorbs rounding.');
-        $this->assertSame(1711, array_sum($lineTaxes),
-            'Per-line tax amounts must reconcile exactly to the order-level tax.');
-        $this->assertSame($order->tax, array_sum($lineTaxes));
+        // Tax is summarised on the order, not distributed per line.
+        $this->assertNull($order->lines()->first()->tax_amount);
     }
 
     #[Test]

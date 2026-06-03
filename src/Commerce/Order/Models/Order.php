@@ -19,6 +19,7 @@ use InOtherShops\Location\Contracts\HasAddresses;
 use InOtherShops\Location\Enums\AddressType;
 use InOtherShops\Payment\Concerns\InteractsWithPayments;
 use InOtherShops\Payment\Contracts\HasPayments;
+use InOtherShops\Pricing\DTOs\TaxBreakdownLine;
 use InOtherShops\Shipping\Concerns\InteractsWithShipment;
 use InOtherShops\Shipping\Contracts\HasShipment;
 use InOtherShops\Shipping\Enums\ShipmentStatus;
@@ -45,6 +46,7 @@ class Order extends Model implements HasAddresses, HasPayments, HasShipment
             'subtotal' => 'integer',
             'tax' => 'integer',
             'tax_rate_bps' => 'integer',
+            'tax_summary' => 'array',
             'discount' => 'integer',
             'total' => 'integer',
             'shipping_cost' => 'integer',
@@ -54,6 +56,25 @@ class Order extends Model implements HasAddresses, HasPayments, HasShipment
     public function customer(): BelongsTo
     {
         return $this->belongsTo(Commerce::customer());
+    }
+
+    /**
+     * The per-rate VAT breakdown (invoice / VAT-return shape). Reads from the
+     * `tax_summary` column today; callers go through this accessor so the
+     * storage can change without touching them.
+     *
+     * @return list<TaxBreakdownLine>
+     */
+    public function taxSummary(): array
+    {
+        return array_map(
+            fn (array $row): TaxBreakdownLine => new TaxBreakdownLine(
+                rateBps: (int) $row['rate_bps'],
+                taxableBase: (int) $row['taxable_base'],
+                tax: (int) $row['tax'],
+            ),
+            $this->tax_summary ?? [],
+        );
     }
 
     public function lines(): HasMany

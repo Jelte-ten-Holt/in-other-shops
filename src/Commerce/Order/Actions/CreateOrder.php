@@ -22,6 +22,7 @@ use InOtherShops\Location\Enums\AddressType;
 use InOtherShops\Location\Models\Address;
 use InOtherShops\Pricing\Actions\ApplyVoucher;
 use InOtherShops\Pricing\DTOs\PriceBreakdown;
+use InOtherShops\Pricing\DTOs\TaxBreakdownLine;
 use InOtherShops\Tax\Contracts\HasTaxCategory;
 use InOtherShops\Tax\Enums\TaxCategory;
 
@@ -73,7 +74,7 @@ final class CreateOrder
 
         $order = $this->createOrderRecord($breakdown, $customer, $guestEmail, $taxSnapshot, $shippingSnapshot, $locale);
 
-        $this->attachLines($order, $cart, $breakdown, $taxSnapshot);
+        $this->attachLines($order, $cart, $breakdown);
         $this->attachAddress($order, $billingAddress, $shippingAddress === null ? AddressType::ShippingAndBilling : AddressType::Billing);
 
         if ($shippingAddress !== null) {
@@ -107,6 +108,7 @@ final class CreateOrder
             'tax' => $breakdown->tax,
             'tax_rate_bps' => $taxSnapshot?->rateBps,
             'tax_rate_country_code' => $taxSnapshot?->countryCode,
+            'tax_summary' => $this->serializeTaxSummary($breakdown->taxBreakdown),
             'discount' => $breakdown->discount,
             'total' => $breakdown->total,
             'shipping_method_identifier' => $shippingSnapshot?->methodIdentifier,
@@ -128,36 +130,35 @@ final class CreateOrder
         );
     }
 
-    private function attachLines(Order $order, Cart $cart, PriceBreakdown $breakdown, ?TaxSnapshot $taxSnapshot): void
+    private function attachLines(Order $order, Cart $cart, PriceBreakdown $breakdown): void
     {
         $cart->loadMissing('items.cartable');
 
-        $drafts = $this->buildLineDrafts($cart, $breakdown);
-        $drafts = $this->allocateTaxToLines($drafts, $breakdown->subtotal, $breakdown->tax, $taxSnapshot);
-
-        foreach ($drafts as $draft) {
-            $this->persistLine($order, $draft);
+        foreach ($cart->items->values() as $index => $item) {
+            $this->persistLine($order, $this->buildLineDraft($item, $breakdown, $index));
         }
     }
 
     /**
-     * @return list<array{cartable: mixed, attributes: array<string, mixed>}>
+     * One order line, snapshotting its tax category and resolved VAT rate. The
+     * rate comes from the priced breakdown line at the same position (the
+     * breakdown and the cart are built from the same items, in order). The tax
+     * *amount* is not stored per line — it lives in the order's per-bracket
+     * `tax_summary`.
+     *
+     * @return array{cartable: mixed, attributes: array<string, mixed>}
      */
-    private function buildLineDrafts(Cart $cart, PriceBreakdown $breakdown): array
+    private function buildLineDraft(mixed $item, PriceBreakdown $breakdown, int $index): array
     {
-        $drafts = [];
+        $cartable = $item->cartable;
+        $line = $this->resolveLineData($cartable, $breakdown->currency->value, $item->quantity, $item->unit_price);
+        $line['quantity'] = $item->quantity;
+        $line['line_total'] = $line['unit_price'] * $item->quantity;
+        $line['tax_category'] = $this->resolveLineTaxCategory($cartable);
+        $line['tax_rate_bps'] = $breakdown->lines[$index]->taxRateBps ?? null;
+        $line['tax_amount'] = null;
 
-        foreach ($cart->items as $item) {
-            $cartable = $item->cartable;
-            $line = $this->resolveLineData($cartable, $breakdown->currency->value, $item->quantity, $item->unit_price);
-            $line['quantity'] = $item->quantity;
-            $line['line_total'] = $line['unit_price'] * $item->quantity;
-            $line['tax_category'] = $this->resolveLineTaxCategory($cartable);
-
-            $drafts[] = ['cartable' => $cartable, 'attributes' => $line];
-        }
-
-        return $drafts;
+        return ['cartable' => $cartable, 'attributes' => $line];
     }
 
     private function resolveLineTaxCategory(mixed $cartable): string
@@ -170,36 +171,19 @@ final class CreateOrder
     }
 
     /**
-     * Distributes the order's tax across lines proportionally to each line's
-     * line_total. The last line absorbs any rounding remainder so the sum of
-     * line tax_amount values equals the order's tax exactly.
-     *
-     * @param  list<array{cartable: mixed, attributes: array<string, mixed>}>  $drafts
-     * @return list<array{cartable: mixed, attributes: array<string, mixed>}>
+     * @param  list<TaxBreakdownLine>  $taxBreakdown
+     * @return list<array{rate_bps: int, taxable_base: int, tax: int}>
      */
-    private function allocateTaxToLines(array $drafts, int $subtotal, int $orderTax, ?TaxSnapshot $taxSnapshot): array
+    private function serializeTaxSummary(array $taxBreakdown): array
     {
-        $rateBps = $taxSnapshot?->rateBps;
-        $allocated = 0;
-        $count = count($drafts);
-
-        foreach ($drafts as $i => $draft) {
-            $draft['attributes']['tax_rate_bps'] = $rateBps;
-
-            if ($i === $count - 1) {
-                $draft['attributes']['tax_amount'] = $orderTax - $allocated;
-            } else {
-                $share = $subtotal > 0
-                    ? (int) floor($draft['attributes']['line_total'] / $subtotal * $orderTax)
-                    : 0;
-                $draft['attributes']['tax_amount'] = $share;
-                $allocated += $share;
-            }
-
-            $drafts[$i] = $draft;
-        }
-
-        return $drafts;
+        return array_map(
+            fn (TaxBreakdownLine $bracket): array => [
+                'rate_bps' => $bracket->rateBps,
+                'taxable_base' => $bracket->taxableBase,
+                'tax' => $bracket->tax,
+            ],
+            $taxBreakdown,
+        );
     }
 
     /**
