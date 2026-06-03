@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace InOtherShops\Variants\Filament\Resources;
 
 use Filament\Actions;
+use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\TextInput;
 use Filament\Resources\Resource;
@@ -13,7 +14,10 @@ use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use InOtherShops\Media\Enums\MediaType;
+use InOtherShops\Media\Models\Media;
 use InOtherShops\Translation\Filament\TranslationSchema;
 use InOtherShops\Variants\Filament\Resources\OptionResource\Pages;
 use InOtherShops\Variants\Models\Option;
@@ -73,6 +77,13 @@ final class OptionResource extends Resource
                     ->required()
                     ->maxLength(255)
                     ->helperText('Stable identifier, unique within this option (e.g. "silver", "size-7").'),
+                FileUpload::make('swatch')
+                    ->label('Swatch image')
+                    ->image()
+                    ->disk(config('media.disk'))
+                    ->directory(config('media.directory'))
+                    ->visibility('public')
+                    ->helperText('Optional. Shown in the storefront variant picker.'),
             ])
             ->columns(2)
             ->defaultItems(0);
@@ -132,6 +143,7 @@ final class OptionResource extends Resource
                 'id' => $value->id,
                 'value' => $value->value,
                 'position' => $value->position,
+                'swatch' => $value->swatch()?->path,
                 'labels' => collect($locales)
                     ->mapWithKeys(fn (string $locale): array => [
                         $locale => $value->translations
@@ -168,10 +180,56 @@ final class OptionResource extends Resource
             }
 
             self::syncValueLabels($value, $row['labels'] ?? []);
+            self::syncValueSwatch($value, $row['swatch'] ?? null);
             $keptIds[] = $value->id;
         }
 
-        $record->values()->whereNotIn('id', $keptIds)->each(fn (OptionValue $value) => $value->delete());
+        $record->values()->whereNotIn('id', $keptIds)->each(function (OptionValue $value): void {
+            self::syncValueSwatch($value, null);
+            $value->delete();
+        });
+    }
+
+    /**
+     * Sync the value's single swatch image to the uploaded path: no-op when
+     * unchanged, replace (deleting the old file) when changed, remove when
+     * cleared. The Filament FileUpload has already stored the file, so we build
+     * the Media record from the stored path (mirroring MediaSchema).
+     */
+    private static function syncValueSwatch(OptionValue $value, ?string $path): void
+    {
+        $newPath = is_string($path) && $path !== '' ? $path : null;
+        $current = $value->swatch();
+
+        if ($newPath === $current?->path) {
+            return;
+        }
+
+        if ($current !== null) {
+            $value->media()->detach($current->id);
+            $current->delete();
+        }
+
+        if ($newPath === null) {
+            return;
+        }
+
+        $disk = config('media.disk');
+        $storage = Storage::disk($disk);
+
+        $media = Media::create([
+            'type' => MediaType::Upload,
+            'disk' => $disk,
+            'path' => $newPath,
+            'filename' => basename($newPath),
+            'mime_type' => $storage->mimeType($newPath) ?: 'application/octet-stream',
+            'size' => $storage->size($newPath) ?: 0,
+        ]);
+
+        $value->media()->attach($media->id, [
+            'collection' => OptionValue::SWATCH_COLLECTION,
+            'position' => 0,
+        ]);
     }
 
     /** @param array<string, string> $labels */

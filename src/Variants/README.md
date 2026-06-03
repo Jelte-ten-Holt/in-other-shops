@@ -28,6 +28,11 @@ Belongs to one `Option`, ordered by `position` within it (S, M, L). The display
 **`option_values` table:** `id`, `option_id` (FK, cascade), `value`,
 `position`, `timestamps`. Unique on `[option_id, value]`.
 
+An OptionValue may also carry a single **swatch** image (`HasMedia`, `swatch`
+collection — `$value->swatch()`) for a visual storefront variant picker
+(Metal: silver/gold chips). Set per value in `OptionResource`; no migration
+(polymorphic `mediables`).
+
 ### `Variant` — a sellable SKU
 
 Owned polymorphically by a consumer model via `variantable`. Implements
