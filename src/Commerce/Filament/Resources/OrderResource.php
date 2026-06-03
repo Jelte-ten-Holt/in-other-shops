@@ -22,7 +22,6 @@ use Filament\Tables\Table;
 use InOtherShops\Commerce\Filament\CommerceSchema;
 use InOtherShops\Commerce\Filament\Resources\OrderResource\Pages;
 use InOtherShops\Commerce\Order\Actions\UpdateOrderStatus;
-use InOtherShops\Commerce\Order\Contracts\HasOrders;
 use InOtherShops\Commerce\Order\Enums\OrderStatus;
 use InOtherShops\Commerce\Order\Models\Order;
 use InOtherShops\Location\Filament\LocationSchema;
@@ -49,7 +48,6 @@ class OrderResource extends Resource
                         Tab::make('Order Lines')
                             ->schema([
                                 CommerceSchema::orderLinesRepeater(
-                                    orderableModels: static::orderableModels(),
                                     currencyOptions: static::currencyOptions(),
                                 )
                                     ->live()
@@ -127,16 +125,6 @@ class OrderResource extends Resource
             'create' => Pages\CreateOrder::route('/create'),
             'edit' => Pages\EditOrder::route('/{record}/edit'),
         ];
-    }
-
-    /**
-     * Override in your project to register orderable models.
-     *
-     * @return array<string, class-string<HasOrders>>
-     */
-    protected static function orderableModels(): array
-    {
-        return [];
     }
 
     /**

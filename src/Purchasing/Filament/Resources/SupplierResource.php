@@ -1,0 +1,98 @@
+<?php
+
+declare(strict_types=1);
+
+namespace InOtherShops\Purchasing\Filament\Resources;
+
+use InOtherShops\Currency\Enums\Currency;
+use InOtherShops\Purchasing\Filament\Resources\SupplierResource\Pages;
+use InOtherShops\Purchasing\Models\Supplier;
+use Filament\Actions;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
+use Filament\Resources\Resource;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Schema;
+use Filament\Tables;
+use Filament\Tables\Table;
+
+class SupplierResource extends Resource
+{
+    protected static ?string $model = Supplier::class;
+
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-building-storefront';
+
+    protected static string|\UnitEnum|null $navigationGroup = 'Purchasing';
+
+    public static function form(Schema $schema): Schema
+    {
+        return $schema
+            ->schema([
+                Section::make('Supplier')
+                    ->schema([
+                        TextInput::make('name')
+                            ->required()
+                            ->maxLength(255),
+                        TextInput::make('contact_email')
+                            ->label('Contact email')
+                            ->email()
+                            ->maxLength(255),
+                        Select::make('default_currency')
+                            ->options(Currency::enabledOptions())
+                            ->default(Currency::EUR->value)
+                            ->required(),
+                        TextInput::make('payment_terms')
+                            ->maxLength(255)
+                            ->placeholder('e.g. Net 30'),
+                        Textarea::make('notes')
+                            ->rows(3)
+                            ->columnSpanFull(),
+                    ])
+                    ->columns(2),
+            ]);
+    }
+
+    public static function table(Table $table): Table
+    {
+        return $table
+            ->columns([
+                Tables\Columns\TextColumn::make('name')
+                    ->searchable()
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('contact_email')
+                    ->label('Contact email')
+                    ->searchable()
+                    ->toggleable(),
+                Tables\Columns\TextColumn::make('default_currency')
+                    ->badge()
+                    ->formatStateUsing(fn ($state) => $state instanceof \BackedEnum ? $state->value : $state),
+                Tables\Columns\TextColumn::make('purchase_orders_count')
+                    ->label('POs')
+                    ->counts('purchaseOrders')
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('created_at')
+                    ->dateTime()
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+            ])
+            ->defaultSort('name')
+            ->actions([
+                Actions\EditAction::make(),
+            ])
+            ->bulkActions([
+                Actions\BulkActionGroup::make([
+                    Actions\DeleteBulkAction::make(),
+                ]),
+            ]);
+    }
+
+    public static function getPages(): array
+    {
+        return [
+            'index' => Pages\ListSuppliers::route('/'),
+            'create' => Pages\CreateSupplier::route('/create'),
+            'edit' => Pages\EditSupplier::route('/{record}/edit'),
+        ];
+    }
+}

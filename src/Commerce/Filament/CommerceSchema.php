@@ -12,19 +12,22 @@ use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Component;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
+use Illuminate\Database\Eloquent\Relations\Relation;
 
 final class CommerceSchema
 {
     /**
-     * Build an order lines repeater, optionally with orderable product selection.
+     * Build an order lines repeater with orderable product selection.
      *
-     * @param  array<string, class-string<HasOrders>>  $orderableModels  Morph alias => model class, e.g. ['product' => Product::class]
+     * Orderable models are discovered from the morph map (any class implementing
+     * {@see HasOrders}) — a consumer registers a product as orderable simply by
+     * implementing the contract and adding it to the morph map; nothing is passed
+     * here. Mirrors {@see \InOtherShops\Purchasing\Filament\PurchasingSchema}.
+     *
      * @param  array<string, string>  $currencyOptions  Fallback options for the currency select when no orderable is selected
      */
     public static function orderLinesRepeater(
         string $relationship = 'lines',
-        array $orderableModels = [],
-        string $orderableTitleColumn = 'name',
         array $currencyOptions = [],
     ): Repeater {
         return Repeater::make($relationship)
@@ -36,24 +39,22 @@ final class CommerceSchema
 
                 return $data;
             })
-            ->schema(self::orderLineFields($orderableModels, $orderableTitleColumn, $currencyOptions))
+            ->schema(self::orderLineFields($currencyOptions))
             ->columns(2);
     }
 
     /**
-     * @param  array<string, class-string<HasOrders>>  $orderableModels
      * @param  array<string, string>  $currencyOptions
      * @return array<Component>
      */
-    public static function orderLineFields(
-        array $orderableModels = [],
-        string $orderableTitleColumn = 'name',
-        array $currencyOptions = [],
-    ): array {
+    public static function orderLineFields(array $currencyOptions = []): array
+    {
+        $orderableModels = self::discoverOrderableModels();
+
         $fields = [];
 
         if ($orderableModels !== []) {
-            $fields = self::orderableSelectFields($orderableModels, $orderableTitleColumn, $currencyOptions);
+            $fields = self::orderableSelectFields($orderableModels, $currencyOptions);
         }
 
         $fields[] = TextInput::make('description')
@@ -95,6 +96,41 @@ final class CommerceSchema
             ->dehydrateStateUsing(fn ($state) => $state !== null ? (int) round((float) $state * 100) : 0);
 
         return $fields;
+    }
+
+    /**
+     * Walk the morph map and keep classes implementing HasOrders.
+     *
+     * @return array<string, class-string<HasOrders>>
+     */
+    public static function discoverOrderableModels(): array
+    {
+        $models = [];
+
+        foreach (Relation::morphMap() as $alias => $class) {
+            if (is_string($class) && is_a($class, HasOrders::class, true)) {
+                $models[$alias] = $class;
+            }
+        }
+
+        return $models;
+    }
+
+    /**
+     * @param  array<string, class-string<HasOrders>>  $orderableModels
+     * @return array<string, string>  "{alias}:{id}" => label
+     */
+    public static function buildOrderableOptions(array $orderableModels): array
+    {
+        $options = [];
+
+        foreach ($orderableModels as $alias => $modelClass) {
+            foreach ($modelClass::query()->pluck('name', 'id') as $id => $title) {
+                $options["{$alias}:{$id}"] = $title;
+            }
+        }
+
+        return $options;
     }
 
     /** @return array<Component> */
@@ -149,13 +185,7 @@ final class CommerceSchema
      */
     private static function resolveOrderableCurrencyOptions(Get $get, array $orderableModels, array $currencyOptions): array
     {
-        $orderableId = $get('orderable_id');
-
-        if ($orderableId === null) {
-            return $currencyOptions;
-        }
-
-        [, $model] = self::findOrderableById((int) $orderableId, $orderableModels);
+        $model = self::resolveOrderable($get('orderable_type'), $get('orderable_id'), $orderableModels);
 
         if ($model === null) {
             return $currencyOptions;
@@ -180,17 +210,27 @@ final class CommerceSchema
      * @param  array<string, string>  $currencyOptions
      * @return array<Component>
      */
-    private static function orderableSelectFields(array $orderableModels, string $orderableTitleColumn, array $currencyOptions): array
+    private static function orderableSelectFields(array $orderableModels, array $currencyOptions): array
     {
         return [
             Hidden::make('orderable_type'),
+            Hidden::make('orderable_id'),
 
-            Select::make('orderable_id')
+            Select::make('_orderable')
                 ->label('Item')
-                ->options(fn () => self::buildOrderableOptions($orderableModels, $orderableTitleColumn))
+                ->options(fn (): array => self::buildOrderableOptions($orderableModels))
                 ->searchable()
                 ->preload()
+                ->dehydrated(false)
                 ->live()
+                ->afterStateHydrated(function (Select $component, Get $get): void {
+                    $type = $get('orderable_type');
+                    $id = $get('orderable_id');
+
+                    if ($type !== null && $id !== null) {
+                        $component->state("{$type}:{$id}");
+                    }
+                })
                 ->afterStateUpdated(function (?string $state, Set $set, Get $get) use ($orderableModels, $currencyOptions): void {
                     self::handleOrderableSelected($state, $set, $get, $orderableModels, $currencyOptions);
                 }),
@@ -208,19 +248,23 @@ final class CommerceSchema
         array $orderableModels,
         array $currencyOptions,
     ): void {
-        if ($state === null) {
+        if ($state === null || ! str_contains($state, ':')) {
             $set('orderable_type', null);
+            $set('orderable_id', null);
 
             return;
         }
 
-        [$morphAlias, $model] = self::findOrderableById((int) $state, $orderableModels);
+        [$alias, $id] = explode(':', $state, 2);
+
+        $model = self::resolveOrderable($alias, $id, $orderableModels);
 
         if ($model === null) {
             return;
         }
 
-        $set('orderable_type', $morphAlias);
+        $set('orderable_type', $alias);
+        $set('orderable_id', (int) $id);
 
         $currencies = $model->availableCurrencies();
 
@@ -239,37 +283,20 @@ final class CommerceSchema
     }
 
     /**
+     * Resolve a HasOrders model from its morph alias + id.
+     *
      * @param  array<string, class-string<HasOrders>>  $orderableModels
-     * @return array<string, string>
      */
-    private static function buildOrderableOptions(array $orderableModels, string $orderableTitleColumn): array
+    private static function resolveOrderable(int|string|null $alias, int|string|null $id, array $orderableModels): ?HasOrders
     {
-        $options = [];
-
-        foreach ($orderableModels as $modelClass) {
-            foreach ($modelClass::query()->pluck($orderableTitleColumn, 'id') as $id => $title) {
-                $options[$id] = $title;
-            }
+        if ($alias === null || $id === null || ! isset($orderableModels[$alias])) {
+            return null;
         }
 
-        return $options;
-    }
+        /** @var HasOrders|null $model */
+        $model = $orderableModels[$alias]::query()->find((int) $id);
 
-    /**
-     * @param  array<string, class-string<HasOrders>>  $orderableModels
-     * @return array{string|null, HasOrders|null}
-     */
-    private static function findOrderableById(int $id, array $orderableModels): array
-    {
-        foreach ($orderableModels as $morphAlias => $modelClass) {
-            $model = $modelClass::find($id);
-
-            if ($model !== null) {
-                return [$morphAlias, $model];
-            }
-        }
-
-        return [null, null];
+        return $model;
     }
 
     private static function fillOrderLineFromModel(HasOrders $model, string $currencyCode, Set $set, Get $get): void
@@ -296,15 +323,9 @@ final class CommerceSchema
      */
     private static function fillPriceFromOrderable(?string $currencyCode, Set $set, Get $get, array $orderableModels): void
     {
-        $orderableId = $get('orderable_id');
+        $model = self::resolveOrderable($get('orderable_type'), $get('orderable_id'), $orderableModels);
 
-        if ($orderableId === null || $currencyCode === null || $currencyCode === '') {
-            return;
-        }
-
-        [, $model] = self::findOrderableById((int) $orderableId, $orderableModels);
-
-        if ($model === null) {
+        if ($model === null || $currencyCode === null || $currencyCode === '') {
             return;
         }
 

@@ -35,6 +35,9 @@ return [
         'inventory' => [
             ['handler' => FileLogHandler::class, 'with' => ['channel' => 'inventory']],
         ],
+        'purchasing' => [
+            ['handler' => FileLogHandler::class, 'with' => ['channel' => 'purchasing']],
+        ],
         'payment' => [
             ['handler' => FileLogHandler::class, 'with' => ['channel' => 'payment']],
         ],

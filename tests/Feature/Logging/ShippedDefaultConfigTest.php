@@ -37,7 +37,7 @@ final class ShippedDefaultConfigTest extends TestCase
         // new subscriber is added (or one is removed) without updating the
         // shipped config, this test surfaces the drift.
         $this->assertSame(
-            ['flowchain', 'commerce', 'inventory', 'payment', 'agent'],
+            ['flowchain', 'commerce', 'inventory', 'purchasing', 'payment', 'agent'],
             array_keys($channels),
         );
 
@@ -76,7 +76,7 @@ final class ShippedDefaultConfigTest extends TestCase
         $map = $handlers->getValue($dispatcher);
 
         $this->assertSame(
-            ['flowchain', 'commerce', 'inventory', 'payment', 'agent'],
+            ['flowchain', 'commerce', 'inventory', 'purchasing', 'payment', 'agent'],
             array_keys($map),
         );
         foreach ($map as $channel => $list) {

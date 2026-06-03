@@ -16,16 +16,6 @@ class OrderLinesRelationManager extends RelationManager
     protected static string $relationship = 'lines';
 
     /**
-     * Override in your project to register orderable models.
-     *
-     * @return array<string, class-string<\InOtherShops\Commerce\Order\Contracts\HasOrders>>
-     */
-    protected function orderableModels(): array
-    {
-        return [];
-    }
-
-    /**
      * Override in your project to provide currency options.
      *
      * @return array<string, string>
@@ -40,7 +30,6 @@ class OrderLinesRelationManager extends RelationManager
         return $schema
             ->schema(
                 CommerceSchema::orderLineFields(
-                    orderableModels: $this->orderableModels(),
                     currencyOptions: $this->currencyOptions(),
                 )
             );

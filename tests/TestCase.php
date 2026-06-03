@@ -14,6 +14,7 @@ use InOtherShops\Logging\LoggingServiceProvider;
 use InOtherShops\Media\MediaServiceProvider;
 use InOtherShops\Payment\PaymentServiceProvider;
 use InOtherShops\Pricing\PricingServiceProvider;
+use InOtherShops\Purchasing\PurchasingServiceProvider;
 use InOtherShops\Shipping\ShippingServiceProvider;
 use InOtherShops\Storefront\StorefrontServiceProvider;
 use InOtherShops\Tax\TaxServiceProvider;
@@ -24,6 +25,7 @@ use InOtherShops\Tests\Stubs\TestLocalizable;
 use InOtherShops\Tests\Stubs\TestMediable;
 use InOtherShops\Tests\Stubs\TestPayable;
 use InOtherShops\Tests\Stubs\TestPriceable;
+use InOtherShops\Tests\Stubs\TestPurchasable;
 use InOtherShops\Tests\Stubs\TestTaxonomized;
 use InOtherShops\Tests\Stubs\TestShippableCartable;
 use InOtherShops\Tests\Stubs\TestStockable;
@@ -59,6 +61,7 @@ abstract class TestCase extends Orchestra
             'test_stockable_localizable' => TestStockableLocalizable::class,
             'test_mediable' => TestMediable::class,
             'test_priceable' => TestPriceable::class,
+            'test_purchasable' => TestPurchasable::class,
             'test_taxonomized' => TestTaxonomized::class,
             'test_variantable' => TestVariantable::class,
         ]);
@@ -80,6 +83,7 @@ abstract class TestCase extends Orchestra
             TaxonomyServiceProvider::class,
             PricingServiceProvider::class,
             InventoryServiceProvider::class,
+            PurchasingServiceProvider::class,
             TaxServiceProvider::class,
             ShippingServiceProvider::class,
             PaymentServiceProvider::class,
