@@ -7,6 +7,7 @@ namespace InOtherShops\Commerce;
 use InOtherShops\Commerce\Cart\Commands\PruneExpiredCartsCommand;
 use InOtherShops\Commerce\Cart\FlowChains\AddToCartChain;
 use InOtherShops\Commerce\Listeners\CommerceLogSubscriber;
+use InOtherShops\Commerce\Order\Commands\ExpireAbandonedOrdersCommand;
 use InOtherShops\Commerce\Order\Events\OrderCreated;
 use InOtherShops\Commerce\Order\Events\OrderStatusChanged;
 use InOtherShops\Commerce\Order\Listeners\CreateShipmentForNewOrder;
@@ -41,7 +42,7 @@ final class CommerceServiceProvider extends ServiceProvider
         ]);
 
         $this->registerCartRoutes();
-        $this->commands([PruneExpiredCartsCommand::class]);
+        $this->commands([PruneExpiredCartsCommand::class, ExpireAbandonedOrdersCommand::class]);
 
         Event::subscribe(CommerceLogSubscriber::class);
         Event::listen(OrderCreated::class, CreateShipmentForNewOrder::class);

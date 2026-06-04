@@ -37,6 +37,12 @@ return [
     'order' => [
         'number_prefix' => env('ORDER_NUMBER_PREFIX', 'ORD'),
         'number_generator' => InOtherShops\Commerce\Order\Support\RandomOrderNumberGenerator::class,
+
+        // How long a Pending (unpaid) order is held before `commerce:expire-orders`
+        // cancels it — releasing its reservations and cancelling the gateway
+        // intent so a late payment can't land on it (F14). Must comfortably
+        // exceed the reservation TTL plus a real payment window.
+        'abandon_after_minutes' => (int) env('ORDER_ABANDON_AFTER_MINUTES', 60),
     ],
 
     /*
