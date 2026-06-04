@@ -7,6 +7,7 @@ namespace InOtherShops\Commerce\Listeners;
 use InOtherShops\Commerce\Cart\Events\CartClaimed;
 use InOtherShops\Commerce\Cart\Events\CartCleared;
 use InOtherShops\Commerce\Cart\Events\CartUpdated;
+use InOtherShops\Commerce\Order\Events\OrderConfirmationBlocked;
 use InOtherShops\Commerce\Order\Events\OrderCreated;
 use InOtherShops\Commerce\Order\Events\OrderStatusChanged;
 use InOtherShops\Commerce\Order\Events\RefundRecorded;
@@ -32,8 +33,23 @@ final class CommerceLogSubscriber
             CartCleared::class => 'handleCartCleared',
             OrderCreated::class => 'handleOrderCreated',
             OrderStatusChanged::class => 'handleOrderStatusChanged',
+            OrderConfirmationBlocked::class => 'handleOrderConfirmationBlocked',
             RefundRecorded::class => 'handleRefundRecorded',
         ];
+    }
+
+    public function handleOrderConfirmationBlocked(OrderConfirmationBlocked $event): void
+    {
+        $this->dispatcher->log(new LogEntry(
+            level: LogLevel::Warning,
+            channel: self::CHANNEL,
+            message: "Order #{$event->order->getKey()} paid but not confirmed: {$event->reason}.",
+            context: [
+                'order_id' => $event->order->getKey(),
+                'status' => $event->order->status->value,
+                'reason' => $event->reason,
+            ],
+        ));
     }
 
     public function handleRefundRecorded(RefundRecorded $event): void
