@@ -69,16 +69,28 @@ Stripe⇄local reconciliation tripwire (T4): a read-only check/command listing g
 `requires_capture` with no matching local `Payment.gateway_reference` (catches any F1 orphan that slips the
 idempotency net), in the same spirit as `inventory:reconcile` / `purchasing:reconcile-receipts`.
 
-## Build phases (committed per phase, suite green each)
+## Build phases
 
-- **P1 (Payment):** extract `CreatePendingPayment` (txn-safe) + `OpenPaymentSession` (gateway call) from
-  `InitiatePayment`; Stripe idempotency key; `PaymentGateway::cancelSession()` + Stripe/Fake impls. **Breaking**
-  (new contract method) — all gateway impls pre-launch.
-- **P2 (Commerce):** `ConfirmOrder` idempotent action + missing-reservation guard.
-- **P3 (Commerce):** `ExpireAbandonedOrders` + `commerce:expire-orders`.
-- **P4 (consumer):** `ProcessCheckout` persist-then-pay; `HandlePaymentSucceeded` via `ConfirmOrder` with gated
-  side-effects.
-- **P5:** reconciliation tripwire (T4).
+- **P1 (Payment) ✅** `ab759b8` — `CreatePendingPayment` (txn-safe) + `OpenPaymentSession` (gateway call) split from
+  `InitiatePayment`; Stripe idempotency key (= payment id); `PaymentGateway::cancelSession()` + Stripe/Fake/Basic
+  impls; `PaymentNotCancelableException`. **Breaking** (new contract method).
+- **P2 (Commerce) ✅** `758522f` — `ConfirmOrder` (idempotent, returns `ConfirmOrderOutcome`) + F14 missing-
+  reservation guard; `OrderConfirmationBlocked` event → commerce log channel.
+- **P3 (Commerce) ✅** `8075b6c` — `ExpireAbandonedOrders` + `commerce:expire-orders` (cancel intent → cancel order →
+  release reservations, atomic, lock-serialised against `ConfirmOrder`); `commerce.order.abandon_after_minutes` (60).
+- **P4 (consumer) — RELEASE-GATED.** `ProcessCheckout` persist-then-pay (create the payment inside the wrapped chain,
+  open the session after commit); `HandlePaymentSucceeded` → `ConfirmOrder`, fire email/cart-clear only on the
+  `Confirmed` outcome; schedule `commerce:expire-orders`. Blocked until the package is released + bumped (the consumer
+  uses the Packagist build, not a symlink, so it can't reference the P1–P3 classes until then).
+- **P5 — DEFERRED (defense-in-depth).** Stripe⇄local reconciliation tripwire (T4) needs a gateway intent-enumeration
+  capability; P1's idempotency key already removes the main F1 orphan vector, so this is belt-and-suspenders.
+
+## Status (2026-06-04)
+Package-side R1/F14 complete on `feat/refund-domain` (P1–P3, suite 783 green). **P4 is the only remaining
+behavioural change and it is release-gated** — it's where the new actions actually replace the in-transaction Stripe
+call and the unconditional confirmation side-effects in the live checkout. Until P4 lands, the package ships the
+*capability* (safe split, idempotency, cancel, guarded confirm, order-expiry); the consumer still runs the old
+in-transaction path. Release the branch → bump the consumer → do P4.
 
 ## Open / deferred
 - Auto-refund policy for the F14 residual — deferred until async payment methods (SEPA) are on the roadmap.
