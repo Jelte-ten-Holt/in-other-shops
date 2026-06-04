@@ -6,6 +6,7 @@ namespace InOtherShops\Tests\Feature\Commerce\Order;
 
 use InOtherShops\Commerce\Order\Actions\ReverseTax;
 use InOtherShops\Pricing\DTOs\TaxBreakdownLine;
+use InOtherShops\Pricing\Support\LargestRemainderAllocator;
 use InOtherShops\Tests\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 
@@ -24,7 +25,7 @@ final class ReverseTaxTest extends TestCase
     {
         parent::setUp();
 
-        $this->reverse = new ReverseTax;
+        $this->reverse = new ReverseTax(new LargestRemainderAllocator);
     }
 
     #[Test]

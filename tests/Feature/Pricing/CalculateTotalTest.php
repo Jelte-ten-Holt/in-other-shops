@@ -230,6 +230,133 @@ final class CalculateTotalTest extends TestCase
     }
 
     #[Test]
+    public function shipping_carries_the_vat_of_a_single_rate_cart(): void
+    {
+        // G4: shipping is a taxable supply. On a single-rate cart it takes that
+        // rate — the VAT inside the gross postage is extracted, not dropped.
+        $widget = $this->priceable(amount: 10000);
+
+        $breakdown = ($this->calculate)(
+            items: [['item' => $widget, 'quantity' => 1, 'description' => 'Widget', 'taxRateBps' => 1900]],
+            currency: Currency::EUR,
+            shippingCost: 500,
+        );
+
+        // Bracket gross = 10000 goods + 500 shipping = 10500 (inclusive).
+        // net = round(105000000/11900) = 8824; tax = 1676.
+        // total unchanged at 10000 + 500 = 10500 — only the tax split moves.
+        $this->assertSame(10000, $breakdown->subtotal);
+        $this->assertSame(500, $breakdown->shippingCost);
+        $this->assertSame(1676, $breakdown->tax);
+        $this->assertSame(10500, $breakdown->total);
+        $this->assertCount(1, $breakdown->taxBreakdown);
+        $this->assertSame(8824, $breakdown->taxBreakdown[0]->taxableBase);
+        $this->assertSame(1676, $breakdown->taxBreakdown[0]->tax);
+    }
+
+    #[Test]
+    public function shipping_vat_is_apportioned_across_brackets_by_gross_share(): void
+    {
+        // G4 + mixed rate: shipping follows the goods' rate mix (EU ancillary
+        // rule). 595c of shipping over a 1000c (7%) + 2000c (19%) cart splits by
+        // gross — 1000:2000 — to 198 : 397, with the rounding cent going to the
+        // larger remainder (the 19% bracket).
+        $book = $this->priceable(amount: 1000);
+        $die = $this->priceable(amount: 2000);
+
+        $breakdown = ($this->calculate)(
+            items: [
+                ['item' => $book, 'quantity' => 1, 'description' => 'Book', 'taxRateBps' => 700],
+                ['item' => $die, 'quantity' => 1, 'description' => 'Die', 'taxRateBps' => 1900],
+            ],
+            currency: Currency::EUR,
+            shippingCost: 595,
+        );
+
+        // 7%: gross 1000 + ship 198 = 1198 → net round(11980000/10700)=1120, tax 78.
+        // 19%: gross 2000 + ship 397 = 2397 → net round(23970000/11900)=2014, tax 383.
+        $this->assertSame(3000, $breakdown->subtotal);
+        $this->assertSame(595, $breakdown->shippingCost);
+        $this->assertSame(3595, $breakdown->total);
+        $this->assertSame(461, $breakdown->tax);
+
+        $this->assertSame(700, $breakdown->taxBreakdown[0]->rateBps);
+        $this->assertSame(1120, $breakdown->taxBreakdown[0]->taxableBase);
+        $this->assertSame(78, $breakdown->taxBreakdown[0]->tax);
+
+        $this->assertSame(1900, $breakdown->taxBreakdown[1]->rateBps);
+        $this->assertSame(2014, $breakdown->taxBreakdown[1]->taxableBase);
+        $this->assertSame(383, $breakdown->taxBreakdown[1]->tax);
+
+        // base + tax across brackets accounts for goods + shipping, to the cent.
+        $reconstructed = 0;
+        foreach ($breakdown->taxBreakdown as $bracket) {
+            $reconstructed += $bracket->taxableBase + $bracket->tax;
+        }
+        $this->assertSame($breakdown->subtotal + $breakdown->shippingCost, $reconstructed);
+    }
+
+    #[Test]
+    public function shipping_on_a_zero_rated_export_cart_carries_no_vat(): void
+    {
+        // G4 correctness vs. "tax shipping at the standard rate": a pure-export
+        // (0%) cart's shipping must also be 0% — adding standard-rate VAT here
+        // would invent tax on a zero-rated supply.
+        $widget = $this->priceable(amount: 5000);
+
+        $breakdown = ($this->calculate)(
+            items: [['item' => $widget, 'quantity' => 1, 'description' => 'Export', 'taxRateBps' => 0]],
+            currency: Currency::EUR,
+            shippingCost: 500,
+        );
+
+        $this->assertSame(0, $breakdown->tax);
+        $this->assertSame(5500, $breakdown->total);
+        $this->assertCount(1, $breakdown->taxBreakdown);
+        $this->assertSame(0, $breakdown->taxBreakdown[0]->rateBps);
+        $this->assertSame(5500, $breakdown->taxBreakdown[0]->taxableBase);
+        $this->assertSame(0, $breakdown->taxBreakdown[0]->tax);
+    }
+
+    #[Test]
+    public function discount_rounding_cent_follows_the_largest_bracket_remainder_not_the_highest_rate(): void
+    {
+        // G5: a cart-level voucher over a mixed-rate cart allocates by gross share,
+        // largest-remainder. Here a 2000c (7%) + 1000c (19%) cart with a 1000c
+        // voucher splits the discount 667 : 333 — the rounding cent lands on the
+        // 7% bracket (its 2000-share remainder is larger). The old floor-and-dump
+        // code forced the cent onto the *last* (19%) bracket, pushing its taxable
+        // base down to 560 and understating its VAT; corrected it is 561.
+        Voucher::factory()->create(['code' => 'TEN', 'amount' => 1000, 'currency' => Currency::EUR]);
+        $book = $this->priceable(amount: 2000);
+        $die = $this->priceable(amount: 1000);
+
+        $breakdown = ($this->calculate)(
+            items: [
+                ['item' => $book, 'quantity' => 1, 'description' => 'Book', 'taxRateBps' => 700],
+                ['item' => $die, 'quantity' => 1, 'description' => 'Die', 'taxRateBps' => 1900],
+            ],
+            currency: Currency::EUR,
+            voucherCode: 'TEN',
+        );
+
+        // 7%: gross 2000 − disc 667 = 1333 → net round(13330000/10700)=1246, tax 87.
+        // 19%: gross 1000 − disc 333 = 667  → net round(6670000/11900)=561,  tax 106.
+        $this->assertSame(3000, $breakdown->subtotal);
+        $this->assertSame(1000, $breakdown->discount);
+        $this->assertSame(2000, $breakdown->total);
+        $this->assertSame(193, $breakdown->tax);
+
+        $this->assertSame(700, $breakdown->taxBreakdown[0]->rateBps);
+        $this->assertSame(1246, $breakdown->taxBreakdown[0]->taxableBase);
+        $this->assertSame(87, $breakdown->taxBreakdown[0]->tax);
+
+        $this->assertSame(1900, $breakdown->taxBreakdown[1]->rateBps);
+        $this->assertSame(561, $breakdown->taxBreakdown[1]->taxableBase);
+        $this->assertSame(106, $breakdown->taxBreakdown[1]->tax);
+    }
+
+    #[Test]
     public function omitting_the_voucher_code_skips_discount_resolution_entirely(): void
     {
         Voucher::factory()->create(['code' => 'TRAP', 'amount' => 9999, 'currency' => Currency::EUR]);
@@ -309,12 +436,14 @@ final class CalculateTotalTest extends TestCase
             voucherCode: 'ALL',
         );
 
-        // subtotal 20000 (gross), discount 500 → discountedGross 19500.
-        // net = round(195000000/12100) = 16116; tax = 3384 (a component, not added).
-        // total = 20000 − 500 + 595 = 20095.
+        // subtotal 20000 (gross), discount 500, shipping 595 → the single 21%
+        // bracket's taxable gross is 20000 − 500 + 595 = 20095 (G4: shipping is a
+        // taxable supply, gross-inclusive, its VAT extracted alongside the goods).
+        // net = round(200950000/12100) = 16607; tax = 3488 (a component, not added).
+        // total = 20000 − 500 + 595 = 20095 — unchanged by the shipping-VAT fix.
         $this->assertSame(20000, $breakdown->subtotal);
         $this->assertSame(500, $breakdown->discount);
-        $this->assertSame(3384, $breakdown->tax);
+        $this->assertSame(3488, $breakdown->tax);
         $this->assertSame(595, $breakdown->shippingCost);
         $this->assertSame(20095, $breakdown->total);
         $this->assertSame(

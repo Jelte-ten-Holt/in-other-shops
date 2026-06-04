@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace InOtherShops\Commerce\Order\Actions;
 
 use InOtherShops\Pricing\DTOs\TaxBreakdownLine;
+use InOtherShops\Pricing\Support\LargestRemainderAllocator;
 
 /**
  * Computes the per-bracket VAT to reverse for ONE refund, given the order's
@@ -26,6 +27,10 @@ use InOtherShops\Pricing\DTOs\TaxBreakdownLine;
  */
 final class ReverseTax
 {
+    public function __construct(
+        private readonly LargestRemainderAllocator $allocate,
+    ) {}
+
     /**
      * @param  list<TaxBreakdownLine>  $originalBrackets  the order's charged tax_summary
      * @param  int  $originalAmount  the full refundable amount (order total / payment amount)
@@ -47,14 +52,15 @@ final class ReverseTax
         }
 
         // Cumulative target reversed per bracket, for both the tax and the
-        // taxable-base columns, weighted by the original bracket values.
-        $targetTax = $this->allocate(
+        // taxable-base columns, weighted by the original bracket values. Capped
+        // at each bracket's original value — never reverse more than was charged.
+        $targetTax = ($this->allocate)(
             array_map(fn (TaxBreakdownLine $b): int => $b->tax, $originalBrackets),
             $cumulativeRefunded,
             $originalAmount,
         );
 
-        $targetBase = $this->allocate(
+        $targetBase = ($this->allocate)(
             array_map(fn (TaxBreakdownLine $b): int => $b->taxableBase, $originalBrackets),
             $cumulativeRefunded,
             $originalAmount,
@@ -78,59 +84,5 @@ final class ReverseTax
         }
 
         return $deltas;
-    }
-
-    /**
-     * Largest-remainder allocation of `round(sum(orig) × num / den)` across the
-     * brackets, weighted by each bracket's original value. Pure integer math.
-     *
-     * @param  list<int>  $orig
-     * @return list<int>  the cumulative target per bracket (same order as $orig)
-     */
-    private function allocate(array $orig, int $num, int $den): array
-    {
-        $total = array_sum($orig);
-
-        if ($total <= 0) {
-            return array_fill(0, count($orig), 0);
-        }
-
-        // round-half-up of total × num / den, integer-only
-        $totalTarget = intdiv(2 * $total * $num + $den, 2 * $den);
-
-        $floors = [];
-        $remainders = [];
-
-        foreach ($orig as $i => $value) {
-            $scaled = $value * $num;
-            $floors[$i] = intdiv($scaled, $den);
-            $remainders[$i] = $scaled % $den; // fractional-part numerator
-        }
-
-        $need = $totalTarget - array_sum($floors);
-
-        // Distribute the +1s to the largest remainders first; ties broken by
-        // index for determinism. Never exceed the bracket's original value.
-        $order = array_keys($remainders);
-        usort($order, function (int $a, int $b) use ($remainders): int {
-            return $remainders[$b] <=> $remainders[$a] ?: $a <=> $b;
-        });
-
-        $target = $floors;
-
-        foreach ($order as $i) {
-            if ($need <= 0) {
-                break;
-            }
-
-            if ($target[$i] >= $orig[$i]) {
-                continue;
-            }
-
-            $target[$i]++;
-            $need--;
-        }
-
-        return $target;
     }
 }

@@ -151,3 +151,28 @@ in any consumer. bianka has no usage. So the break is **one consumer call site +
 
 **Done.** VAT work is complete and pinned end-to-end (package 688 + consumer 670 green). Remaining VAT-adjacent items
 live under the broader silent-correctness audit follow-up in in-other-worlds's TODO (refunds R9, audit-log R7, etc.).
+
+## Round-2 addendum — VAT edges G4/G5 (2026-06-04, on `feat/refund-domain`, non-breaking)
+
+The blind round-2 audit caught two edges the original rewrite left behind. Both fixed; package suite 747 green.
+
+- **G4 — shipping carried zero VAT.** `computeTaxBreakdown` summed gross by goods bracket only; `shippingCost` was
+  appended to `total` as a pure gross addend, so the VAT *inside* postage was silently dropped — `order.tax`
+  structurally under-collected on every shipped order. Fix: shipping is a taxable supply and, under the EU
+  **ancillary-supply rule**, follows the rate(s) of the goods it carries. It's now apportioned across the goods'
+  brackets in proportion to their gross (the rate mix) and its contained VAT extracted alongside the goods'. Because
+  shipping was already gross-inclusive, **`total` is unchanged** — only the tax/net split moves, and the per-bracket
+  `tax_summary` now reconciles to the full `total` (goods + shipping) instead of `total − shipping`. A pure-export
+  (all-0%) cart correctly carries 0% on its shipping — the case "tax shipping at the standard rate" would get wrong.
+  Edge: shipping with an empty cart (`subtotal === 0`) has no goods rate to follow; Pricing resolves no rates of its
+  own, and checkout can't produce that order, so it's guarded defensively (returns no brackets) rather than inventing
+  a rate.
+- **G5 — discount allocation biased the highest rate.** `allocateDiscountAcrossBrackets` floored every non-last
+  bracket and dumped the rounding remainder on the **last** bracket — which is the highest-rate one (ascending
+  `ksort`). That systematically over-discounted the top bracket's gross → understated its VAT (the field a VAT return
+  reads). Fix: largest-remainder apportionment, so the rounding cents follow the largest fractional shares.
+- **Shared primitive.** Both, plus the refund-path `ReverseTax`, now use one `Pricing\Support\LargestRemainderAllocator`
+  (`capAtWeight` flag: true for reversal/discount — never exceed the charged/gross value; false for shipping — a small
+  cart with expensive postage legitimately apportions more shipping than a bracket's own gross).
+- **Release-gated consumer sweep:** `order.tax` rises on shipped orders, so the consumer's checkout tax assertions
+  (in-other-worlds `CheckoutControllerTest` mixed-rate cases) must be re-checked when the package is bumped.
