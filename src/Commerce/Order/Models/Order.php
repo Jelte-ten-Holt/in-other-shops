@@ -123,4 +123,33 @@ class Order extends Model implements HasAddresses, HasPayments, HasShipment
             fn ($shipment) => $shipment->status === ShipmentStatus::Delivered,
         );
     }
+
+    public function refunds(): HasMany
+    {
+        return $this->hasMany(Commerce::refund());
+    }
+
+    /**
+     * Total gross cents refunded across all refunds on this order. Refund state
+     * is derived here rather than stored as an OrderStatus case — order status
+     * stays a fulfilment concept.
+     */
+    public function refundedTotal(): int
+    {
+        return (int) $this->refunds()->sum('amount');
+    }
+
+    public function isRefunded(): bool
+    {
+        $refunded = $this->refundedTotal();
+
+        return $refunded > 0 && $refunded >= $this->total;
+    }
+
+    public function isPartiallyRefunded(): bool
+    {
+        $refunded = $this->refundedTotal();
+
+        return $refunded > 0 && $refunded < $this->total;
+    }
 }

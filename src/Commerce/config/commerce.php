@@ -20,6 +20,7 @@ return [
         'customer_group' => InOtherShops\Commerce\Customer\Models\CustomerGroup::class,
         'order' => InOtherShops\Commerce\Order\Models\Order::class,
         'order_line' => InOtherShops\Commerce\Order\Models\OrderLine::class,
+        'refund' => InOtherShops\Commerce\Order\Models\Refund::class,
     ],
 
     /*

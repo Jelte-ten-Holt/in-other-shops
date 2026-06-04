@@ -35,6 +35,7 @@ final class CommerceServiceProvider extends ServiceProvider
             'customer_group' => Commerce::customerGroup(),
             'order' => Commerce::order(),
             'order_line' => Commerce::orderLine(),
+            'refund' => Commerce::refund(),
         ]);
 
         $this->registerCartRoutes();

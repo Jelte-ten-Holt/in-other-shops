@@ -10,6 +10,7 @@ use InOtherShops\Commerce\Customer\Models\Customer;
 use InOtherShops\Commerce\Customer\Models\CustomerGroup;
 use InOtherShops\Commerce\Order\Models\Order;
 use InOtherShops\Commerce\Order\Models\OrderLine;
+use InOtherShops\Commerce\Order\Models\Refund;
 
 final class Commerce
 {
@@ -47,5 +48,11 @@ final class Commerce
     public static function orderLine(): string
     {
         return config('commerce.models.order_line', OrderLine::class);
+    }
+
+    /** @return class-string<Refund> */
+    public static function refund(): string
+    {
+        return config('commerce.models.refund', Refund::class);
     }
 }
