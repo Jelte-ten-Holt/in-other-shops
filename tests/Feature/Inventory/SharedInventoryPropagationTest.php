@@ -90,4 +90,47 @@ final class SharedInventoryPropagationTest extends TestCase
 
         $this->assertSame($en->stockItem->id, $movement->stock_item_id);
     }
+
+    #[Test]
+    public function primary_movement_tracks_the_entry_member_even_when_it_is_not_locked_first(): void
+    {
+        // G7: targets are now locked in a deterministic global order (by key), not
+        // entry-member-first. `en` has the lower key, so adjusting through `de`
+        // locks `en` first — the returned movement must still be `de`'s (primary
+        // detection is by identity, not lock position).
+        $group = LocaleGroup::factory()->sharingInventory()->create();
+        $en = TestStockableLocalizable::factory()->create(['locale' => 'en', 'locale_group_id' => $group->id]);
+        $de = TestStockableLocalizable::factory()->create(['locale' => 'de', 'locale_group_id' => $group->id]);
+
+        $this->assertTrue($en->getKey() < $de->getKey(), 'fixture assumption: en is created before de');
+
+        $movement = app(AdjustStock::class)($de, 7, StockMovementReason::Received);
+
+        $this->assertSame($de->stockItem->id, $movement->stock_item_id);
+    }
+
+    #[Test]
+    public function every_members_stock_level_reconciles_to_its_movement_ledger_regardless_of_entry_member(): void
+    {
+        // Adjust through different members of the group; each member's own
+        // stock_level must equal the sum of its own movement ledger (G7 / T6).
+        $group = LocaleGroup::factory()->sharingInventory()->create();
+        $en = TestStockableLocalizable::factory()->create(['locale' => 'en', 'locale_group_id' => $group->id]);
+        $de = TestStockableLocalizable::factory()->create(['locale' => 'de', 'locale_group_id' => $group->id]);
+        $fr = TestStockableLocalizable::factory()->create(['locale' => 'fr', 'locale_group_id' => $group->id]);
+
+        app(AdjustStock::class)($de, 20, StockMovementReason::Received);
+        app(AdjustStock::class)($fr, -5, StockMovementReason::Sold);
+        app(AdjustStock::class)($en, -3, StockMovementReason::Sold);
+
+        foreach ([$en, $de, $fr] as $member) {
+            $member->refresh();
+            $this->assertSame(12, $member->stockLevel());
+            $this->assertSame(
+                12,
+                (int) $member->stockItem->movements()->sum('quantity'),
+                "member {$member->locale} stock_level must equal sum(movements)",
+            );
+        }
+    }
 }

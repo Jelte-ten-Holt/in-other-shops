@@ -28,16 +28,16 @@ final class AdjustStock
     ): StockMovement {
         $this->validateSource($source);
 
-        $targets = $this->resolveTargets($stockable);
+        $targets = $this->orderForLocking($this->resolveTargets($stockable));
 
-        $results = DB::transaction(function () use ($targets, $quantity, $reason, $description, $reference, $source): array {
+        $results = DB::transaction(function () use ($targets, $stockable, $quantity, $reason, $description, $reference, $source): array {
             $out = [];
             foreach ($targets as $target) {
                 $stockItem = $this->findOrCreateStockItem($target);
                 $movement = $this->createMovement($stockItem, $quantity, $reason, $description, $reference, $source);
                 $this->updateStockLevel($stockItem, $quantity);
 
-                $out[] = [$movement, $stockItem->refresh(), $target === $targets[0]];
+                $out[] = [$movement, $stockItem->refresh(), $stockable->is($target)];
             }
 
             return $out;
@@ -78,6 +78,30 @@ final class AdjustStock
         $siblings = $stockable->siblings()->get()->all();
 
         return [$stockable, ...$siblings];
+    }
+
+    /**
+     * Acquire the group's per-row locks in a deterministic global order (G7).
+     * The target SET is identical for every member of a shared-inventory group,
+     * but {@see resolveTargets} lists the *entry* member first — so two concurrent
+     * adjusts on different members would lock the same `StockItem` rows in
+     * opposite orders and deadlock. Sorting by a stable composite key (morph class
+     * + primary key) makes the lock-acquisition order independent of which member
+     * triggered the adjust, so the locks always stack the same way. Primary-target
+     * detection moves to identity ({@see __invoke} uses `$stockable->is($target)`)
+     * since the entry member is no longer guaranteed to be first.
+     *
+     * @param  list<Model&HasStock>  $targets
+     * @return list<Model&HasStock>
+     */
+    private function orderForLocking(array $targets): array
+    {
+        usort(
+            $targets,
+            static fn (Model $a, Model $b): int => [$a->getMorphClass(), $a->getKey()] <=> [$b->getMorphClass(), $b->getKey()],
+        );
+
+        return $targets;
     }
 
     /**
