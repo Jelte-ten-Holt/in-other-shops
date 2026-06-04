@@ -366,6 +366,8 @@ final class BasicPaymentGateway implements PaymentGateway
         );
     }
 
+    public function cancelSession(Payment $payment): void {}
+
     public function verifyWebhookSignature(Request $request): void {}
 
     public function parseWebhook(Request $request): WebhookPayload

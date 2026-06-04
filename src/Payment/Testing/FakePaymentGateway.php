@@ -10,6 +10,7 @@ use InOtherShops\Payment\DTOs\PaymentCustomerData;
 use InOtherShops\Payment\DTOs\PaymentSession;
 use InOtherShops\Payment\DTOs\WebhookPayload;
 use InOtherShops\Payment\Enums\PaymentStatus;
+use InOtherShops\Payment\Exceptions\PaymentNotCancelableException;
 use InOtherShops\Payment\Exceptions\RefundAmountExceededException;
 use InOtherShops\Payment\Models\Payment;
 use Illuminate\Http\Request;
@@ -37,6 +38,12 @@ final class FakePaymentGateway implements ManagesCustomers, PaymentGateway
 
     /** @var array<int, PaymentCustomerData> */
     private array $customers = [];
+
+    /** @var list<string> gateway references cancelled via cancelSession() */
+    private array $cancellations = [];
+
+    /** @var list<string> gateway references forced "live" so cancelSession() throws */
+    private array $liveReferences = [];
 
     private int $sessionCounter = 0;
 
@@ -70,6 +77,21 @@ final class FakePaymentGateway implements ManagesCustomers, PaymentGateway
             clientSecret: $reference.'_secret',
             gatewayData: ['payment_intent_status' => 'requires_payment_method'],
         );
+    }
+
+    public function cancelSession(Payment $payment): void
+    {
+        if ($payment->gateway_reference === null) {
+            return;
+        }
+
+        if (in_array($payment->gateway_reference, $this->liveReferences, true)) {
+            throw PaymentNotCancelableException::inFlight($payment, 'fake: marked live');
+        }
+
+        if (! in_array($payment->gateway_reference, $this->cancellations, true)) {
+            $this->cancellations[] = $payment->gateway_reference;
+        }
     }
 
     public function retrieveSession(Payment $payment): PaymentSession
@@ -215,6 +237,22 @@ final class FakePaymentGateway implements ManagesCustomers, PaymentGateway
     public function recordedCustomers(): array
     {
         return $this->customers;
+    }
+
+    /** @return list<string> gateway references cancelled via cancelSession() */
+    public function recordedCancellations(): array
+    {
+        return $this->cancellations;
+    }
+
+    /**
+     * Force a reference to be treated as live so cancelSession() throws
+     * PaymentNotCancelableException — simulates an intent that already
+     * succeeded / is processing when order-expiry tries to cancel it.
+     */
+    public function markSessionLive(string $gatewayReference): void
+    {
+        $this->liveReferences[] = $gatewayReference;
     }
 
     private function nextReference(): string

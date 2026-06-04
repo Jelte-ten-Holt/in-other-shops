@@ -14,6 +14,18 @@ interface PaymentGateway
     public function createSession(Payment $payment, string $returnUrl, string $cancelUrl, ?string $gatewayCustomerId = null): PaymentSession;
 
     /**
+     * Cancel the gateway session/intent for a payment so it can no longer be
+     * paid — used when abandoning an unpaid order (order-expiry), which is what
+     * makes a late authorization on a released order impossible. Idempotent for
+     * an already-cancelled (or never-created) intent. MUST throw
+     * {@see \InOtherShops\Payment\Exceptions\PaymentNotCancelableException} when
+     * the gateway refuses because the payment is live (already succeeded /
+     * capturing), so the caller treats that as "payment in flight — do not
+     * abandon the order."
+     */
+    public function cancelSession(Payment $payment): void;
+
+    /**
      * Retrieve a live session for an existing payment. Used when a buyer
      * revisits a payment page (reload, deep-link, tab restore) and the
      * frontend needs the current `clientSecret` / `redirectUrl` without

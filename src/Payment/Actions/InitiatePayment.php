@@ -11,16 +11,24 @@ use InOtherShops\Payment\Contracts\ManagesCustomers;
 use InOtherShops\Payment\Contracts\PaymentGateway;
 use InOtherShops\Payment\DTOs\InitiatePaymentResult;
 use InOtherShops\Payment\DTOs\PaymentCustomerData;
-use InOtherShops\Payment\DTOs\PaymentSession;
-use InOtherShops\Payment\Enums\PaymentStatus;
-use InOtherShops\Payment\Models\Payment;
 use InOtherShops\Payment\PaymentGatewayManager;
 use Illuminate\Database\Eloquent\Model;
 
+/**
+ * One-shot payment initiation: persist a Pending payment, resolve the gateway
+ * customer (if a profileable is supplied), and open the gateway session — all in
+ * one call. Suitable for callers that are NOT inside a DB transaction. Checkout
+ * deliberately does NOT use this: it persists the payment inside its transaction
+ * via {@see CreatePendingPayment} and opens the session after commit via
+ * {@see OpenPaymentSession} (persist-then-pay, F1). This action composes those
+ * two so single-shot callers keep one entry point and unchanged behaviour.
+ */
 final class InitiatePayment
 {
     public function __construct(
         private readonly PaymentGatewayManager $gateways,
+        private readonly CreatePendingPayment $createPendingPayment,
+        private readonly OpenPaymentSession $openPaymentSession,
     ) {}
 
     /**
@@ -39,19 +47,11 @@ final class InitiatePayment
     ): InitiatePaymentResult {
         $gateway = $this->gateways->gateway($gatewayName);
 
-        $payment = $this->createPaymentRecord($payable, $gateway, $amount, $currency, $metadata);
+        $payment = ($this->createPendingPayment)($payable, $gatewayName, $amount, $currency, $metadata);
 
         $gatewayCustomerId = $this->resolveGatewayCustomerId($gateway, $profileable, $customerData);
 
-        $session = $gateway->createSession($payment, $returnUrl, $cancelUrl, $gatewayCustomerId);
-
-        $this->updateWithGatewayReference($payment, $session);
-
-        return new InitiatePaymentResult(
-            payment: $payment,
-            redirectUrl: $session->redirectUrl,
-            clientSecret: $session->clientSecret,
-        );
+        return ($this->openPaymentSession)($payment, $returnUrl, $cancelUrl, $gatewayCustomerId);
     }
 
     private function resolveGatewayCustomerId(PaymentGateway $gateway, (Model&HasPaymentProfiles)|null $profileable, ?PaymentCustomerData $customerData): ?string
@@ -78,27 +78,5 @@ final class InitiatePayment
         ]);
 
         return $gatewayCustomerId;
-    }
-
-    /**
-     * @param  array<string, mixed>  $metadata
-     */
-    private function createPaymentRecord(Model&HasPayments $payable, PaymentGateway $gateway, int $amount, Currency $currency, array $metadata): Payment
-    {
-        return $payable->payments()->create([
-            'amount' => $amount,
-            'currency' => $currency,
-            'status' => PaymentStatus::Pending,
-            'gateway' => $gateway->identifier(),
-            'gateway_data' => $metadata ?: null,
-        ]);
-    }
-
-    private function updateWithGatewayReference(Payment $payment, PaymentSession $session): void
-    {
-        $payment->update([
-            'gateway_reference' => $session->gatewayReference,
-            'gateway_data' => $session->gatewayData,
-        ]);
     }
 }

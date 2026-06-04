@@ -10,6 +10,7 @@ use InOtherShops\Currency\Enums\Currency;
 use InOtherShops\Payment\DTOs\PaymentCustomerData;
 use InOtherShops\Payment\Drivers\Stripe\StripePaymentGateway;
 use InOtherShops\Payment\Enums\PaymentStatus;
+use InOtherShops\Payment\Exceptions\PaymentNotCancelableException;
 use InOtherShops\Payment\Models\Payment;
 use InOtherShops\Tests\Stubs\TestPayable;
 use InOtherShops\Tests\TestCase;
@@ -109,7 +110,7 @@ final class StripePaymentGatewayTest extends TestCase
                     'No gatewayCustomerId means no customer key in the request.');
 
                 return true;
-            }))
+            }), ['idempotency_key' => 'create_intent_'.$payment->id])
             ->andReturn(PaymentIntent::constructFrom([
                 'id' => 'pi_test_abc123',
                 'client_secret' => 'pi_test_abc123_secret_xyz',
@@ -135,7 +136,7 @@ final class StripePaymentGatewayTest extends TestCase
                 $this->assertSame('cus_test_existing', $params['customer']);
 
                 return true;
-            }))
+            }), Mockery::type('array'))
             ->andReturn(PaymentIntent::constructFrom([
                 'id' => 'pi_test_with_cust',
                 'client_secret' => 'pi_test_with_cust_secret',
@@ -183,6 +184,77 @@ final class StripePaymentGatewayTest extends TestCase
         $this->assertSame('pi_existing_123', $session->gatewayReference);
         $this->assertSame('pi_existing_123_secret', $session->clientSecret);
         $this->assertSame('processing', $session->gatewayData['payment_intent_status']);
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // cancelSession
+    // ─────────────────────────────────────────────────────────────────
+
+    #[Test]
+    public function cancel_session_cancels_a_cancelable_intent(): void
+    {
+        $payment = $this->paymentFor(1000, Currency::EUR);
+        $payment->gateway_reference = 'pi_cancelable';
+
+        $this->paymentIntents
+            ->shouldReceive('retrieve')
+            ->once()
+            ->with('pi_cancelable')
+            ->andReturn(PaymentIntent::constructFrom(['id' => 'pi_cancelable', 'status' => 'requires_payment_method']));
+
+        $this->paymentIntents
+            ->shouldReceive('cancel')
+            ->once()
+            ->with('pi_cancelable')
+            ->andReturn(PaymentIntent::constructFrom(['id' => 'pi_cancelable', 'status' => 'canceled']));
+
+        $this->gateway->cancelSession($payment);
+    }
+
+    #[Test]
+    public function cancel_session_is_a_noop_for_an_already_canceled_intent(): void
+    {
+        $payment = $this->paymentFor(1000, Currency::EUR);
+        $payment->gateway_reference = 'pi_already_canceled';
+
+        $this->paymentIntents
+            ->shouldReceive('retrieve')
+            ->once()
+            ->andReturn(PaymentIntent::constructFrom(['id' => 'pi_already_canceled', 'status' => 'canceled']));
+
+        $this->paymentIntents->shouldNotReceive('cancel');
+
+        $this->gateway->cancelSession($payment);
+    }
+
+    #[Test]
+    public function cancel_session_throws_when_the_intent_is_live(): void
+    {
+        $payment = $this->paymentFor(1000, Currency::EUR);
+        $payment->gateway_reference = 'pi_succeeded';
+
+        $this->paymentIntents
+            ->shouldReceive('retrieve')
+            ->once()
+            ->andReturn(PaymentIntent::constructFrom(['id' => 'pi_succeeded', 'status' => 'succeeded']));
+
+        $this->paymentIntents->shouldNotReceive('cancel');
+
+        $this->expectException(PaymentNotCancelableException::class);
+
+        $this->gateway->cancelSession($payment);
+    }
+
+    #[Test]
+    public function cancel_session_is_a_noop_when_no_session_was_opened(): void
+    {
+        $payment = $this->paymentFor(1000, Currency::EUR);
+        $payment->gateway_reference = null;
+
+        $this->paymentIntents->shouldNotReceive('retrieve');
+        $this->paymentIntents->shouldNotReceive('cancel');
+
+        $this->gateway->cancelSession($payment);
     }
 
     // ─────────────────────────────────────────────────────────────────

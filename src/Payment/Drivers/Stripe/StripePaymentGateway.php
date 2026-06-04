@@ -10,6 +10,7 @@ use InOtherShops\Payment\DTOs\PaymentCustomerData;
 use InOtherShops\Payment\DTOs\PaymentSession;
 use InOtherShops\Payment\DTOs\WebhookPayload;
 use InOtherShops\Payment\Enums\PaymentStatus;
+use InOtherShops\Payment\Exceptions\PaymentNotCancelableException;
 use InOtherShops\Payment\Models\Payment;
 use Illuminate\Http\Request;
 use RuntimeException;
@@ -60,13 +61,39 @@ final class StripePaymentGateway implements ManagesCustomers, PaymentGateway
             $params['customer'] = $gatewayCustomerId;
         }
 
-        $intent = $this->client->paymentIntents->create($params);
+        // Idempotency key = payment id, so a retried session-open (e.g. the
+        // post-commit step ran twice) returns the SAME intent instead of
+        // creating a duplicate charge (F1 hardening).
+        $intent = $this->client->paymentIntents->create($params, [
+            'idempotency_key' => 'create_intent_'.$payment->id,
+        ]);
 
         return new PaymentSession(
             gatewayReference: $intent->id,
             clientSecret: $intent->client_secret,
             gatewayData: ['payment_intent_status' => $intent->status],
         );
+    }
+
+    public function cancelSession(Payment $payment): void
+    {
+        if ($payment->gateway_reference === null) {
+            return; // no session was ever opened — nothing to cancel
+        }
+
+        $intent = $this->client->paymentIntents->retrieve($payment->gateway_reference);
+
+        if ($intent->status === PaymentIntent::STATUS_CANCELED) {
+            return; // already cancelled — idempotent no-op
+        }
+
+        // Succeeded or async-processing means the money may yet move; the order
+        // must NOT be abandoned. Let the confirm path resolve it instead.
+        if (in_array($intent->status, [PaymentIntent::STATUS_SUCCEEDED, PaymentIntent::STATUS_PROCESSING], true)) {
+            throw PaymentNotCancelableException::inFlight($payment, "intent status: {$intent->status}");
+        }
+
+        $this->client->paymentIntents->cancel($payment->gateway_reference);
     }
 
     public function retrieveSession(Payment $payment): PaymentSession
