@@ -380,7 +380,10 @@ final class BasicPaymentGateway implements PaymentGateway
         );
     }
 
-    public function refund(Payment $payment, ?int $amount = null): void {}
+    public function refund(Payment $payment, ?int $amount = null): string
+    {
+        return 'fake_re_test';
+    }
 
     public function customerDashboardUrl(string $gatewayCustomerId): ?string
     {

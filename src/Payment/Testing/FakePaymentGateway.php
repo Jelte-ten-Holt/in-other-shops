@@ -32,7 +32,7 @@ final class FakePaymentGateway implements ManagesCustomers, PaymentGateway
     /** @var array<int, array{payment: Payment, returnUrl: string, cancelUrl: string, gatewayCustomerId: ?string, reference: string}> */
     private array $sessions = [];
 
-    /** @var array<int, array{payment: Payment, amount: ?int}> */
+    /** @var array<int, array{payment: Payment, amount: ?int, id: string}> */
     private array $refunds = [];
 
     /** @var array<int, PaymentCustomerData> */
@@ -41,6 +41,8 @@ final class FakePaymentGateway implements ManagesCustomers, PaymentGateway
     private int $sessionCounter = 0;
 
     private int $customerCounter = 0;
+
+    private int $refundCounter = 0;
 
     public function __construct(
         private readonly string $identifier = 'fake',
@@ -118,7 +120,7 @@ final class FakePaymentGateway implements ManagesCustomers, PaymentGateway
         );
     }
 
-    public function refund(Payment $payment, ?int $amount = null): void
+    public function refund(Payment $payment, ?int $amount = null): string
     {
         if ($payment->gateway_reference === null) {
             throw new RuntimeException("Cannot refund fake payment {$payment->id}: no gateway reference.");
@@ -131,7 +133,12 @@ final class FakePaymentGateway implements ManagesCustomers, PaymentGateway
             throw RefundAmountExceededException::exceeds($requested, $maxRefundable);
         }
 
-        $this->refunds[] = ['payment' => $payment, 'amount' => $amount];
+        $this->refundCounter++;
+        $refundId = 'fake_re_'.str_pad((string) $this->refundCounter, 6, '0', STR_PAD_LEFT);
+
+        $this->refunds[] = ['payment' => $payment, 'amount' => $amount, 'id' => $refundId];
+
+        return $refundId;
     }
 
     public function createCustomer(PaymentCustomerData $data): string
@@ -190,7 +197,7 @@ final class FakePaymentGateway implements ManagesCustomers, PaymentGateway
         return $this->sessions;
     }
 
-    /** @return array<int, array{payment: Payment, amount: ?int}> */
+    /** @return array<int, array{payment: Payment, amount: ?int, id: string}> */
     public function recordedRefunds(): array
     {
         return $this->refunds;

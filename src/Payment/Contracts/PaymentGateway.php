@@ -33,7 +33,12 @@ interface PaymentGateway
 
     public function parseWebhook(Request $request): WebhookPayload;
 
-    public function refund(Payment $payment, ?int $amount = null): void;
+    /**
+     * Issue a refund and return the gateway's refund id (e.g. Stripe `re_…`).
+     * The id is the idempotency anchor that lets an admin-initiated refund and
+     * the gateway's echoing refund webhook converge on one record.
+     */
+    public function refund(Payment $payment, ?int $amount = null): string;
 
     public function identifier(): string;
 

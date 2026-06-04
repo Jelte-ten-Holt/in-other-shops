@@ -125,12 +125,17 @@ final class StripePaymentGateway implements ManagesCustomers, PaymentGateway
         );
     }
 
-    public function refund(Payment $payment, ?int $amount = null): void
+    public function refund(Payment $payment, ?int $amount = null): string
     {
-        $this->client->refunds->create([
+        $refund = $this->client->refunds->create([
             'payment_intent' => $payment->gateway_reference,
             'amount' => $amount,
         ]);
+
+        // The gateway refund id (re_…) is the idempotency anchor: it lets the
+        // admin-initiated Refund row and the echoing charge.refunded webhook
+        // converge on one record instead of double-counting.
+        return $refund->id;
     }
 
     public function createCustomer(PaymentCustomerData $data): string
