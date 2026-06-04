@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace InOtherShops\Inventory;
 
+use InOtherShops\Inventory\Commands\ReconcileStockCommand;
 use InOtherShops\Inventory\Commands\ReleaseExpiredReservationsCommand;
 use InOtherShops\Inventory\Filament\StockMovementsTable;
 use InOtherShops\Inventory\Listeners\InventoryLogSubscriber;
@@ -34,7 +35,7 @@ final class InventoryServiceProvider extends ServiceProvider
             Livewire::component('inventory-stock-movements-table', StockMovementsTable::class);
         }
 
-        $this->commands([ReleaseExpiredReservationsCommand::class]);
+        $this->commands([ReleaseExpiredReservationsCommand::class, ReconcileStockCommand::class]);
 
         $this->publishes([
             __DIR__.'/config/inventory.php' => config_path('inventory.php'),
