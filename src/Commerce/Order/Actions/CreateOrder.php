@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\DB;
 use InOtherShops\Commerce\Cart\Models\Cart;
 use InOtherShops\Commerce\Commerce;
 use InOtherShops\Commerce\Customer\Models\Customer;
+use InOtherShops\Commerce\Exceptions\CommerceException;
 use InOtherShops\Commerce\Order\Contracts\HasOrders;
 use InOtherShops\Commerce\Order\Contracts\OrderNumberGenerator;
 use InOtherShops\Commerce\Order\DTOs\ShippingSnapshot;
@@ -74,7 +75,9 @@ final class CreateOrder
 
         $order = $this->createOrderRecord($breakdown, $customer, $guestEmail, $taxSnapshot, $shippingSnapshot, $locale);
 
-        $this->attachLines($order, $cart, $breakdown);
+        $linesTotal = $this->attachLines($order, $cart, $breakdown);
+        $this->assertSubtotalReconciles($linesTotal, $breakdown);
+
         $this->attachAddress($order, $billingAddress, $shippingAddress === null ? AddressType::ShippingAndBilling : AddressType::Billing);
 
         if ($shippingAddress !== null) {
@@ -130,20 +133,50 @@ final class CreateOrder
         );
     }
 
-    private function attachLines(Order $order, Cart $cart, PriceBreakdown $breakdown): void
+    private function attachLines(Order $order, Cart $cart, PriceBreakdown $breakdown): int
     {
         $cart->loadMissing('items.cartable');
 
+        $linesTotal = 0;
+
         foreach ($cart->items->values() as $index => $item) {
-            $this->persistLine($order, $this->buildLineDraft($item, $breakdown, $index));
+            $draft = $this->buildLineDraft($item, $breakdown, $index);
+            $linesTotal += $draft['attributes']['line_total'];
+            $this->persistLine($order, $draft);
+        }
+
+        return $linesTotal;
+    }
+
+    /**
+     * Invariant (audit T1 / G2): stored order lines must sum to the priced
+     * subtotal. They diverge when a stored per-line price differs from the
+     * breakdown's priced unit — the quantity-tier case, where the breakdown
+     * resolves a tiered unit price but the stored line falls back to the qty-1
+     * price. Fail loud inside the transaction so the whole order rolls back,
+     * rather than persist an order whose total ≠ sum(lines).
+     *
+     * Only enforced when the breakdown carries per-line data — production
+     * always does (CalculateTotal builds the lines). A line-less breakdown is a
+     * synthetic/legacy input there's nothing to reconcile against.
+     */
+    private function assertSubtotalReconciles(int $linesTotal, PriceBreakdown $breakdown): void
+    {
+        if ($breakdown->lines === []) {
+            return;
+        }
+
+        if ($linesTotal !== $breakdown->subtotal) {
+            throw CommerceException::subtotalMismatch($linesTotal, $breakdown->subtotal);
         }
     }
 
     /**
      * One order line, snapshotting its tax category and resolved VAT rate. The
-     * rate comes from the priced breakdown line at the same position (the
-     * breakdown and the cart are built from the same items, in order). The tax
-     * *amount* is not stored per line — it lives in the order's per-bracket
+     * rate comes from the priced breakdown line at the same position. The
+     * alignment is safe because `Cart::items()` orders deterministically (by id)
+     * and the breakdown is built from that same ordered relation — see G6. The
+     * tax *amount* is not stored per line; it lives in the order's per-bracket
      * `tax_summary`.
      *
      * @return array{cartable: mixed, attributes: array<string, mixed>}

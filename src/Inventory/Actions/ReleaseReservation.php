@@ -24,6 +24,11 @@ use Illuminate\Support\Facades\DB;
  * exists). The locked select + status guard makes concurrent calls
  * idempotent — safe to call from multiple paths (admin cancellation,
  * payment-fail listener, status-change listener).
+ *
+ * An optional `$description` overrides the release movement's ledger text —
+ * pass the *reason* for releasing (e.g. "Payment failed for order …",
+ * "Refund restock") so the audit trail records why the stock came back, not
+ * the original reservation text. Defaults to the reservation's own description.
  */
 final class ReleaseReservation
 {
@@ -31,10 +36,10 @@ final class ReleaseReservation
         private readonly AdjustStock $adjustStock,
     ) {}
 
-    public function __invoke(StockReservation $reservation): ?StockReservation
+    public function __invoke(StockReservation $reservation, ?string $description = null): ?StockReservation
     {
         $released = DB::transaction(
-            fn (): ?StockReservation => $this->release($reservation->getKey()),
+            fn (): ?StockReservation => $this->release($reservation->getKey(), $description),
         );
 
         if ($released !== null) {
@@ -45,7 +50,7 @@ final class ReleaseReservation
         return $released;
     }
 
-    private function release(int $reservationId): ?StockReservation
+    private function release(int $reservationId, ?string $description): ?StockReservation
     {
         $model = Inventory::stockReservation();
 
@@ -67,7 +72,7 @@ final class ReleaseReservation
             stockable: $stockable,
             quantity: $reservation->quantity,
             reason: StockMovementReason::Released,
-            description: $reservation->description,
+            description: $description ?? $reservation->description,
             reference: $reservation->reference,
             source: $reservation->source,
         );

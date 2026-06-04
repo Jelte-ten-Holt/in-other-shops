@@ -40,7 +40,11 @@ class Cart extends Model
 
     public function items(): HasMany
     {
-        return $this->hasMany(Commerce::cartItem());
+        // Deterministic insertion order (by id). Checkout relies on the cart's
+        // item order matching the priced breakdown's line order — without an
+        // explicit order, the DB is free to return rows in any order and an
+        // order line can be stamped with another line's VAT rate (audit G6).
+        return $this->hasMany(Commerce::cartItem())->orderBy('id');
     }
 
     public function requiresShipping(): bool

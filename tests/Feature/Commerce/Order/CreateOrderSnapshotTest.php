@@ -8,6 +8,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use InOtherShops\Commerce\Cart\Actions\AddToCart;
 use InOtherShops\Commerce\Cart\Models\Cart;
 use InOtherShops\Commerce\Order\Actions\CreateOrder;
+use InOtherShops\Commerce\Exceptions\CommerceException;
 use InOtherShops\Commerce\Order\DTOs\ShippingSnapshot;
 use InOtherShops\Commerce\Order\DTOs\TaxSnapshot;
 use InOtherShops\Currency\Enums\Currency;
@@ -145,7 +146,8 @@ final class CreateOrderSnapshotTest extends TestCase
     #[Test]
     public function it_stores_the_per_bracket_tax_summary_and_no_per_line_tax_amount(): void
     {
-        $cart = $this->cartWithItem();
+        $cart = Cart::factory()->create(['session_token' => 'test-session']);
+        ($this->addToCart)($cart, TestCartable::factory()->create(['unit_price' => 3000]));
 
         $breakdown = new PriceBreakdown(
             subtotal: 3000,
@@ -180,6 +182,42 @@ final class CreateOrderSnapshotTest extends TestCase
 
         // Tax is summarised on the order, not distributed per line.
         $this->assertNull($order->lines()->first()->tax_amount);
+    }
+
+    #[Test]
+    public function it_refuses_to_persist_an_order_whose_lines_do_not_reconcile_with_the_subtotal(): void
+    {
+        // Audit T1 / G2: the breakdown prices the line at 3000 (e.g. a quantity
+        // tier) but the stored line falls back to the cartable's 1500 — so
+        // sum(lines) = 1500 against a 3000 subtotal. Fail loud and roll back the
+        // whole order rather than persist a total ≠ sum(lines).
+        $cart = $this->cartWithItem(); // default TestCartable @ 1500
+
+        $breakdown = new PriceBreakdown(
+            subtotal: 3000,
+            discount: 0,
+            tax: 0,
+            shippingCost: 0,
+            total: 3000,
+            currency: Currency::EUR,
+            lines: [
+                new PriceBreakdownLine(description: 'Item', unitPrice: 3000, quantity: 1, lineTotal: 3000, taxRateBps: 0),
+            ],
+        );
+
+        try {
+            ($this->createOrder)(
+                cart: $cart,
+                breakdown: $breakdown,
+                billingAddress: $this->billingAddress(),
+            );
+            $this->fail('Expected CommerceException for a subtotal that does not reconcile with the stored lines.');
+        } catch (CommerceException) {
+            // expected
+        }
+
+        // The transaction rolled back — no half-order persisted.
+        $this->assertDatabaseCount('orders', 0);
     }
 
     #[Test]
