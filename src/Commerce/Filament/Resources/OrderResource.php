@@ -78,6 +78,15 @@ class OrderResource extends Resource
                 Tables\Columns\TextColumn::make('status')
                     ->badge()
                     ->color(fn (OrderStatus $state): string => $state->color()),
+                Tables\Columns\TextColumn::make('refund_state')
+                    ->label('Refund')
+                    ->badge()
+                    ->color('danger')
+                    ->getStateUsing(fn (Order $record): ?string => match (true) {
+                        $record->isRefunded() => 'Refunded',
+                        $record->isPartiallyRefunded() => 'Partial',
+                        default => null,
+                    }),
                 Tables\Columns\TextColumn::make('currency')
                     ->badge()
                     ->formatStateUsing(fn ($state) => $state->value),

@@ -34,6 +34,32 @@ final class EditOrder extends EditRecord
     }
 
     /**
+     * Soft guard for the residual F28 risk: a refunded-but-not-cancelled order
+     * stays Confirmed (and thus fulfillable). Warn the operator whenever they
+     * open it — including before they create a shipment via the relation manager
+     * on this page. Warns, does not block (per warn-don't-force).
+     */
+    protected function afterFill(): void
+    {
+        /** @var Order $order */
+        $order = $this->record;
+
+        if ($order->isRefunded()) {
+            Notification::make()
+                ->title('This order is fully refunded')
+                ->body('It is still Confirmed — do not fulfil or ship it without checking.')
+                ->warning()
+                ->persistent()
+                ->send();
+        } elseif ($order->isPartiallyRefunded()) {
+            Notification::make()
+                ->title('This order is partially refunded')
+                ->warning()
+                ->send();
+        }
+    }
+
+    /**
      * Partial (or full-without-cancel) refund. Amount + reason, and a picker of
      * the order's still-held reservations to restock (whole-line). The order
      * stays a fulfilment concept — refunded-ness is read from order->refunds.
