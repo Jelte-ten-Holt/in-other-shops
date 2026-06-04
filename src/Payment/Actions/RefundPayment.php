@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace InOtherShops\Payment\Actions;
 
 use Illuminate\Support\Facades\DB;
+use InOtherShops\Payment\DTOs\RefundResult;
 use InOtherShops\Payment\Enums\PaymentStatus;
-use InOtherShops\Payment\Events\PaymentRefunded;
 use InOtherShops\Payment\Exceptions\PaymentNotRefundableException;
 use InOtherShops\Payment\Exceptions\RefundAmountExceededException;
 use InOtherShops\Payment\Models\Payment;
@@ -19,7 +19,17 @@ final class RefundPayment
         private readonly PaymentGatewayManager $gateways,
     ) {}
 
-    public function __invoke(Payment $payment, ?int $amount = null): Payment
+    /**
+     * Issue the gateway refund and update the payment row. Returns the gateway
+     * refund id + amounts so the orchestration layer (Commerce RefundOrder, or
+     * the webhook reconciliation listener) can record the Refund row and reverse
+     * tax. Deliberately does NOT record the Refund row or dispatch a domain
+     * event itself — recording is Commerce's job (Payment must not depend on it),
+     * and keeping the Refund row + restock OUT of this gateway transaction means
+     * a post-refund failure can't roll back a successful gateway charge into a
+     * record-less state.
+     */
+    public function __invoke(Payment $payment, ?int $amount = null): RefundResult
     {
         // Two simultaneous refund clicks on the same payment used to read
         // amount_refunded=0 in parallel, both pass the cap check, both
@@ -29,7 +39,7 @@ final class RefundPayment
         // (Stripe inspects the PaymentIntent it issued); calling them
         // post-update would feed them a payment that already reflects the
         // refund and they'd reject it as exceeding the remaining cap.
-        return DB::transaction(function () use ($payment, $amount): Payment {
+        return DB::transaction(function () use ($payment, $amount): RefundResult {
             $locked = Payment::query()
                 ->lockForUpdate()
                 ->findOrFail($payment->getKey());
@@ -37,14 +47,17 @@ final class RefundPayment
             $this->validateRefundable($locked);
             $refundAmount = $this->resolveRefundAmount($locked, $amount);
 
-            $this->processRefund($locked, $refundAmount);
+            $gatewayRefundId = $this->processRefund($locked, $refundAmount);
             $this->updatePaymentRecord($locked, $refundAmount);
-            $this->dispatchEvent($locked);
 
             // Refresh the caller's instance so they see the new state too.
             $payment->setRawAttributes($locked->getAttributes(), sync: true);
 
-            return $payment;
+            return new RefundResult(
+                gatewayRefundId: $gatewayRefundId,
+                amount: $refundAmount,
+                cumulativeRefunded: $locked->amount_refunded,
+            );
         });
     }
 
@@ -79,10 +92,11 @@ final class RefundPayment
         return $amount;
     }
 
-    private function processRefund(Payment $payment, int $amount): void
+    private function processRefund(Payment $payment, int $amount): string
     {
         $gateway = $this->gateways->gateway($payment->gateway);
-        $gateway->refund($payment, $amount);
+
+        return $gateway->refund($payment, $amount);
     }
 
     private function updatePaymentRecord(Payment $payment, int $refundAmount): void
@@ -97,10 +111,5 @@ final class RefundPayment
             'amount_refunded' => $newAmountRefunded,
             'status' => $status,
         ]);
-    }
-
-    private function dispatchEvent(Payment $payment): void
-    {
-        PaymentRefunded::dispatch($payment);
     }
 }

@@ -9,6 +9,7 @@ use InOtherShops\Commerce\Cart\Events\CartCleared;
 use InOtherShops\Commerce\Cart\Events\CartUpdated;
 use InOtherShops\Commerce\Order\Events\OrderCreated;
 use InOtherShops\Commerce\Order\Events\OrderStatusChanged;
+use InOtherShops\Commerce\Order\Events\RefundRecorded;
 use InOtherShops\Logging\DTOs\LogEntry;
 use InOtherShops\Logging\Enums\LogLevel;
 use InOtherShops\Logging\LogDispatcher;
@@ -31,7 +32,31 @@ final class CommerceLogSubscriber
             CartCleared::class => 'handleCartCleared',
             OrderCreated::class => 'handleOrderCreated',
             OrderStatusChanged::class => 'handleOrderStatusChanged',
+            RefundRecorded::class => 'handleRefundRecorded',
         ];
+    }
+
+    public function handleRefundRecorded(RefundRecorded $event): void
+    {
+        $refund = $event->refund;
+
+        $this->dispatcher->log(new LogEntry(
+            level: LogLevel::Info,
+            channel: self::CHANNEL,
+            message: "Refund of {$refund->amount} recorded on order {$refund->order_id}.",
+            context: [
+                'refund_id' => $refund->id,
+                'order_id' => $refund->order_id,
+                'payment_id' => $refund->payment_id,
+                'gateway' => $refund->gateway,
+                'gateway_refund_id' => $refund->gateway_refund_id,
+                'amount' => $refund->amount,
+                'reason' => $refund->reason,
+                'actor_source' => $refund->actor_source->value,
+                'actor_id' => $refund->actor_id,
+                'actor_label' => $refund->actor_label,
+            ],
+        ));
     }
 
     public function handleCartUpdated(CartUpdated $event): void

@@ -15,9 +15,12 @@ use InOtherShops\Commerce\Cart\Events\CartUpdated;
 use InOtherShops\Commerce\Cart\Models\Cart;
 use InOtherShops\Commerce\Customer\Models\Customer;
 use InOtherShops\Commerce\Order\Enums\OrderStatus;
+use InOtherShops\Commerce\Order\Enums\RefundActorSource;
 use InOtherShops\Commerce\Order\Events\OrderCreated;
 use InOtherShops\Commerce\Order\Events\OrderStatusChanged;
+use InOtherShops\Commerce\Order\Events\RefundRecorded;
 use InOtherShops\Commerce\Order\Models\Order;
+use InOtherShops\Commerce\Order\Models\Refund;
 use InOtherShops\Currency\Enums\Currency;
 use InOtherShops\FlowChain\Contracts\FlowPayload;
 use InOtherShops\FlowChain\DTOs\FlowChainResult;
@@ -433,6 +436,26 @@ final class LogSubscriberMappingTest extends TestCase
         $entry = $this->assertSingleEntry('commerce', LogLevel::Info, 'pending → confirmed');
         $this->assertSame('pending', $entry->context['from']);
         $this->assertSame('confirmed', $entry->context['to']);
+    }
+
+    #[Test]
+    public function refund_recorded_routes_to_commerce_channel_at_info_with_reason_and_actor(): void
+    {
+        $order = Order::factory()->create(['order_number' => 'TEST-LOG-3']);
+        $refund = Refund::factory()->create([
+            'order_id' => $order->id,
+            'amount' => 500,
+            'reason' => 'Customer changed mind',
+            'actor_source' => RefundActorSource::Admin,
+            'actor_id' => '7',
+        ]);
+
+        RefundRecorded::dispatch($refund);
+
+        $entry = $this->assertSingleEntry('commerce', LogLevel::Info, 'Refund of 500');
+        $this->assertSame($refund->id, $entry->context['refund_id']);
+        $this->assertSame('Customer changed mind', $entry->context['reason']);
+        $this->assertSame('admin', $entry->context['actor_source']);
     }
 
     // ─────────────────────────────────────────────────────────────────

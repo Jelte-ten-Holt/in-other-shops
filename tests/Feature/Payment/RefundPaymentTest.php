@@ -217,34 +217,21 @@ final class RefundPaymentTest extends TestCase
     }
 
     #[Test]
-    public function it_dispatches_payment_refunded_with_the_payment_after_a_successful_refund(): void
+    public function it_returns_a_refund_result_with_the_gateway_id_and_cumulative(): void
     {
-        Event::fake([PaymentRefunded::class]);
-
         $payment = $this->successfulPayment(2500);
 
-        ($this->refund)($payment, 1000);
+        $result = ($this->refund)($payment, 1000);
 
-        Event::assertDispatched(
-            PaymentRefunded::class,
-            fn (PaymentRefunded $event) => $event->payment->is($payment),
-        );
-    }
+        // The gateway refund id is the anchor Commerce records the Refund row
+        // against; RefundPayment itself records nothing and dispatches nothing.
+        $this->assertSame($this->gateway->recordedRefunds()[0]['id'], $result->gatewayRefundId);
+        $this->assertSame(1000, $result->amount);
+        $this->assertSame(1000, $result->cumulativeRefunded);
 
-    #[Test]
-    public function it_does_not_dispatch_payment_refunded_when_validation_throws(): void
-    {
-        Event::fake([PaymentRefunded::class]);
-
-        $payment = $this->pendingPayment(2500);
-
-        try {
-            ($this->refund)($payment);
-        } catch (PaymentNotRefundableException) {
-            // expected
-        }
-
-        Event::assertNotDispatched(PaymentRefunded::class);
+        $second = ($this->refund)($payment, 1500);
+        $this->assertSame(2500, $second->cumulativeRefunded);
+        $this->assertNotSame($result->gatewayRefundId, $second->gatewayRefundId);
     }
 
     #[Test]
