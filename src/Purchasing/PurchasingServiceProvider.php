@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace InOtherShops\Purchasing;
 
+use InOtherShops\Purchasing\Commands\ReconcilePurchaseReceiptsCommand;
 use InOtherShops\Purchasing\Listeners\PurchasingLogSubscriber;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Facades\Event;
@@ -31,5 +32,7 @@ final class PurchasingServiceProvider extends ServiceProvider
         ], 'purchasing-config');
 
         Event::subscribe(PurchasingLogSubscriber::class);
+
+        $this->commands([ReconcilePurchaseReceiptsCommand::class]);
     }
 }
