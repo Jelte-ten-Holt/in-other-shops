@@ -109,6 +109,18 @@ final class StripePaymentGateway implements ManagesCustomers, PaymentGateway
 
         $this->verifiedEvent = null;
 
+        // Branch on the event type BEFORE reading variant fields. charge.* events
+        // carry a Charge (charge.refunded) or a Refund (charge.refund.updated) —
+        // NOT a PaymentIntent. Reading `id` off them as if it were an intent is
+        // the F27 bug (a ch_…/re_… id that never matches the stored pi_…).
+        if ($event->type === 'charge.refunded') {
+            return $this->parseChargeRefunded($event);
+        }
+
+        if ($event->type === 'charge.refund.updated') {
+            return $this->parseRefundUpdated($event);
+        }
+
         /** @var PaymentIntent $intent */
         $intent = $event->data->object;
 
@@ -123,6 +135,56 @@ final class StripePaymentGateway implements ManagesCustomers, PaymentGateway
             amount: isset($intent->amount) && is_int($intent->amount) ? $intent->amount : null,
             currency: isset($intent->currency) && is_string($intent->currency) ? strtolower($intent->currency) : null,
         );
+    }
+
+    /**
+     * charge.refunded — data.object is a Charge. The intent id is in
+     * `payment_intent`; `amount` is the original charge (so the amount guard
+     * still validates against the payment), `amount_refunded` is the CUMULATIVE
+     * refund on the charge, and the latest refund id anchors the Refund record.
+     */
+    private function parseChargeRefunded(\Stripe\Event $event): WebhookPayload
+    {
+        /** @var \Stripe\Charge $charge */
+        $charge = $event->data->object;
+
+        return new WebhookPayload(
+            gatewayReference: (string) $charge->payment_intent,
+            status: $this->mapStatus('', $event->type),
+            eventId: $event->id,
+            gatewayData: ['event_type' => $event->type],
+            amount: isset($charge->amount) && is_int($charge->amount) ? $charge->amount : null,
+            currency: isset($charge->currency) && is_string($charge->currency) ? strtolower($charge->currency) : null,
+            amountRefunded: isset($charge->amount_refunded) && is_int($charge->amount_refunded) ? $charge->amount_refunded : null,
+            gatewayRefundId: $this->latestRefundId($charge),
+        );
+    }
+
+    /**
+     * charge.refund.updated — data.object is a Refund (async refund status
+     * transitions). We resolve the intent reference + refund id so it's not a
+     * silent no-op, but leave `amountRefunded` null: the cumulative isn't on the
+     * Refund object, and charge.refunded already carries the authoritative total.
+     */
+    private function parseRefundUpdated(\Stripe\Event $event): WebhookPayload
+    {
+        /** @var \Stripe\Refund $refund */
+        $refund = $event->data->object;
+
+        return new WebhookPayload(
+            gatewayReference: (string) $refund->payment_intent,
+            status: $this->mapStatus('', $event->type),
+            eventId: $event->id,
+            gatewayData: ['event_type' => $event->type],
+            gatewayRefundId: (string) $refund->id,
+        );
+    }
+
+    private function latestRefundId(\Stripe\Charge $charge): ?string
+    {
+        $data = $charge->refunds->data ?? [];
+
+        return isset($data[0]->id) ? (string) $data[0]->id : null;
     }
 
     public function refund(Payment $payment, ?int $amount = null): string

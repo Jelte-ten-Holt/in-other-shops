@@ -109,6 +109,8 @@ final class FakePaymentGateway implements ManagesCustomers, PaymentGateway
         $eventId = $body['event_id'] ?? null;
         $amount = $body['amount'] ?? null;
         $currency = $body['currency'] ?? null;
+        $amountRefunded = $body['amount_refunded'] ?? null;
+        $gatewayRefundId = $body['gateway_refund_id'] ?? null;
 
         return new WebhookPayload(
             gatewayReference: $reference,
@@ -117,6 +119,8 @@ final class FakePaymentGateway implements ManagesCustomers, PaymentGateway
             gatewayData: ['fake' => true],
             amount: is_int($amount) ? $amount : null,
             currency: is_string($currency) ? strtolower($currency) : null,
+            amountRefunded: is_int($amountRefunded) ? $amountRefunded : null,
+            gatewayRefundId: is_string($gatewayRefundId) ? $gatewayRefundId : null,
         );
     }
 
@@ -172,6 +176,8 @@ final class FakePaymentGateway implements ManagesCustomers, PaymentGateway
         ?string $eventId = null,
         ?int $amountOverride = null,
         ?string $currencyOverride = null,
+        ?int $amountRefunded = null,
+        ?string $gatewayRefundId = null,
     ): Request {
         if ($payment->gateway_reference === null) {
             throw new RuntimeException("Cannot simulate webhook for payment {$payment->id}: no gateway reference.");
@@ -186,6 +192,8 @@ final class FakePaymentGateway implements ManagesCustomers, PaymentGateway
                 'event_id' => $eventId ?? 'fake_evt_'.uniqid(),
                 'amount' => $amountOverride ?? $payment->amount,
                 'currency' => strtolower($currencyOverride ?? $payment->currency?->value ?? ''),
+                'amount_refunded' => $amountRefunded,
+                'gateway_refund_id' => $gatewayRefundId,
             ], JSON_THROW_ON_ERROR),
             server: ['CONTENT_TYPE' => 'application/json'],
         );

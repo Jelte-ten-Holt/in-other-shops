@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\DB;
 use InOtherShops\Payment\DTOs\WebhookPayload;
 use InOtherShops\Payment\Enums\PaymentStatus;
 use InOtherShops\Payment\Events\PaymentFailed;
+use InOtherShops\Payment\Events\PaymentRefunded;
 use InOtherShops\Payment\Events\PaymentSucceeded;
 use InOtherShops\Payment\Exceptions\PaymentAmountMismatchException;
 use InOtherShops\Payment\Models\Payment;
@@ -43,9 +44,9 @@ final class ProcessPaymentWebhook
 
             $this->guardAmountMatches($payment, $payload);
 
-            $changed = $this->updatePaymentStatus($payment, $payload);
-
-            if ($changed) {
+            if ($this->isRefundEvent($payload)) {
+                $this->applyRefund($payment, $payload);
+            } elseif ($this->updatePaymentStatus($payment, $payload)) {
                 $this->dispatchEvent($payment);
             }
 
@@ -81,7 +82,54 @@ final class ProcessPaymentWebhook
         return Payment::query()
             ->where('gateway', $gatewayName)
             ->where('gateway_reference', $payload->gatewayReference)
+            ->lockForUpdate()
             ->first();
+    }
+
+    private function isRefundEvent(WebhookPayload $payload): bool
+    {
+        return in_array(
+            $payload->status,
+            [PaymentStatus::Refunded, PaymentStatus::PartiallyRefunded],
+            true,
+        );
+    }
+
+    /**
+     * Apply a refund webhook to the payment. `amount_refunded` is set to the
+     * gateway's CUMULATIVE total monotonically (never regresses on out-of-order
+     * delivery), and status is recomputed FROM THE AMOUNTS — not from the event
+     * type — so a partial `charge.refunded` doesn't flip the row to fully
+     * Refunded while money remains. Dispatches PaymentRefunded with this event's
+     * delta so Commerce records the matching Refund row.
+     */
+    private function applyRefund(Payment $payment, WebhookPayload $payload): void
+    {
+        // charge.refund.updated carries no cumulative — nothing authoritative to
+        // apply; charge.refunded is the event that moves the total.
+        if ($payload->amountRefunded === null) {
+            return;
+        }
+
+        $newRefunded = max($payment->amount_refunded, $payload->amountRefunded);
+
+        if ($newRefunded <= $payment->amount_refunded) {
+            return; // stale or already applied — don't regress, don't re-dispatch
+        }
+
+        $delta = $newRefunded - $payment->amount_refunded;
+
+        $status = $newRefunded >= $payment->amount
+            ? PaymentStatus::Refunded
+            : PaymentStatus::PartiallyRefunded;
+
+        $payment->update([
+            'amount_refunded' => $newRefunded,
+            'status' => $status,
+            'gateway_data' => array_merge($payment->gateway_data ?? [], $payload->gatewayData),
+        ]);
+
+        PaymentRefunded::dispatch($payment, $payload->gatewayRefundId, $delta);
     }
 
     /**

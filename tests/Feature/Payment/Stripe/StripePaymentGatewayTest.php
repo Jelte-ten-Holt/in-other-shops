@@ -407,27 +407,40 @@ final class StripePaymentGatewayTest extends TestCase
     }
 
     #[Test]
-    public function parse_webhook_maps_charge_refunded_to_refunded_status(): void
+    public function parse_webhook_reads_a_charge_refunded_event_as_a_charge_not_an_intent(): void
     {
-        $payload = $this->validIntentEventJson('evt_refund', 'charge.refunded', 'pi_refunded', 'succeeded');
+        // A real charge.refunded carries a CHARGE object: top-level id is ch_…,
+        // the intent is in payment_intent, and amount_refunded is the cumulative.
+        // Reading `id` blindly (the old bug) produced a ch_… reference that never
+        // matched the stored pi_…, so the refund webhook silently no-op'd.
+        $payload = $this->chargeRefundedEventJson('evt_refund', 'pi_refunded', 2000, 800, 're_abc');
         $request = $this->signedRequest($payload, time());
 
-        $this->assertSame(
-            PaymentStatus::Refunded,
-            $this->gateway->parseWebhook($request)->status,
-        );
+        $parsed = $this->gateway->parseWebhook($request);
+
+        $this->assertSame('pi_refunded', $parsed->gatewayReference, 'reference must be the intent id, not the charge id');
+        $this->assertSame(PaymentStatus::Refunded, $parsed->status);
+        $this->assertSame(2000, $parsed->amount, 'amount carries the original charge so the amount guard still validates');
+        $this->assertSame(800, $parsed->amountRefunded, 'amountRefunded is the cumulative refund total');
+        $this->assertSame('re_abc', $parsed->gatewayRefundId);
     }
 
     #[Test]
-    public function parse_webhook_maps_charge_refund_updated_to_partially_refunded_status(): void
+    public function parse_webhook_reads_a_charge_refund_updated_event_as_a_refund(): void
     {
-        $payload = $this->validIntentEventJson('evt_partial', 'charge.refund.updated', 'pi_partial_refund', 'succeeded');
+        // charge.refund.updated carries a REFUND object: id is re_…, the intent
+        // is in payment_intent. We resolve the reference + refund id (so it's not
+        // a silent mismatch) but leave amountRefunded null — the cumulative isn't
+        // on the Refund object; charge.refunded carries the authoritative total.
+        $payload = $this->refundUpdatedEventJson('evt_partial', 'pi_partial_refund', 're_def');
         $request = $this->signedRequest($payload, time());
 
-        $this->assertSame(
-            PaymentStatus::PartiallyRefunded,
-            $this->gateway->parseWebhook($request)->status,
-        );
+        $parsed = $this->gateway->parseWebhook($request);
+
+        $this->assertSame('pi_partial_refund', $parsed->gatewayReference);
+        $this->assertSame(PaymentStatus::PartiallyRefunded, $parsed->status);
+        $this->assertNull($parsed->amountRefunded);
+        $this->assertSame('re_def', $parsed->gatewayRefundId);
     }
 
     #[Test]
@@ -544,6 +557,48 @@ final class StripePaymentGatewayTest extends TestCase
                     'id' => $intentId,
                     'object' => 'payment_intent',
                     'status' => $intentStatus,
+                ],
+            ],
+        ], JSON_THROW_ON_ERROR);
+    }
+
+    private function chargeRefundedEventJson(string $eventId, string $intentId, int $amount, int $amountRefunded, string $refundId): string
+    {
+        return json_encode([
+            'id' => $eventId,
+            'object' => 'event',
+            'type' => 'charge.refunded',
+            'data' => [
+                'object' => [
+                    'id' => 'ch_'.$eventId,
+                    'object' => 'charge',
+                    'payment_intent' => $intentId,
+                    'amount' => $amount,
+                    'amount_refunded' => $amountRefunded,
+                    'currency' => 'eur',
+                    'refunds' => [
+                        'object' => 'list',
+                        'data' => [
+                            ['id' => $refundId, 'object' => 'refund'],
+                        ],
+                    ],
+                ],
+            ],
+        ], JSON_THROW_ON_ERROR);
+    }
+
+    private function refundUpdatedEventJson(string $eventId, string $intentId, string $refundId): string
+    {
+        return json_encode([
+            'id' => $eventId,
+            'object' => 'event',
+            'type' => 'charge.refund.updated',
+            'data' => [
+                'object' => [
+                    'id' => $refundId,
+                    'object' => 'refund',
+                    'payment_intent' => $intentId,
+                    'charge' => 'ch_'.$eventId,
                 ],
             ],
         ], JSON_THROW_ON_ERROR);

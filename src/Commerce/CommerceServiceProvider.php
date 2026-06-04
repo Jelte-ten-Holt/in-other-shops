@@ -10,8 +10,10 @@ use InOtherShops\Commerce\Listeners\CommerceLogSubscriber;
 use InOtherShops\Commerce\Order\Events\OrderCreated;
 use InOtherShops\Commerce\Order\Events\OrderStatusChanged;
 use InOtherShops\Commerce\Order\Listeners\CreateShipmentForNewOrder;
+use InOtherShops\Commerce\Order\Listeners\ReconcileRefundFromWebhook;
 use InOtherShops\Commerce\Order\Listeners\SyncInventoryOnOrderStatusChange;
 use InOtherShops\FlowChain\FlowChainRegistry;
+use InOtherShops\Payment\Events\PaymentRefunded;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Route;
@@ -44,6 +46,7 @@ final class CommerceServiceProvider extends ServiceProvider
         Event::subscribe(CommerceLogSubscriber::class);
         Event::listen(OrderCreated::class, CreateShipmentForNewOrder::class);
         Event::listen(OrderStatusChanged::class, SyncInventoryOnOrderStatusChange::class);
+        Event::listen(PaymentRefunded::class, ReconcileRefundFromWebhook::class);
 
         $this->app->make(FlowChainRegistry::class)->register(AddToCartChain::class);
     }
