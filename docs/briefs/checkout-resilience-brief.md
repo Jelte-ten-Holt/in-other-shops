@@ -1,8 +1,9 @@
 # Brief: checkout & payment-confirmation resilience (audit R1 / F1·F2·F3 + F14)
 
-> Status: **building** on `feat/refund-domain` (stacked on the refund domain; one release window, all consumers
-> pre-launch). Spans the package (`in-other-shops`: Payment + Commerce) and the consumer (`in-other-worlds`:
-> checkout FlowChain + payment listeners). Decisions taken 2026-06-04 (Jelte).
+> Status: **✅ SHIPPED — package P1–P3 in v0.32.0, consumer P4 merged to in-other-worlds main.** P5 remains
+> DEFERRED (defense-in-depth, see below). Spans the package (`in-other-shops`: Payment + Commerce) and the consumer
+> (`in-other-worlds`: checkout FlowChain + payment listeners). Decisions taken 2026-06-04 (Jelte). Retained as the
+> design rationale + the corrected F1/F2/F3 mechanism write-up.
 >
 > This brief supersedes the audit's *mechanism* descriptions for F1/F2/F3 — two agents traced the real call stacks
 > and the audit was directionally right but imprecise. The corrected mechanisms are recorded below.
@@ -78,10 +79,10 @@ idempotency net), in the same spirit as `inventory:reconcile` / `purchasing:reco
   reservation guard; `OrderConfirmationBlocked` event → commerce log channel.
 - **P3 (Commerce) ✅** `8075b6c` — `ExpireAbandonedOrders` + `commerce:expire-orders` (cancel intent → cancel order →
   release reservations, atomic, lock-serialised against `ConfirmOrder`); `commerce.order.abandon_after_minutes` (60).
-- **P4 (consumer) — RELEASE-GATED.** `ProcessCheckout` persist-then-pay (create the payment inside the wrapped chain,
-  open the session after commit); `HandlePaymentSucceeded` → `ConfirmOrder`, fire email/cart-clear only on the
-  `Confirmed` outcome; schedule `commerce:expire-orders`. Blocked until the package is released + bumped (the consumer
-  uses the Packagist build, not a symlink, so it can't reference the P1–P3 classes until then).
+- **P4 (consumer) — ✅ DONE** (in-other-worlds, on package v0.33.0, merged to main). `ProcessCheckout` persist-then-pay
+  (`RecordPendingPayment` step persists the payment inside the wrapped chain, `PayController` opens the session lazily
+  after commit); `HandlePaymentSucceeded` → `ConfirmOrder`, fire email/cart-clear only on the `Confirmed` outcome;
+  `commerce:expire-orders` scheduled every 15 min. (`InitiateStripePayment` step removed.)
 - **P5 — DEFERRED (defense-in-depth).** Stripe⇄local reconciliation tripwire (T4) needs a gateway intent-enumeration
   capability; P1's idempotency key already removes the main F1 orphan vector, so this is belt-and-suspenders.
 

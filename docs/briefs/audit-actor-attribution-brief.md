@@ -1,8 +1,10 @@
 # Brief: audit-log actor attribution (audit F21 + F22)
 
-> Status: **design settled, build-ready** (discuss pass done 2026-06-04/05 with Jelte). Primarily package
-> (`in-other-shops`: Logging + the boundaries that emit audit events) with a small consumer middleware
-> (`in-other-worlds`). One release window (~v0.33.0), mostly additive / non-breaking. Stacks on v0.32.0.
+> Status: **✅ SHIPPED 2026-06-05 — in-other-shops v0.33.0** (package P1–P3) **+ in-other-worlds `SetAuditActor`
+> middleware** (consumer P4, merged to main). Built as designed below; additive / non-breaking. The convention it
+> established lives in CLAUDE.md ("Audit-log actor attribution"); this brief is retained as the design rationale.
+> Primarily package (`in-other-shops`: Logging + the boundaries that emit audit events) with a small consumer
+> middleware (`in-other-worlds`).
 >
 > Closes **F21** (no actor on any `domain_logs` row) and the remaining half of **F22** (G10 already did the
 > *resilience* half — the audit echo can't fail or corrupt the business action; this adds the *who*).
