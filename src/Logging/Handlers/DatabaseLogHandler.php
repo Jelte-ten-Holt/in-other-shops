@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace InOtherShops\Logging\Handlers;
 
 use InOtherShops\Logging\Contracts\LogHandler;
+use InOtherShops\Logging\DTOs\LogActor;
 use InOtherShops\Logging\DTOs\LogEntry;
 use Illuminate\Support\Facades\DB;
 use JsonException;
@@ -13,11 +14,19 @@ final class DatabaseLogHandler implements LogHandler
 {
     public function handle(LogEntry $entry): void
     {
+        // The dispatcher resolves the actor before handing the entry over, but a
+        // handler invoked directly (tests, ad-hoc) may carry none — fall back to
+        // the same loud default rather than writing a null actor.
+        $actor = $entry->actor ?? LogActor::unknown();
+
         DB::table('domain_logs')->insert([
             'level' => $entry->level->value,
             'channel' => $entry->channel,
             'message' => $entry->message,
             'context' => $this->encodeContext($entry->context),
+            'actor_type' => $actor->type->value,
+            'actor_id' => $actor->id,
+            'actor_label' => $actor->label,
             'created_at' => now(),
         ]);
     }

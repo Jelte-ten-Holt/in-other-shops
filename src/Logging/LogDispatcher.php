@@ -6,6 +6,7 @@ namespace InOtherShops\Logging;
 
 use Illuminate\Support\Facades\Log;
 use InOtherShops\Logging\Contracts\LogHandler;
+use InOtherShops\Logging\DTOs\LogActor;
 use InOtherShops\Logging\DTOs\LogEntry;
 use Throwable;
 
@@ -70,11 +71,20 @@ final class LogDispatcher
         }
     }
 
+    /**
+     * Stamp every entry with its resolved actor and merge ambient context.
+     *
+     * Actor precedence (brief, §3): an explicit actor on the entry (refunds,
+     * which know their own actor) wins; otherwise the ambient boundary actor set
+     * in {@see LogContext}; otherwise {@see LogActor::unknown()} — the loud
+     * default, so no row is ever left without a recorded actor.
+     */
     private function enrichEntry(LogEntry $entry): LogEntry
     {
-        $ambient = $this->context->all();
+        $ambientContext = $this->context->all();
+        $actor = $entry->actor ?? $this->context->actor() ?? LogActor::unknown();
 
-        if (empty($ambient)) {
+        if (empty($ambientContext) && $entry->actor === $actor) {
             return $entry;
         }
 
@@ -82,7 +92,8 @@ final class LogDispatcher
             level: $entry->level,
             channel: $entry->channel,
             message: $entry->message,
-            context: array_merge($ambient, $entry->context),
+            context: empty($ambientContext) ? $entry->context : array_merge($ambientContext, $entry->context),
+            actor: $actor,
         );
     }
 }
