@@ -52,6 +52,10 @@ final class ReleaseExpiredReservations
             return null;
         }
 
-        return ($this->releaseReservation)($reservation);
+        // onlyIfExpired: the id snapshot above is taken without a lock, so a
+        // payment confirmation can flip this row Pending→Confirmed before we get
+        // here. Re-validate the expiry condition under the lock so we never
+        // release a reservation that was paid in the gap.
+        return ($this->releaseReservation)($reservation, onlyIfExpired: true);
     }
 }
