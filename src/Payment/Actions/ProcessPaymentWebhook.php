@@ -16,11 +16,14 @@ use InOtherShops\Payment\Exceptions\PaymentAmountMismatchException;
 use InOtherShops\Payment\Models\Payment;
 use InOtherShops\Payment\Models\WebhookEvent;
 use InOtherShops\Payment\PaymentGatewayManager;
+use InOtherShops\Logging\DTOs\LogActor;
+use InOtherShops\Logging\LogContext;
 
 final class ProcessPaymentWebhook
 {
     public function __construct(
         private readonly PaymentGatewayManager $gateways,
+        private readonly LogContext $logContext,
     ) {}
 
     public function __invoke(string $gatewayName, Request $request): ?Payment
@@ -28,6 +31,12 @@ final class ProcessPaymentWebhook
         $gateway = $this->gateways->gateway($gatewayName);
 
         $gateway->verifyWebhookSignature($request);
+
+        // This request's boundary actor: a gateway acting on its own, with no
+        // operator. Every audit row produced downstream (PaymentSucceeded →
+        // order confirmation → stock release, refunds) inherits it ambiently
+        // unless it sets its own explicit actor (brief, §3).
+        $this->logContext->setActor(LogActor::gateway($gatewayName));
 
         $payload = $gateway->parseWebhook($request);
 

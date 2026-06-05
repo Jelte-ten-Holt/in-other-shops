@@ -94,4 +94,39 @@ final class AuditPipelineRowTest extends TestCase
         $this->assertSame('info', $row->level);
         $this->assertNotSame('false', $row->context, 'Context was stored as the literal false (G10).');
     }
+
+    #[Test]
+    public function a_row_written_with_no_boundary_actor_records_unknown_not_null(): void
+    {
+        // No boundary set an actor (a bare action call), so the row must carry
+        // the loud `unknown` default through the real pipeline — never a null
+        // hole in the actor columns (F21).
+        $widget = TestStockable::factory()->create();
+
+        app(AdjustStock::class)($widget, 5, StockMovementReason::Received);
+
+        $row = DB::table('domain_logs')->where('channel', 'inventory')->first();
+
+        $this->assertSame('system', $row->actor_type);
+        $this->assertNull($row->actor_id);
+        $this->assertSame('unknown', $row->actor_label);
+    }
+
+    #[Test]
+    public function the_ambient_boundary_actor_is_stamped_on_the_row_through_the_real_pipeline(): void
+    {
+        // Set an actor at the "boundary" and prove it survives the full
+        // dispatch → subscribe → handler → row path onto the actor columns.
+        app(\InOtherShops\Logging\LogContext::class)
+            ->setActor(\InOtherShops\Logging\DTOs\LogActor::agent('hash123', 'oauth:7'));
+
+        $widget = TestStockable::factory()->create();
+        app(AdjustStock::class)($widget, 5, StockMovementReason::Received);
+
+        $row = DB::table('domain_logs')->where('channel', 'inventory')->first();
+
+        $this->assertSame('agent', $row->actor_type);
+        $this->assertSame('hash123', $row->actor_id);
+        $this->assertSame('oauth:7', $row->actor_label);
+    }
 }

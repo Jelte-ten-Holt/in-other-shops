@@ -74,6 +74,22 @@ final class AuthenticateAgentMiddlewareTest extends TestCase
     }
 
     #[Test]
+    public function a_valid_bearer_establishes_an_agent_audit_actor(): void
+    {
+        // The boundary actor for /mcp: every stock/order mutation the agent makes
+        // is audit-attributed to it ambiently (F21, P2). The bearer path has no
+        // OAuth principal, so it's labelled as the operator.
+        $this->getJson(self::PROBE_PATH, [
+            'Authorization' => 'Bearer '.self::BEARER,
+        ])->assertOk();
+
+        $actor = $this->app->make(\InOtherShops\Logging\LogContext::class)->actor();
+        $this->assertNotNull($actor);
+        $this->assertSame(\InOtherShops\Logging\Enums\LogActorType::Agent, $actor->type);
+        $this->assertSame('bearer operator', $actor->label);
+    }
+
+    #[Test]
     public function a_valid_bearer_stamps_both_base_and_admin_scopes(): void
     {
         $body = $this->getJson(self::PROBE_PATH, [

@@ -11,6 +11,9 @@ use InOtherShops\Commerce\Order\Events\OrderConfirmationBlocked;
 use InOtherShops\Commerce\Order\Events\OrderCreated;
 use InOtherShops\Commerce\Order\Events\OrderStatusChanged;
 use InOtherShops\Commerce\Order\Events\RefundRecorded;
+use InOtherShops\Commerce\Order\Enums\RefundActorSource;
+use InOtherShops\Commerce\Order\Models\Refund;
+use InOtherShops\Logging\DTOs\LogActor;
 use InOtherShops\Logging\DTOs\LogEntry;
 use InOtherShops\Logging\Enums\LogLevel;
 use InOtherShops\Logging\LogDispatcher;
@@ -72,7 +75,30 @@ final class CommerceLogSubscriber
                 'actor_id' => $refund->actor_id,
                 'actor_label' => $refund->actor_label,
             ],
+            // A refund knows its own actor better than the ambient request does
+            // (a gateway-initiated refund has no operator), so it carries one
+            // explicitly — derived from the durable RefundActor so the audit
+            // actor and the business record never disagree (brief, §4).
+            actor: $this->auditActorForRefund($refund),
         ));
+    }
+
+    /**
+     * Map the refund's business {@see RefundActor} onto the cross-cutting audit
+     * {@see LogActor}: an admin-issued refund is a User actor; a gateway-issued
+     * one (Stripe dashboard, dispute auto-refund) is a Gateway actor named for
+     * the gateway. Lives here, not on LogActor, so the Logging domain stays
+     * independent of Commerce.
+     */
+    private function auditActorForRefund(Refund $refund): LogActor
+    {
+        return match ($refund->actor_source) {
+            RefundActorSource::Admin => LogActor::user(
+                (string) ($refund->actor_id ?? ''),
+                $refund->actor_label ?? 'admin',
+            ),
+            RefundActorSource::Gateway => LogActor::gateway($refund->gateway ?? 'gateway'),
+        };
     }
 
     public function handleCartUpdated(CartUpdated $event): void

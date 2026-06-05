@@ -10,6 +10,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use InOtherShops\Agent\Support\CanonicalUrl;
+use InOtherShops\Logging\DTOs\LogActor;
+use InOtherShops\Logging\LogContext;
 use Symfony\Component\HttpFoundation\Response;
 use Throwable;
 
@@ -39,6 +41,10 @@ use Throwable;
  */
 final class AuthenticateAgent
 {
+    public function __construct(
+        private readonly LogContext $logContext,
+    ) {}
+
     public function handle(Request $request, Closure $next): Response
     {
         $bearer = (string) $request->bearerToken();
@@ -207,6 +213,15 @@ final class AuthenticateAgent
         $request->attributes->set('agent.scopes', $scopes);
         $request->attributes->set('agent.is_admin', $isAdmin);
         $request->attributes->set('agent.bearer_hash', $bearerHash);
+
+        // Boundary actor for the /mcp request: every stock/order/etc. mutation
+        // this agent makes is audit-attributed to it ambiently (brief, §3). The
+        // bearer hash is a stable per-token fingerprint (never the raw token);
+        // OAuth requests additionally name their authenticated principal.
+        $this->logContext->setActor(LogActor::agent(
+            id: $bearerHash,
+            label: $user !== null ? 'oauth:'.$user->getAuthIdentifier() : 'bearer operator',
+        ));
     }
 
     private function logAuthFailure(string $message, Throwable $e): void
