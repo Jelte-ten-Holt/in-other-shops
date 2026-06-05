@@ -32,6 +32,7 @@ final class ReserveStock
         bool $rejectOversell = true,
     ): StockReservation {
         $quantity = abs($quantity);
+        $reservedUntil = $this->resolveReservedUntil($reservedUntil);
 
         $reservation = DB::transaction(
             fn (): StockReservation => $this->reserve($stockable, $quantity, $description, $reference, $source, $reservedUntil, $rejectOversell),
@@ -40,6 +41,32 @@ final class ReserveStock
         ReservationCreated::dispatch($reservation);
 
         return $reservation;
+    }
+
+    /**
+     * A Pending reservation with no `reserved_until` is invisible to
+     * `inventory:release-expired` forever — its `Reserved` decrement leaks and
+     * stock drifts down silently (G9). So when a caller omits the TTL we apply
+     * the configured default (`inventory.reservation_ttl`, in minutes) here, in
+     * the one sanctioned reservation path, rather than trusting every caller
+     * (admin tooling, a future API, an agent/Variants flow) to remember it. An
+     * explicit `reservedUntil` always wins; setting the config to `null` is the
+     * deliberate opt-out for a permanent hold (still surfaced by
+     * `inventory:reconcile`).
+     */
+    private function resolveReservedUntil(?CarbonInterface $reservedUntil): ?CarbonInterface
+    {
+        if ($reservedUntil !== null) {
+            return $reservedUntil;
+        }
+
+        $ttlMinutes = config('inventory.reservation_ttl');
+
+        if ($ttlMinutes === null) {
+            return null;
+        }
+
+        return now()->addMinutes((int) $ttlMinutes);
     }
 
     /**

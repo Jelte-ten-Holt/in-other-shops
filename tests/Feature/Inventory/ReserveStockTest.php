@@ -87,6 +87,52 @@ final class ReserveStockTest extends TestCase
         $this->assertArrayNotHasKey('updated_at', $movement->getAttributes());
     }
 
+    #[Test]
+    public function it_applies_the_configured_default_ttl_when_reserved_until_is_omitted(): void
+    {
+        // G9: a Pending reservation must carry a TTL, or inventory:release-expired
+        // can never reclaim it and its Reserved decrement leaks forever.
+        config(['inventory.reservation_ttl' => 30]);
+        $stockable = $this->stockableWithLevel(10);
+
+        $reservation = ($this->reserve)($stockable, quantity: 1);
+        $reservation->refresh();
+
+        $this->assertNotNull($reservation->reserved_until);
+        $this->assertEqualsWithDelta(
+            now()->addMinutes(30)->getTimestamp(),
+            $reservation->reserved_until->getTimestamp(),
+            5,
+        );
+    }
+
+    #[Test]
+    public function an_explicit_reserved_until_overrides_the_configured_default(): void
+    {
+        config(['inventory.reservation_ttl' => 30]);
+        $stockable = $this->stockableWithLevel(10);
+        $until = now()->addHours(2);
+
+        $reservation = ($this->reserve)($stockable, quantity: 1, reservedUntil: $until);
+        $reservation->refresh();
+
+        $this->assertEqualsWithDelta($until->getTimestamp(), $reservation->reserved_until->getTimestamp(), 2);
+    }
+
+    #[Test]
+    public function reserved_until_stays_null_when_the_ttl_config_is_disabled(): void
+    {
+        // A null TTL config is the deliberate opt-out for a permanent hold;
+        // such reservations are surfaced by inventory:reconcile, not the cron.
+        config(['inventory.reservation_ttl' => null]);
+        $stockable = $this->stockableWithLevel(10);
+
+        $reservation = ($this->reserve)($stockable, quantity: 1);
+        $reservation->refresh();
+
+        $this->assertNull($reservation->reserved_until);
+    }
+
     private function stockableWithLevel(int $level): TestStockable
     {
         $stockable = TestStockable::factory()->create();
