@@ -36,6 +36,15 @@ final class FakePaymentGateway implements ManagesCustomers, PaymentGateway
     /** @var array<int, array{payment: Payment, amount: ?int, id: string}> */
     private array $refunds = [];
 
+    /**
+     * Cumulative amount refunded per gateway reference, tracked by the gateway
+     * itself — models Stripe capping a refund against the PaymentIntent's own
+     * refunded total, independent of the local payment row.
+     *
+     * @var array<string, int>
+     */
+    private array $refundedByReference = [];
+
     /** @var array<int, PaymentCustomerData> */
     private array $customers = [];
 
@@ -152,7 +161,13 @@ final class FakePaymentGateway implements ManagesCustomers, PaymentGateway
             throw new RuntimeException("Cannot refund fake payment {$payment->id}: no gateway reference.");
         }
 
-        $maxRefundable = $payment->amount - (int) ($payment->amount_refunded ?? 0);
+        // Cap against the gateway's OWN refunded total for this reference, not
+        // the local payment row — exactly as Stripe does. This is the backstop
+        // that makes a re-clicked refund safe after a lost local write (F34): the
+        // local amount_refunded may read 0, but the gateway still rejects a second
+        // refund of money it has already returned.
+        $alreadyRefunded = $this->refundedByReference[$payment->gateway_reference] ?? 0;
+        $maxRefundable = $payment->amount - $alreadyRefunded;
         $requested = $amount ?? $maxRefundable;
 
         if ($requested > $maxRefundable) {
@@ -162,6 +177,7 @@ final class FakePaymentGateway implements ManagesCustomers, PaymentGateway
         $this->refundCounter++;
         $refundId = 'fake_re_'.str_pad((string) $this->refundCounter, 6, '0', STR_PAD_LEFT);
 
+        $this->refundedByReference[$payment->gateway_reference] = $alreadyRefunded + $requested;
         $this->refunds[] = ['payment' => $payment, 'amount' => $amount, 'id' => $refundId];
 
         return $refundId;

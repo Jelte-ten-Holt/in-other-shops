@@ -39,6 +39,22 @@ final class RefundPayment
         // (Stripe inspects the PaymentIntent it issued); calling them
         // post-update would feed them a payment that already reflects the
         // refund and they'd reject it as exceeding the remaining cap.
+        //
+        // ACCEPTED RESIDUAL (F34): the gateway call and the amount_refunded
+        // write share this transaction, so a gateway-success-then-DB-failure
+        // (or commit failure) rolls the local row back while the money has
+        // actually moved. We accept this rather than redesign into a reserve-
+        // then-compensate flow, because two backstops bound the blast radius:
+        //  - the `charge.refunded` webhook reconciles amount_refunded
+        //    monotonically (ProcessPaymentWebhook::applyRefund, `max(...)`), so
+        //    the row becomes consistent without operator action; and
+        //  - the gateway's own independent cap rejects a re-clicked refund of
+        //    money it already returned, so the stale local row cannot cause a
+        //    double refund.
+        // Both are pinned by tests (RefundPaymentTest +
+        // ProcessPaymentWebhookRefundTest). Revisit if async payment methods
+        // land (the webhook may then arrive much later — same trigger as the
+        // deferred F14 auto-refund).
         return DB::transaction(function () use ($payment, $amount): RefundResult {
             $locked = Payment::query()
                 ->lockForUpdate()

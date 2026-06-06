@@ -121,6 +121,29 @@ final class ProcessPaymentWebhookRefundTest extends TestCase
         $this->assertSame(1760, $payment->refresh()->amount_refunded);
     }
 
+    #[Test]
+    public function a_refund_whose_local_write_was_lost_is_reconciled_by_the_webhook(): void
+    {
+        // F34 residue recovery: the admin refund succeeded at the gateway but the
+        // local amount_refunded write was lost. The charge.refunded webhook is the
+        // backstop that brings the row consistent without operator action.
+        $order = $this->order();
+        $payment = $this->paymentFor($order);
+
+        // Gateway refunded, but the local row missed it (still Succeeded, 0).
+        $this->gateway->refund($payment, 1760);
+        $this->assertSame(0, $payment->refresh()->amount_refunded);
+
+        ($this->process)('fake', $this->gateway->simulateWebhook(
+            $payment, PaymentStatus::Refunded, amountRefunded: 1760, gatewayRefundId: 're_recover',
+        ));
+
+        $payment->refresh();
+        $this->assertSame(PaymentStatus::Refunded, $payment->status);
+        $this->assertSame(1760, $payment->amount_refunded, 'the webhook reconciles the lost local write');
+        $this->assertSame(1, $order->refunds()->count());
+    }
+
     private function order(): Order
     {
         return Order::factory()->create([
