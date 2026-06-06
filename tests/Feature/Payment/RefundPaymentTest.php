@@ -247,6 +247,37 @@ final class RefundPaymentTest extends TestCase
         $this->assertSame(800, $recorded[0]['amount']);
     }
 
+    #[Test]
+    public function a_re_refund_after_a_lost_local_write_is_rejected_by_the_gateway_cap(): void
+    {
+        // F34 residue: the gateway refund succeeded but the amount_refunded write
+        // was lost (transaction rolled back). The admin re-clicks; the local row
+        // still reads 0 so RefundPayment's own cap allows the call — but the
+        // gateway enforces its OWN cap from its records and rejects it, so the
+        // money cannot be refunded twice. This is the money-safety backstop that
+        // makes accepting the F34 window safe.
+        $payment = $this->successfulPayment(2500);
+
+        // The first refund lands at the gateway...
+        $this->gateway->refund($payment, 2500);
+        // ...but the local row never recorded it (the partial-failure state).
+        $payment->refresh();
+        $this->assertSame(0, $payment->amount_refunded);
+        $this->assertSame(PaymentStatus::Succeeded, $payment->status);
+
+        try {
+            ($this->refund)($payment); // re-click: local cap passes, gateway rejects
+            $this->fail('Expected the gateway to reject a refund it has already fully issued.');
+        } catch (RefundAmountExceededException) {
+            // expected
+        }
+
+        $this->assertCount(1, $this->gateway->recordedRefunds(),
+            'the gateway must not issue a second refund for money it already returned');
+        $this->assertSame(0, $payment->refresh()->amount_refunded,
+            'the rejected re-click leaves the local row untouched');
+    }
+
     private function successfulPayment(int $amount): Payment
     {
         return $this->paymentWithStatus($amount, PaymentStatus::Succeeded);

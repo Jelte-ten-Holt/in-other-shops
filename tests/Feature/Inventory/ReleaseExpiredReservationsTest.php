@@ -175,6 +175,55 @@ final class ReleaseExpiredReservationsTest extends TestCase
         Event::assertDispatchedTimes(ReservationReleased::class, 1);
     }
 
+    #[Test]
+    public function the_expiry_guard_refuses_to_release_a_confirmed_reservation(): void
+    {
+        // The race: the sweep snapshots a Pending+expired reservation id without
+        // a lock; a payment webhook confirms it (Pending→Confirmed) before the
+        // locked release. The expiry guard (onlyIfExpired) must re-check under the
+        // lock and leave the now-paid reservation — and its stock — alone.
+        $stockable = $this->stockableWithLevel(10);
+
+        $reservation = ($this->reserve)(
+            stockable: $stockable,
+            quantity: 3,
+            reservedUntil: now()->subMinute(),
+        );
+
+        $reservation->update(['status' => ReservationStatus::Confirmed, 'resolved_at' => now()]);
+
+        $result = (new ReleaseReservation(new AdjustStock))($reservation, onlyIfExpired: true);
+
+        $this->assertNull($result, 'A confirmed (paid) reservation must survive the expiry guard.');
+        $this->assertSame(ReservationStatus::Confirmed, $reservation->fresh()->status);
+        $this->assertSame(7, $stockable->stockItem()->first()->fresh()->stock_level,
+            'Stock for a paid reservation must not be returned to available — that would oversell.');
+    }
+
+    #[Test]
+    public function the_manual_release_path_still_releases_a_confirmed_reservation(): void
+    {
+        // The default (onlyIfExpired:false) keeps the permissive Pending|Confirmed
+        // behaviour the payment-fail / admin-cancel / status-change paths rely on:
+        // a Confirmed reservation still holds stock and must be compensated when
+        // those callers release it.
+        $stockable = $this->stockableWithLevel(10);
+
+        $reservation = ($this->reserve)(
+            stockable: $stockable,
+            quantity: 3,
+            reservedUntil: now()->subMinute(),
+        );
+
+        $reservation->update(['status' => ReservationStatus::Confirmed, 'resolved_at' => now()]);
+
+        $result = (new ReleaseReservation(new AdjustStock))($reservation);
+
+        $this->assertNotNull($result);
+        $this->assertSame(ReservationStatus::Released, $result->status);
+        $this->assertSame(10, $stockable->stockItem()->first()->fresh()->stock_level);
+    }
+
     private function stockableWithLevel(int $level): TestStockable
     {
         $stockable = TestStockable::factory()->create();

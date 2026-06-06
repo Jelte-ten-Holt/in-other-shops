@@ -10,10 +10,12 @@ use InOtherShops\Inventory\DTOs\Stock;
 use InOtherShops\Inventory\Exceptions\RawStockMutationException;
 
 /**
- * Inbound-only cast for `StockItem::stock_level`. Reads pass through
- * Eloquent's regular int cast (declared alongside this one on the model);
- * writes require a {@see Stock} value object — a raw int, string, or
- * anything else throws {@see RawStockMutationException}.
+ * Inbound-only cast for `StockItem::stock_level`. Writes require a {@see Stock}
+ * value object — a raw int, string, or anything else throws
+ * {@see RawStockMutationException}. Reads are NOT cast: `stock_level` comes back
+ * as the raw database attribute (an int on most drivers; a numeric string under
+ * PDO emulated-prepares). Callers comparing or returning it lean on PHP's
+ * numeric coercion; there is intentionally no read-side int cast (see below).
  *
  * `CastsInboundAttributes` (no `get()`) is deliberate. A symmetric class
  * cast caches the *typed* value the caller passed in, so a `set(new Stock)`
