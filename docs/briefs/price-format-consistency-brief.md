@@ -1,7 +1,27 @@
 # Brief — Price format consistency (locale-driven money display)
 
-> **Status: v4 (2026-06-11) — discuss passes 1–3 incorporated; all decisions settled,
-> build-ready pending critique pass.** Origin: commas and periods both appearing as decimal
+> **Status: RELEASED ✅ (2026-06-11) as v0.37.0** — built same day, all suites green
+> (package 866, +13 new across `CurrencyFormatLocaleTest` + `SetMoneyDisplayLocaleMiddlewareTest`;
+> in-other-worlds 785; bianka 39), both consumers bumped to `^0.37`, CI + Deploy green,
+> live-verified on mayangna.com: ES storefront serves `24,00 €`, EN serves `€24.00`.
+> Package commit 7299983; in-other-worlds 56809ca; bianka 9e79efc.
+>
+> **Build refinements vs. the v4 plan below:** (1) **WI-2 was already built** — orders
+> gained a `locale` column in the 2026-05-09 migration and in-other-worlds' checkout already
+> passed `app()->getLocale()` into `CreateOrder`; no new column or capture shipped, only the
+> mail-side formatting (`OrderConfirmation` + blade now format with `$order->locale`).
+> (2) in-other-worlds already shared a `locale` Inertia prop (multilingual work) — reused it
+> instead of adding a duplicate `displayLocale` prop. (3) The WI-3 Filament display sweep
+> found **zero stragglers** — every admin money column already routed through
+> `currency->format()`; the remaining raw `number_format` sites (`CommerceSchema`,
+> `OrderResource` `$set()` calls) are *input state* for `type="number"` widgets and correctly
+> stay machine-format. (4) `MoneyFieldsTest` runs container-less, so its `percentLabel` cases
+> pass an explicit `'en'`; ambient resolution is covered by the new feature tests.
+> (5) bianka needed only the bump + panel middleware — no client-side money arithmetic
+> exists there, and its checkout (unbuilt) got a periphery note to pass the locale at
+> `CreateOrder` time.
+>
+> **Status: v4 (2026-06-11) — discuss passes 1–3 incorporated; all decisions settled.** Origin: commas and periods both appearing as decimal
 > separators on In Other Worlds (storefront bundle savings, admin Edit Product / Edit Order).
 > Full formatting inventory swept across all three repos in-session; three mechanisms
 > identified and verified against code. **Settled:** storefront/email follow the app locale;
