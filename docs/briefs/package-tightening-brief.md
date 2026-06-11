@@ -1,12 +1,12 @@
 # Brief — Package tightening (DRY / cleanup / boilerplate consolidation)
 
-> **Status: BUILT ✅ (2026-06-11)** — all three phases implemented + tested on branch
-> `chore/package-tightening` (in-other-shops), suite green (853 tests, was 809 at baseline;
-> +44 new: BootConfigMergeTest, MoneyFieldsTest, PackagePageBasesTest,
-> EnabledCurrenciesConfigTest). **Not released / not pushed** — awaiting go-ahead to cut
-> v0.36.0 + bump both consumers. Commits: 41784f8 (Phase 1), 93514c0 (Phase 2),
-> 392a20a (Phase 3); in-other-worlds 0f8e023 (WI-10 consumer side, compatible with both
-> package versions, committed on its main).
+> **Status: RELEASED ✅ (2026-06-11) as v0.36.0** — all three phases implemented + tested
+> (suite 853 green, was 809 at baseline; +44 new: BootConfigMergeTest, MoneyFieldsTest,
+> PackagePageBasesTest, EnabledCurrenciesConfigTest), merged to main, tagged, and both
+> consumers bumped to `^0.36.0` the same day: in-other-worlds (785 tests green, CI + Deploy
+> green @ cd7e8c2) and bianka (39 tests green on the 0.34→0.36 two-minor jump, Deploy green
+> @ 7d8159c); both live sites respond post-deploy. Commits: 41784f8 (Phase 1), 93514c0
+> (Phase 2), 392a20a (Phase 3); in-other-worlds 0f8e023 (WI-10 consumer side).
 >
 > **Key build refinements vs. the v3 plan below:** (1) **WI-10**: in-other-worlds `Product`
 > turned out to define its own digital-aware `requiresShipping()` (`! is_digital`) that had
