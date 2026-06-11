@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace InOtherShops\Agent\Tools;
 
 use InOtherShops\Agent\AgentTool;
+use InOtherShops\Agent\Support\ResolveStockableModel;
 use InOtherShops\Inventory\Actions\AdjustStock as AdjustStockAction;
 use InOtherShops\Inventory\Contracts\HasStock;
 use InOtherShops\Inventory\Enums\StockMovementReason;
-use InOtherShops\Storefront\Contracts\HasStorefrontPresence;
 use InvalidArgumentException;
 
 /**
@@ -100,7 +100,7 @@ final class AdjustStock extends AgentTool
 
         $this->guardDelta($delta);
 
-        $modelClass = $this->resolveStockableClass($type);
+        $modelClass = (new ResolveStockableModel)($type);
 
         $model = $modelClass::browseQuery()
             ->where((new $modelClass)->getBrowsableRouteKeyName(), $slug)
@@ -172,37 +172,5 @@ final class AdjustStock extends AgentTool
         }
 
         return $raw;
-    }
-
-    /** @return class-string<HasStorefrontPresence&HasStock> */
-    private function resolveStockableClass(string $type): string
-    {
-        /** @var array<string, class-string> $models */
-        $models = config('storefront.models', []);
-
-        if (! isset($models[$type])) {
-            $available = array_keys($models);
-
-            throw new InvalidArgumentException(
-                'Unknown type "'.$type.'". Available: '.
-                    (count($available) > 0 ? implode(', ', $available) : '(none configured)').'.'
-            );
-        }
-
-        $modelClass = $models[$type];
-
-        if (! is_subclass_of($modelClass, HasStorefrontPresence::class)) {
-            throw new InvalidArgumentException(
-                "Model {$modelClass} does not implement HasStorefrontPresence."
-            );
-        }
-
-        if (! is_subclass_of($modelClass, HasStock::class)) {
-            throw new InvalidArgumentException(
-                "Model {$modelClass} does not implement HasStock — it is not stockable."
-            );
-        }
-
-        return $modelClass;
     }
 }

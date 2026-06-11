@@ -11,7 +11,7 @@ final class CurrencyServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        //
+        $this->mergeConfigFrom(__DIR__.'/config/currency.php', 'currency');
     }
 
     public function boot(): void
@@ -22,5 +22,9 @@ final class CurrencyServiceProvider extends ServiceProvider
         // service provider boot(); this call makes the enforcement
         // global.
         Relation::requireMorphMap();
+
+        $this->publishes([
+            __DIR__.'/config/currency.php' => config_path('currency.php'),
+        ], 'currency-config');
     }
 }

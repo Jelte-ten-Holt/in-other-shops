@@ -5,10 +5,6 @@ declare(strict_types=1);
 namespace InOtherShops\Pricing\Actions;
 
 use InOtherShops\Currency\Enums\Currency;
-use InOtherShops\Pricing\Enums\VoucherType;
-use InOtherShops\Pricing\Exceptions\VoucherCurrencyMismatchException;
-use InOtherShops\Pricing\Exceptions\VoucherInvalidException;
-use InOtherShops\Pricing\Exceptions\VoucherMinimumNotMetException;
 use InOtherShops\Pricing\Exceptions\VoucherNotFoundException;
 use InOtherShops\Pricing\Models\Voucher;
 
@@ -26,7 +22,7 @@ final class CalculateVoucherDiscount
     {
         $voucher = $this->findVoucher($code);
 
-        $this->validateVoucher($voucher, $subtotal, $currency);
+        $voucher->validateForUse($subtotal, $currency);
 
         return $voucher->calculateDiscount($subtotal);
     }
@@ -40,20 +36,5 @@ final class CalculateVoucherDiscount
         }
 
         return $voucher;
-    }
-
-    private function validateVoucher(Voucher $voucher, int $subtotal, Currency $currency): void
-    {
-        if (! $voucher->isValid()) {
-            throw VoucherInvalidException::expired($voucher->code);
-        }
-
-        if (! $voucher->meetsMinimumOrder($subtotal)) {
-            throw VoucherMinimumNotMetException::forCode($voucher->code);
-        }
-
-        if ($voucher->type === VoucherType::Fixed && $voucher->currency !== null && $voucher->currency !== $currency) {
-            throw VoucherCurrencyMismatchException::between($voucher->code, $voucher->currency, $currency);
-        }
     }
 }

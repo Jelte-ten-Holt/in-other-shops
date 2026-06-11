@@ -44,14 +44,18 @@ final class EditOrder extends EditRecord
         /** @var Order $order */
         $order = $this->record;
 
-        if ($order->isRefunded()) {
+        // One sum query instead of the two isRefunded()/isPartiallyRefunded()
+        // would each fire; same derivation as the model predicates.
+        $refunded = $order->refundedTotal();
+
+        if ($refunded > 0 && $refunded >= $order->total) {
             Notification::make()
                 ->title('This order is fully refunded')
                 ->body('It is still Confirmed — do not fulfil or ship it without checking.')
                 ->warning()
                 ->persistent()
                 ->send();
-        } elseif ($order->isPartiallyRefunded()) {
+        } elseif ($refunded > 0) {
             Notification::make()
                 ->title('This order is partially refunded')
                 ->warning()

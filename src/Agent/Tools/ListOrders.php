@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace InOtherShops\Agent\Tools;
 
 use InOtherShops\Agent\AgentTool;
+use InOtherShops\Agent\Support\PaginationParams;
 use InOtherShops\Agent\Support\ResolveCallerCustomerId;
 use InOtherShops\Commerce\Commerce;
 use InOtherShops\Commerce\Order\Enums\OrderStatus;
@@ -66,8 +67,10 @@ final class ListOrders extends AgentTool
 
     public function __invoke(array $arguments): array
     {
-        $perPage = min((int) ($arguments['per_page'] ?? 25), 100);
-        $page = max((int) ($arguments['page'] ?? 1), 1);
+        // Floors per_page at 1 (shared clamp) where this tool previously
+        // let 0/negative through to paginate() — invalid input now degrades
+        // to the smallest page instead of erroring.
+        $pagination = PaginationParams::fromArguments($arguments, maxPerPage: 100, defaultPerPage: 25);
 
         $query = Commerce::order()::query()
             ->withCount('lines')
@@ -78,7 +81,7 @@ final class ListOrders extends AgentTool
         $this->applyDateRange($query, $arguments);
 
         /** @var LengthAwarePaginator $paginator */
-        $paginator = $query->paginate(perPage: $perPage, page: $page);
+        $paginator = $query->paginate(perPage: $pagination->perPage, page: $pagination->page);
 
         return [
             'ok' => true,

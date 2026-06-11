@@ -82,10 +82,16 @@ class OrderResource extends Resource
                     ->label('Refund')
                     ->badge()
                     ->color('danger')
-                    ->getStateUsing(fn (Order $record): ?string => match (true) {
-                        $record->isRefunded() => 'Refunded',
-                        $record->isPartiallyRefunded() => 'Partial',
-                        default => null,
+                    ->getStateUsing(function (Order $record): ?string {
+                        // One sum query per row instead of the two the
+                        // isRefunded()/isPartiallyRefunded() pair would fire.
+                        $refunded = $record->refundedTotal();
+
+                        return match (true) {
+                            $refunded > 0 && $refunded >= $record->total => 'Refunded',
+                            $refunded > 0 => 'Partial',
+                            default => null,
+                        };
                     }),
                 Tables\Columns\TextColumn::make('currency')
                     ->badge()

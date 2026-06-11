@@ -7,6 +7,9 @@ namespace InOtherShops\Pricing\Models;
 use InOtherShops\Currency\Enums\Currency;
 use InOtherShops\Pricing\Database\Factories\VoucherFactory;
 use InOtherShops\Pricing\Enums\VoucherType;
+use InOtherShops\Pricing\Exceptions\VoucherCurrencyMismatchException;
+use InOtherShops\Pricing\Exceptions\VoucherInvalidException;
+use InOtherShops\Pricing\Exceptions\VoucherMinimumNotMetException;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -61,6 +64,30 @@ class Voucher extends Model
     public function meetsMinimumOrder(int $subtotal): bool
     {
         return $subtotal >= $this->minimum_order_amount;
+    }
+
+    /**
+     * The single redemption guard. Both CalculateVoucherDiscount (display,
+     * unlocked) and ApplyVoucher (commit, called under its row lock) run
+     * exactly this — a rule change here changes both paths at once.
+     *
+     * @throws VoucherInvalidException
+     * @throws VoucherMinimumNotMetException
+     * @throws VoucherCurrencyMismatchException
+     */
+    public function validateForUse(int $subtotal, Currency $currency): void
+    {
+        if (! $this->isValid()) {
+            throw VoucherInvalidException::expired($this->code);
+        }
+
+        if (! $this->meetsMinimumOrder($subtotal)) {
+            throw VoucherMinimumNotMetException::forCode($this->code);
+        }
+
+        if ($this->type === VoucherType::Fixed && $this->currency !== null && $this->currency !== $currency) {
+            throw VoucherCurrencyMismatchException::between($this->code, $this->currency, $currency);
+        }
     }
 
     public function calculateDiscount(int $subtotal): int
