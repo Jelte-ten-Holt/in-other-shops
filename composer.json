@@ -53,6 +53,7 @@
             "InOtherShops\\Pricing\\": "src/Pricing/",
             "InOtherShops\\Purchasing\\": "src/Purchasing/",
             "InOtherShops\\Shipping\\": "src/Shipping/",
+            "InOtherShops\\Support\\": "src/Support/",
             "InOtherShops\\Agent\\": "src/Agent/",
             "InOtherShops\\Storefront\\": "src/Storefront/",
             "InOtherShops\\Tax\\": "src/Tax/",

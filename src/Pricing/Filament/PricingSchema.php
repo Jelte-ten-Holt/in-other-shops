@@ -12,6 +12,7 @@ use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Utilities\Get;
 use Illuminate\Database\Eloquent\Model;
 use InOtherShops\Currency\Enums\Currency;
+use InOtherShops\Support\Filament\MoneyFields;
 
 /**
  * Reusable Filament form fragments for the Pricing domain. Field factories are
@@ -148,11 +149,9 @@ final class PricingSchema
      */
     private static function moneyField(string $name): TextInput
     {
-        return TextInput::make($name)
-            ->numeric()
-            ->step(0.01)
-            ->minValue(0)
-            ->formatStateUsing(fn ($state) => $state !== null ? number_format((int) $state / 100, 2, '.', '') : null)
-            ->dehydrateStateUsing(fn ($state) => $state !== null && $state !== '' ? (int) round((float) $state * 100) : null);
+        // nullable: compare_at_amount is a nullable column — clearing the
+        // input must store NULL, not 0.
+        return MoneyFields::moneyInput($name, nullable: true)
+            ->step(0.01);
     }
 }

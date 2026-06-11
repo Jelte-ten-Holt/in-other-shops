@@ -8,9 +8,9 @@ use InOtherShops\Media\Filament\MediaSchema;
 use InOtherShops\Taxonomy\Filament\Resources\CategoryResource;
 use InOtherShops\Translation\Filament\TranslationSchema;
 use Filament\Actions;
-use Filament\Resources\Pages\EditRecord;
+use InOtherShops\Support\Filament\PackageEditRecord;
 
-final class EditCategory extends EditRecord
+final class EditCategory extends PackageEditRecord
 {
     protected static string $resource = CategoryResource::class;
 

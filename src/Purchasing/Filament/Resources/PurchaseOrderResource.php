@@ -11,6 +11,7 @@ use InOtherShops\Purchasing\Enums\PurchaseOrderStatus;
 use InOtherShops\Purchasing\Filament\PurchasingSchema;
 use InOtherShops\Purchasing\Filament\Resources\PurchaseOrderResource\Pages;
 use InOtherShops\Purchasing\Models\PurchaseOrder;
+use InOtherShops\Support\Filament\MoneyFields;
 use Filament\Actions;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
@@ -74,13 +75,8 @@ class PurchaseOrderResource extends Resource
     private static function costField(string $name, string $label): array
     {
         return [
-            TextInput::make($name)
+            MoneyFields::moneyInput($name, zeroWhenEmpty: true)
                 ->label($label)
-                ->numeric()
-                ->minValue(0)
-                ->default('0.00')
-                ->formatStateUsing(fn ($state) => $state !== null ? number_format((int) $state / 100, 2, '.', '') : '0.00')
-                ->dehydrateStateUsing(fn ($state) => $state !== null ? (int) round((float) $state * 100) : 0)
                 ->disabledOn('edit'),
         ];
     }

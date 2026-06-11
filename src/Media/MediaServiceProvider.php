@@ -4,22 +4,19 @@ declare(strict_types=1);
 
 namespace InOtherShops\Media;
 
-use Illuminate\Database\Eloquent\Relations\Relation;
-use Illuminate\Support\ServiceProvider;
+use InOtherShops\Support\DomainServiceProvider;
 
-final class MediaServiceProvider extends ServiceProvider
+final class MediaServiceProvider extends DomainServiceProvider
 {
-    public function register(): void
+    protected function domainDir(): string
     {
-        $this->mergeConfigFrom(__DIR__.'/config/media.php', 'media');
+        return __DIR__;
     }
 
-    public function boot(): void
+    protected function morphAliases(): array
     {
-        $this->loadMigrationsFrom(__DIR__.'/Database/Migrations');
-
-        Relation::morphMap([
+        return [
             'media' => Media::media(),
-        ]);
+        ];
     }
 }

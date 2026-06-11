@@ -10,7 +10,7 @@ use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
-use Filament\Resources\Pages\EditRecord;
+use InOtherShops\Support\Filament\PackageEditRecord;
 use InOtherShops\Commerce\Filament\Resources\OrderResource;
 use InOtherShops\Commerce\Order\Actions\RefundOrder;
 use InOtherShops\Commerce\Order\DTOs\RefundActor;
@@ -20,7 +20,7 @@ use InOtherShops\Inventory\Enums\ReservationStatus;
 use InOtherShops\Inventory\Inventory;
 use InOtherShops\Payment\Enums\PaymentStatus;
 
-final class EditOrder extends EditRecord
+final class EditOrder extends PackageEditRecord
 {
     protected static string $resource = OrderResource::class;
 
@@ -44,14 +44,18 @@ final class EditOrder extends EditRecord
         /** @var Order $order */
         $order = $this->record;
 
-        if ($order->isRefunded()) {
+        // One sum query instead of the two isRefunded()/isPartiallyRefunded()
+        // would each fire; same derivation as the model predicates.
+        $refunded = $order->refundedTotal();
+
+        if ($refunded > 0 && $refunded >= $order->total) {
             Notification::make()
                 ->title('This order is fully refunded')
                 ->body('It is still Confirmed — do not fulfil or ship it without checking.')
                 ->warning()
                 ->persistent()
                 ->send();
-        } elseif ($order->isPartiallyRefunded()) {
+        } elseif ($refunded > 0) {
             Notification::make()
                 ->title('This order is partially refunded')
                 ->warning()

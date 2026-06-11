@@ -6,20 +6,13 @@ namespace InOtherShops\Commerce\Filament\Resources\CustomerResource\Pages;
 
 use InOtherShops\Commerce\Customer\Actions\UpdateCustomer as UpdateCustomerAction;
 use InOtherShops\Commerce\Filament\Resources\CustomerResource;
-use Filament\Actions;
-use Filament\Resources\Pages\EditRecord;
+use InOtherShops\Support\Filament\PackageEditRecord;
 use Illuminate\Database\Eloquent\Model;
 
-final class EditCustomer extends EditRecord
+final class EditCustomer extends PackageEditRecord
 {
     protected static string $resource = CustomerResource::class;
 
-    protected function getHeaderActions(): array
-    {
-        return [
-            Actions\DeleteAction::make(),
-        ];
-    }
 
     protected function handleRecordUpdate(Model $record, array $data): Model
     {

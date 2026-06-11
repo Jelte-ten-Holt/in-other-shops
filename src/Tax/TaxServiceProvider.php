@@ -4,26 +4,24 @@ declare(strict_types=1);
 
 namespace InOtherShops\Tax;
 
-use Illuminate\Database\Eloquent\Relations\Relation;
-use Illuminate\Support\ServiceProvider;
+use InOtherShops\Support\DomainServiceProvider;
 
-final class TaxServiceProvider extends ServiceProvider
+final class TaxServiceProvider extends DomainServiceProvider
 {
-    public function register(): void
+    protected function domainDir(): string
     {
-        $this->mergeConfigFrom(__DIR__.'/config/tax.php', 'tax');
+        return __DIR__;
     }
 
-    public function boot(): void
+    protected function morphAliases(): array
     {
-        $this->loadMigrationsFrom(__DIR__.'/Database/Migrations');
-
-        Relation::morphMap([
+        return [
             'tax_rate' => Tax::taxRate(),
-        ]);
+        ];
+    }
 
-        $this->publishes([
-            __DIR__.'/config/tax.php' => config_path('tax.php'),
-        ], 'tax-config');
+    protected function publishesConfig(): bool
+    {
+        return true;
     }
 }

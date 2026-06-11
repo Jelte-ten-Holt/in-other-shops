@@ -4,8 +4,13 @@ declare(strict_types=1);
 
 namespace InOtherShops\Commerce\Order\Enums;
 
-enum OrderStatus: string
+use InOtherShops\Support\StateTransitions;
+use InOtherShops\Support\Transitionable;
+
+enum OrderStatus: string implements Transitionable
 {
+    use StateTransitions;
+
     case Pending = 'pending';
     case Confirmed = 'confirmed';
     case Cancelled = 'cancelled';
@@ -36,10 +41,5 @@ enum OrderStatus: string
             self::Confirmed => [self::Cancelled],
             self::Cancelled => [],
         };
-    }
-
-    public function canTransitionTo(self $target): bool
-    {
-        return in_array($target, $this->allowedTransitions(), true);
     }
 }

@@ -4,35 +4,41 @@ declare(strict_types=1);
 
 namespace InOtherShops\Taxonomy;
 
-use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Facades\Event;
-use Illuminate\Support\ServiceProvider;
+use InOtherShops\Support\DomainServiceProvider;
 use InOtherShops\Taxonomy\Commands\RecomputeCategoryCountsCommand;
 use InOtherShops\Taxonomy\Listeners\MaintainCategoryCounts;
 use InOtherShops\Taxonomy\Observers\CategoryObserver;
 
-final class TaxonomyServiceProvider extends ServiceProvider
+final class TaxonomyServiceProvider extends DomainServiceProvider
 {
-    public function register(): void
+    protected function domainDir(): string
     {
-        $this->mergeConfigFrom(__DIR__.'/config/taxonomy.php', 'taxonomy');
+        return __DIR__;
+    }
+
+    protected function morphAliases(): array
+    {
+        return [
+            'category' => Taxonomy::category(),
+            'tag' => Taxonomy::tag(),
+        ];
+    }
+
+    protected function domainCommands(): array
+    {
+        return [RecomputeCategoryCountsCommand::class];
     }
 
     public function boot(): void
     {
-        $this->loadMigrationsFrom(__DIR__.'/Database/Migrations');
-
-        Relation::morphMap([
-            'category' => Taxonomy::category(),
-            'tag' => Taxonomy::tag(),
-        ]);
+        parent::boot();
 
         Taxonomy::category()::observe(CategoryObserver::class);
 
+        // Count maintenance, not audit logging — deliberately an explicit
+        // subscribe here rather than the logSubscriber() hook (Taxonomy has
+        // no LogSubscriber yet; admin-activity logging is deferred).
         Event::subscribe(MaintainCategoryCounts::class);
-
-        $this->commands([
-            RecomputeCategoryCountsCommand::class,
-        ]);
     }
 }

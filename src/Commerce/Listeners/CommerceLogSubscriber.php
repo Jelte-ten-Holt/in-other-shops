@@ -14,18 +14,13 @@ use InOtherShops\Commerce\Order\Events\RefundRecorded;
 use InOtherShops\Commerce\Order\Enums\RefundActorSource;
 use InOtherShops\Commerce\Order\Models\Refund;
 use InOtherShops\Logging\DTOs\LogActor;
-use InOtherShops\Logging\DTOs\LogEntry;
 use InOtherShops\Logging\Enums\LogLevel;
-use InOtherShops\Logging\LogDispatcher;
+use InOtherShops\Logging\LogSubscriberBase;
 use Illuminate\Contracts\Events\Dispatcher;
 
-final class CommerceLogSubscriber
+final class CommerceLogSubscriber extends LogSubscriberBase
 {
-    private const string CHANNEL = 'commerce';
-
-    public function __construct(
-        private readonly LogDispatcher $dispatcher,
-    ) {}
+    protected const string CHANNEL = 'commerce';
 
     /** @return array<class-string, string> */
     public function subscribe(Dispatcher $events): array
@@ -43,27 +38,22 @@ final class CommerceLogSubscriber
 
     public function handleOrderConfirmationBlocked(OrderConfirmationBlocked $event): void
     {
-        $this->dispatcher->log(new LogEntry(
-            level: LogLevel::Warning,
-            channel: self::CHANNEL,
-            message: "Order #{$event->order->getKey()} paid but not confirmed: {$event->reason}.",
-            context: [
+        $this->log(LogLevel::Warning, "Order #{$event->order->getKey()} paid but not confirmed: {$event->reason}.", [
                 'order_id' => $event->order->getKey(),
                 'status' => $event->order->status->value,
                 'reason' => $event->reason,
-            ],
-        ));
+            ]);
     }
 
     public function handleRefundRecorded(RefundRecorded $event): void
     {
         $refund = $event->refund;
 
-        $this->dispatcher->log(new LogEntry(
-            level: LogLevel::Info,
-            channel: self::CHANNEL,
-            message: "Refund of {$refund->amount} recorded on order {$refund->order_id}.",
-            context: [
+                    // A refund knows its own actor better than the ambient request does
+            // (a gateway-initiated refund has no operator), so it carries one
+            // explicitly — derived from the durable RefundActor so the audit
+            // actor and the business record never disagree (brief, §4).
+        $this->log(LogLevel::Info, "Refund of {$refund->amount} recorded on order {$refund->order_id}.", [
                 'refund_id' => $refund->id,
                 'order_id' => $refund->order_id,
                 'payment_id' => $refund->payment_id,
@@ -74,13 +64,7 @@ final class CommerceLogSubscriber
                 'actor_source' => $refund->actor_source->value,
                 'actor_id' => $refund->actor_id,
                 'actor_label' => $refund->actor_label,
-            ],
-            // A refund knows its own actor better than the ambient request does
-            // (a gateway-initiated refund has no operator), so it carries one
-            // explicitly — derived from the durable RefundActor so the audit
-            // actor and the business record never disagree (brief, §4).
-            actor: $this->auditActorForRefund($refund),
-        ));
+            ], actor: $this->auditActorForRefund($refund));
     }
 
     /**
@@ -103,67 +87,42 @@ final class CommerceLogSubscriber
 
     public function handleCartUpdated(CartUpdated $event): void
     {
-        $this->dispatcher->log(new LogEntry(
-            level: LogLevel::Info,
-            channel: self::CHANNEL,
-            message: 'Cart updated.',
-            context: $this->cartContext($event->cart),
-        ));
+        $this->log(LogLevel::Info, 'Cart updated.', $this->cartContext($event->cart));
     }
 
     public function handleCartClaimed(CartClaimed $event): void
     {
-        $this->dispatcher->log(new LogEntry(
-            level: LogLevel::Info,
-            channel: self::CHANNEL,
-            message: 'Cart claimed.',
-            context: [
+        $this->log(LogLevel::Info, 'Cart claimed.', [
                 ...$this->cartContext($event->cart),
                 'new_owner_type' => $event->owner->getMorphClass(),
                 'new_owner_id' => $event->owner->getKey(),
-            ],
-        ));
+            ]);
     }
 
     public function handleCartCleared(CartCleared $event): void
     {
-        $this->dispatcher->log(new LogEntry(
-            level: LogLevel::Info,
-            channel: self::CHANNEL,
-            message: 'Cart cleared.',
-            context: $this->cartContext($event->cart),
-        ));
+        $this->log(LogLevel::Info, 'Cart cleared.', $this->cartContext($event->cart));
     }
 
     public function handleOrderCreated(OrderCreated $event): void
     {
-        $this->dispatcher->log(new LogEntry(
-            level: LogLevel::Info,
-            channel: self::CHANNEL,
-            message: "Order {$event->order->order_number} created.",
-            context: [
+        $this->log(LogLevel::Info, "Order {$event->order->order_number} created.", [
                 'order_id' => $event->order->id,
                 'order_number' => $event->order->order_number,
                 'customer_id' => $event->order->customer_id,
                 'total' => $event->order->total,
                 'currency' => $event->order->currency?->value,
-            ],
-        ));
+            ]);
     }
 
     public function handleOrderStatusChanged(OrderStatusChanged $event): void
     {
-        $this->dispatcher->log(new LogEntry(
-            level: LogLevel::Info,
-            channel: self::CHANNEL,
-            message: "Order {$event->order->order_number} status: {$event->from->value} → {$event->to->value}.",
-            context: [
+        $this->log(LogLevel::Info, "Order {$event->order->order_number} status: {$event->from->value} → {$event->to->value}.", [
                 'order_id' => $event->order->id,
                 'order_number' => $event->order->order_number,
                 'from' => $event->from->value,
                 'to' => $event->to->value,
-            ],
-        ));
+            ]);
     }
 
     /** @return array<string, mixed> */

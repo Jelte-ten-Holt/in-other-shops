@@ -126,11 +126,6 @@ final class CategoryResource extends Resource
         return "{$attached} {$noun} attached to this category. Deleting it will detach them; the items themselves are not deleted. Are you sure?";
     }
 
-    public static function getRelations(): array
-    {
-        return [];
-    }
-
     public static function getPages(): array
     {
         return [

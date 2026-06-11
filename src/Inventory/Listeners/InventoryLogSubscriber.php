@@ -10,18 +10,13 @@ use InOtherShops\Inventory\Events\ReservationReleased;
 use InOtherShops\Inventory\Events\StockAdjusted;
 use InOtherShops\Inventory\Events\StockReleased;
 use InOtherShops\Inventory\Events\StockReservationFailed;
-use InOtherShops\Logging\DTOs\LogEntry;
 use InOtherShops\Logging\Enums\LogLevel;
-use InOtherShops\Logging\LogDispatcher;
+use InOtherShops\Logging\LogSubscriberBase;
 use Illuminate\Contracts\Events\Dispatcher;
 
-final class InventoryLogSubscriber
+final class InventoryLogSubscriber extends LogSubscriberBase
 {
-    private const string CHANNEL = 'inventory';
-
-    public function __construct(
-        private readonly LogDispatcher $dispatcher,
-    ) {}
+    protected const string CHANNEL = 'inventory';
 
     /** @return array<class-string, string> */
     public function subscribe(Dispatcher $events): array
@@ -38,11 +33,7 @@ final class InventoryLogSubscriber
 
     public function handleStockAdjusted(StockAdjusted $event): void
     {
-        $this->dispatcher->log(new LogEntry(
-            level: LogLevel::Info,
-            channel: self::CHANNEL,
-            message: "Stock adjusted: {$event->movement->reason->value}.",
-            context: [
+        $this->log(LogLevel::Info, "Stock adjusted: {$event->movement->reason->value}.", [
                 'stock_item_id' => $event->stockItem->id,
                 'stockable_type' => $event->stockItem->stockable_type,
                 'stockable_id' => $event->stockItem->stockable_id,
@@ -50,68 +41,42 @@ final class InventoryLogSubscriber
                 'stock_level' => $event->stockItem->stock_level,
                 'reason' => $event->movement->reason->value,
                 'source' => $event->movement->source,
-            ],
-        ));
+            ]);
     }
 
     public function handleStockReleased(StockReleased $event): void
     {
-        $this->dispatcher->log(new LogEntry(
-            level: LogLevel::Info,
-            channel: self::CHANNEL,
-            message: 'Stock release posted.',
-            context: [
+        $this->log(LogLevel::Info, 'Stock release posted.', [
                 'reservation_id' => $event->reservation->id,
                 'reserve_movement_id' => $event->reservation->reserve_movement_id,
                 'release_movement_id' => $event->releaseMovement->id,
                 'quantity_released' => $event->releaseMovement->quantity,
-            ],
-        ));
+            ]);
     }
 
     public function handleStockReservationFailed(StockReservationFailed $event): void
     {
-        $this->dispatcher->log(new LogEntry(
-            level: LogLevel::Warning,
-            channel: self::CHANNEL,
-            message: "Reservation failed: requested {$event->requestedQuantity}, only {$event->availableQuantity} available.",
-            context: [
+        $this->log(LogLevel::Warning, "Reservation failed: requested {$event->requestedQuantity}, only {$event->availableQuantity} available.", [
                 'stockable_type' => $event->stockable->getMorphClass(),
                 'stockable_id' => $event->stockable->getKey(),
                 'requested_quantity' => $event->requestedQuantity,
                 'available_quantity' => $event->availableQuantity,
-            ],
-        ));
+            ]);
     }
 
     public function handleReservationCreated(ReservationCreated $event): void
     {
-        $this->dispatcher->log(new LogEntry(
-            level: LogLevel::Info,
-            channel: self::CHANNEL,
-            message: 'Reservation created.',
-            context: $this->reservationContext($event->reservation),
-        ));
+        $this->log(LogLevel::Info, 'Reservation created.', $this->reservationContext($event->reservation));
     }
 
     public function handleReservationConfirmed(ReservationConfirmed $event): void
     {
-        $this->dispatcher->log(new LogEntry(
-            level: LogLevel::Info,
-            channel: self::CHANNEL,
-            message: 'Reservation confirmed.',
-            context: $this->reservationContext($event->reservation),
-        ));
+        $this->log(LogLevel::Info, 'Reservation confirmed.', $this->reservationContext($event->reservation));
     }
 
     public function handleReservationReleased(ReservationReleased $event): void
     {
-        $this->dispatcher->log(new LogEntry(
-            level: LogLevel::Info,
-            channel: self::CHANNEL,
-            message: 'Reservation released.',
-            context: $this->reservationContext($event->reservation),
-        ));
+        $this->log(LogLevel::Info, 'Reservation released.', $this->reservationContext($event->reservation));
     }
 
     /** @return array<string, mixed> */

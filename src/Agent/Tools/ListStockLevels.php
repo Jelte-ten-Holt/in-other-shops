@@ -7,6 +7,8 @@ namespace InOtherShops\Agent\Tools;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use InOtherShops\Agent\AgentTool;
+use InOtherShops\Agent\Support\PaginationParams;
+use InOtherShops\Agent\Support\ResolveStockableModel;
 use InOtherShops\Inventory\Contracts\HasStock;
 use InOtherShops\Inventory\Inventory;
 use InOtherShops\Storefront\Contracts\HasStorefrontPresence;
@@ -76,14 +78,13 @@ final class ListStockLevels extends AgentTool
     public function __invoke(array $arguments): array
     {
         $type = (string) ($arguments['type'] ?? '');
-        $modelClass = $this->resolveStockableClass($type);
+        $modelClass = (new ResolveStockableModel)($type);
 
         $lowThreshold = $this->intArg($arguments, 'low_threshold');
-        $page = max(1, (int) ($arguments['page'] ?? 1));
-        $perPage = min(self::MAX_PER_PAGE, max(1, (int) ($arguments['per_page'] ?? self::DEFAULT_PER_PAGE)));
+        $pagination = PaginationParams::fromArguments($arguments, self::MAX_PER_PAGE, self::DEFAULT_PER_PAGE);
 
         $paginator = $this->buildQuery($modelClass, $lowThreshold)
-            ->paginate(perPage: $perPage, page: $page);
+            ->paginate(perPage: $pagination->perPage, page: $pagination->page);
 
         return [
             'ok' => true,
@@ -138,38 +139,6 @@ final class ListStockLevels extends AgentTool
             'in_stock' => $model->isInStock(),
             'tracks_stock' => $model->tracksStock(),
         ];
-    }
-
-    /** @return class-string<HasStorefrontPresence&HasStock> */
-    private function resolveStockableClass(string $type): string
-    {
-        /** @var array<string, class-string> $models */
-        $models = config('storefront.models', []);
-
-        if (! isset($models[$type])) {
-            $available = array_keys($models);
-
-            throw new InvalidArgumentException(
-                'Unknown type "'.$type.'". Available: '.
-                    (count($available) > 0 ? implode(', ', $available) : '(none configured)').'.'
-            );
-        }
-
-        $modelClass = $models[$type];
-
-        if (! is_subclass_of($modelClass, HasStorefrontPresence::class)) {
-            throw new InvalidArgumentException(
-                "Model {$modelClass} does not implement HasStorefrontPresence."
-            );
-        }
-
-        if (! is_subclass_of($modelClass, HasStock::class)) {
-            throw new InvalidArgumentException(
-                "Model {$modelClass} does not implement HasStock — it is not stockable."
-            );
-        }
-
-        return $modelClass;
     }
 
     /** @param array<string, mixed> $arguments */

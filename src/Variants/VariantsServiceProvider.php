@@ -4,28 +4,26 @@ declare(strict_types=1);
 
 namespace InOtherShops\Variants;
 
-use Illuminate\Database\Eloquent\Relations\Relation;
-use Illuminate\Support\ServiceProvider;
+use InOtherShops\Support\DomainServiceProvider;
 
-final class VariantsServiceProvider extends ServiceProvider
+final class VariantsServiceProvider extends DomainServiceProvider
 {
-    public function register(): void
+    protected function domainDir(): string
     {
-        $this->mergeConfigFrom(__DIR__.'/config/variants.php', 'variants');
+        return __DIR__;
     }
 
-    public function boot(): void
+    protected function morphAliases(): array
     {
-        $this->loadMigrationsFrom(__DIR__.'/Database/Migrations');
-
-        Relation::morphMap([
+        return [
             'option' => Variants::option(),
             'option_value' => Variants::optionValue(),
             'variant' => Variants::variant(),
-        ]);
+        ];
+    }
 
-        $this->publishes([
-            __DIR__.'/config/variants.php' => config_path('variants.php'),
-        ], 'variants-config');
+    protected function publishesConfig(): bool
+    {
+        return true;
     }
 }

@@ -5,11 +5,7 @@ declare(strict_types=1);
 namespace InOtherShops\Pricing\Actions;
 
 use InOtherShops\Currency\Enums\Currency;
-use InOtherShops\Pricing\Enums\VoucherType;
 use InOtherShops\Pricing\Events\VoucherApplied;
-use InOtherShops\Pricing\Exceptions\VoucherCurrencyMismatchException;
-use InOtherShops\Pricing\Exceptions\VoucherInvalidException;
-use InOtherShops\Pricing\Exceptions\VoucherMinimumNotMetException;
 use InOtherShops\Pricing\Exceptions\VoucherNotFoundException;
 use InOtherShops\Pricing\Models\Voucher;
 use Illuminate\Support\Facades\DB;
@@ -44,7 +40,9 @@ final class ApplyVoucher
     {
         $voucher = $this->lockVoucher($code);
 
-        $this->validateVoucher($voucher, $subtotal, $currency);
+        // Still inside the row lock — the guard runs on locked state, so
+        // the TOCTOU semantics are unchanged by the extraction.
+        $voucher->validateForUse($subtotal, $currency);
 
         $voucher->incrementUsage();
 
@@ -60,20 +58,5 @@ final class ApplyVoucher
         }
 
         return $voucher;
-    }
-
-    private function validateVoucher(Voucher $voucher, int $subtotal, Currency $currency): void
-    {
-        if (! $voucher->isValid()) {
-            throw VoucherInvalidException::expired($voucher->code);
-        }
-
-        if (! $voucher->meetsMinimumOrder($subtotal)) {
-            throw VoucherMinimumNotMetException::forCode($voucher->code);
-        }
-
-        if ($voucher->type === VoucherType::Fixed && $voucher->currency !== null && $voucher->currency !== $currency) {
-            throw VoucherCurrencyMismatchException::between($voucher->code, $voucher->currency, $currency);
-        }
     }
 }

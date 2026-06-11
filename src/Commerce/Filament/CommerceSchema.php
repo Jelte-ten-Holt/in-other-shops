@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace InOtherShops\Commerce\Filament;
 
 use InOtherShops\Commerce\Order\Contracts\HasOrders;
+use InOtherShops\Support\Filament\BackedEnumState;
+use InOtherShops\Support\Filament\MoneyFields;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
@@ -67,12 +69,8 @@ final class CommerceSchema
 
         array_push($fields, ...self::currencyFields($orderableModels, $currencyOptions));
 
-        $fields[] = TextInput::make('unit_price')
+        $fields[] = MoneyFields::moneyInput('unit_price')
             ->required()
-            ->numeric()
-            ->minValue(0)
-            ->formatStateUsing(fn ($state) => $state !== null ? number_format((int) $state / 100, 2, '.', '') : null)
-            ->dehydrateStateUsing(fn ($state) => $state !== null ? (int) round((float) $state * 100) : 0)
             ->live()
             ->afterStateUpdated(function (?string $state, Set $set, Get $get): void {
                 self::recalculateLineTotal($state, $set, $get);
@@ -88,12 +86,8 @@ final class CommerceSchema
                 self::recalculateLineTotal($state, $set, $get);
             });
 
-        $fields[] = TextInput::make('line_total')
-            ->required()
-            ->numeric()
-            ->minValue(0)
-            ->formatStateUsing(fn ($state) => $state !== null ? number_format((int) $state / 100, 2, '.', '') : null)
-            ->dehydrateStateUsing(fn ($state) => $state !== null ? (int) round((float) $state * 100) : 0);
+        $fields[] = MoneyFields::moneyInput('line_total')
+            ->required();
 
         return $fields;
     }
@@ -146,16 +140,10 @@ final class CommerceSchema
             ];
         }
 
-        $select = Select::make('currency')
+        $select = BackedEnumState::normalize(Select::make('currency'))
             ->required()
             ->live()
             ->dehydrated()
-            ->formatStateUsing(fn ($state) => $state instanceof \BackedEnum ? $state->value : $state)
-            ->afterStateHydrated(function (Select $component, $state): void {
-                if ($state instanceof \BackedEnum) {
-                    $component->state($state->value);
-                }
-            })
             ->afterStateUpdated(function (string|\BackedEnum|null $state, Set $set, Get $get) use ($orderableModels): void {
                 $currencyCode = $state instanceof \BackedEnum ? $state->value : $state;
                 self::fillPriceFromOrderable($currencyCode, $set, $get, $orderableModels);

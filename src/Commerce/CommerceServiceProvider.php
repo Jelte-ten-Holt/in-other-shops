@@ -15,23 +15,20 @@ use InOtherShops\Commerce\Order\Listeners\ReconcileRefundFromWebhook;
 use InOtherShops\Commerce\Order\Listeners\SyncInventoryOnOrderStatusChange;
 use InOtherShops\FlowChain\FlowChainRegistry;
 use InOtherShops\Payment\Events\PaymentRefunded;
-use Illuminate\Database\Eloquent\Relations\Relation;
+use InOtherShops\Support\DomainServiceProvider;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Route;
-use Illuminate\Support\ServiceProvider;
 
-final class CommerceServiceProvider extends ServiceProvider
+final class CommerceServiceProvider extends DomainServiceProvider
 {
-    public function register(): void
+    protected function domainDir(): string
     {
-        $this->mergeConfigFrom(__DIR__.'/config/commerce.php', 'commerce');
+        return __DIR__;
     }
 
-    public function boot(): void
+    protected function morphAliases(): array
     {
-        $this->loadMigrationsFrom(__DIR__.'/Database/Migrations');
-
-        Relation::morphMap([
+        return [
             'cart' => Commerce::cart(),
             'cart_item' => Commerce::cartItem(),
             'customer' => Commerce::customer(),
@@ -39,12 +36,25 @@ final class CommerceServiceProvider extends ServiceProvider
             'order' => Commerce::order(),
             'order_line' => Commerce::orderLine(),
             'refund' => Commerce::refund(),
-        ]);
+        ];
+    }
+
+    protected function logSubscriber(): ?string
+    {
+        return CommerceLogSubscriber::class;
+    }
+
+    protected function domainCommands(): array
+    {
+        return [PruneExpiredCartsCommand::class, ExpireAbandonedOrdersCommand::class];
+    }
+
+    public function boot(): void
+    {
+        parent::boot();
 
         $this->registerCartRoutes();
-        $this->commands([PruneExpiredCartsCommand::class, ExpireAbandonedOrdersCommand::class]);
 
-        Event::subscribe(CommerceLogSubscriber::class);
         Event::listen(OrderCreated::class, CreateShipmentForNewOrder::class);
         Event::listen(OrderStatusChanged::class, SyncInventoryOnOrderStatusChange::class);
         Event::listen(PaymentRefunded::class, ReconcileRefundFromWebhook::class);

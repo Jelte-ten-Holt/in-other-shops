@@ -4,18 +4,11 @@ declare(strict_types=1);
 
 namespace InOtherShops\Tax\Filament\Resources\TaxRateResource\Pages;
 
-use Filament\Actions;
-use Filament\Resources\Pages\ListRecords;
+use InOtherShops\Support\Filament\PackageListRecords;
 use InOtherShops\Tax\Filament\Resources\TaxRateResource;
 
-final class ListTaxRates extends ListRecords
+final class ListTaxRates extends PackageListRecords
 {
     protected static string $resource = TaxRateResource::class;
 
-    protected function getHeaderActions(): array
-    {
-        return [
-            Actions\CreateAction::make(),
-        ];
-    }
 }
