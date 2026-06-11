@@ -1,5 +1,17 @@
 # Brief — Price format consistency (locale-driven money display)
 
+> **Patch v0.37.1 (2026-06-11, same day):** manual verification on Jelte's German-locale
+> browser caught a Livewire interaction the middleware tests missed — post-save renders
+> showed the wrong separator until a full reload. Two stacked causes: (a) the panel
+> middleware must be registered `isPersistent: true` (Livewire AJAX requests only replay
+> persistent middleware); (b) even then, Livewire's replay pipes a fake request through the
+> middleware pipeline TO COMPLETION before the component renders, so the v0.37.0
+> try/finally cleared the locale override at pipeline exit — exactly before the money text
+> formatted. Cleanup moved to `app()->terminating()`; regression test pins the replay shape.
+> Diagnosed by logging into the local admin (Playwright) with `APP_LOCALE=de` as a
+> discriminator: orders table showed `€100.00` on load, `100,00 €` after a Livewire table
+> search — proof the override died between pipeline and render. Both consumers bumped.
+>
 > **Status: RELEASED ✅ (2026-06-11) as v0.37.0** — built same day, all suites green
 > (package 866, +13 new across `CurrencyFormatLocaleTest` + `SetMoneyDisplayLocaleMiddlewareTest`;
 > in-other-worlds 785; bianka 39), both consumers bumped to `^0.37`, CI + Deploy green,
