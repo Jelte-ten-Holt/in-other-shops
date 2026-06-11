@@ -27,6 +27,8 @@ use InOtherShops\Commerce\Order\Models\Order;
 use InOtherShops\Location\Filament\LocationSchema;
 use InOtherShops\Payment\Filament\RelationManagers\PaymentsRelationManager;
 use InOtherShops\Shipping\Filament\RelationManagers\ShipmentsRelationManager;
+use InOtherShops\Support\Filament\BackedEnumState;
+use InOtherShops\Support\Filament\MoneyFields;
 
 class OrderResource extends Resource
 {
@@ -178,32 +180,17 @@ class OrderResource extends Resource
                 ->required()
                 ->disabled(fn (?Order $record): bool => $record !== null),
             ...static::orderCurrencyFields(),
-            TextInput::make('subtotal')
-                ->numeric()
-                ->default('0.00')
-                ->minValue(0)
-                ->formatStateUsing(fn ($state) => $state !== null ? number_format((int) $state / 100, 2, '.', '') : '0.00')
-                ->dehydrateStateUsing(fn ($state) => $state !== null ? (int) round((float) $state * 100) : 0)
+            MoneyFields::moneyInput('subtotal', zeroWhenEmpty: true)
                 ->live()
                 ->afterStateUpdated(function (Set $set, Get $get): void {
                     static::recalculateTotal($set, $get);
                 }),
-            TextInput::make('tax')
-                ->numeric()
-                ->default('0.00')
-                ->minValue(0)
-                ->formatStateUsing(fn ($state) => $state !== null ? number_format((int) $state / 100, 2, '.', '') : '0.00')
-                ->dehydrateStateUsing(fn ($state) => $state !== null ? (int) round((float) $state * 100) : 0)
+            MoneyFields::moneyInput('tax', zeroWhenEmpty: true)
                 ->live()
                 ->afterStateUpdated(function (Set $set, Get $get): void {
                     static::recalculateTotal($set, $get);
                 }),
-            TextInput::make('discount')
-                ->numeric()
-                ->default('0.00')
-                ->minValue(0)
-                ->formatStateUsing(fn ($state) => $state !== null ? number_format((int) $state / 100, 2, '.', '') : '0.00')
-                ->dehydrateStateUsing(fn ($state) => $state !== null ? (int) round((float) $state * 100) : 0)
+            MoneyFields::moneyInput('discount', zeroWhenEmpty: true)
                 ->live()
                 ->afterStateUpdated(function (Set $set, Get $get): void {
                     static::recalculateTotal($set, $get);
@@ -212,21 +199,11 @@ class OrderResource extends Resource
             // recalculateTotal() above. Read-only so an admin can't introduce
             // a discrepancy between total and its parts. See H6 in the
             // 2026-05-09 audit / docs/launch-blockers.md.
-            TextInput::make('total')
-                ->numeric()
-                ->default('0.00')
-                ->minValue(0)
+            MoneyFields::moneyInput('total', zeroWhenEmpty: true)
                 ->disabled()
-                ->dehydrated()
-                ->formatStateUsing(fn ($state) => $state !== null ? number_format((int) $state / 100, 2, '.', '') : '0.00')
-                ->dehydrateStateUsing(fn ($state) => $state !== null ? (int) round((float) $state * 100) : 0),
-            TextInput::make('_shipping_cost')
-                ->label('Shipping cost')
-                ->numeric()
-                ->default('0.00')
-                ->minValue(0)
-                ->formatStateUsing(fn ($state) => $state !== null ? number_format((int) $state / 100, 2, '.', '') : '0.00')
-                ->dehydrateStateUsing(fn ($state) => $state !== null ? (int) round((float) $state * 100) : 0),
+                ->dehydrated(),
+            MoneyFields::moneyInput('_shipping_cost', zeroWhenEmpty: true)
+                ->label('Shipping cost'),
             Textarea::make('notes')
                 ->columnSpanFull(),
         ];
@@ -252,15 +229,9 @@ class OrderResource extends Resource
         }
 
         return [
-            Select::make('currency')
+            BackedEnumState::normalize(Select::make('currency'))
                 ->options($options)
-                ->required()
-                ->formatStateUsing(fn ($state) => $state instanceof \BackedEnum ? $state->value : $state)
-                ->afterStateHydrated(function (Select $component, $state): void {
-                    if ($state instanceof \BackedEnum) {
-                        $component->state($state->value);
-                    }
-                }),
+                ->required(),
         ];
     }
 

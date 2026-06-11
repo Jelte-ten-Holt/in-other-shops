@@ -4,21 +4,14 @@ declare(strict_types=1);
 
 namespace InOtherShops\Variants\Filament\Resources\OptionResource\Pages;
 
-use Filament\Actions;
-use Filament\Resources\Pages\EditRecord;
+use InOtherShops\Support\Filament\PackageEditRecord;
 use InOtherShops\Translation\Filament\TranslationSchema;
 use InOtherShops\Variants\Filament\Resources\OptionResource;
 
-final class EditOption extends EditRecord
+final class EditOption extends PackageEditRecord
 {
     protected static string $resource = OptionResource::class;
 
-    protected function getHeaderActions(): array
-    {
-        return [
-            Actions\DeleteAction::make(),
-        ];
-    }
 
     protected function mutateFormDataBeforeFill(array $data): array
     {

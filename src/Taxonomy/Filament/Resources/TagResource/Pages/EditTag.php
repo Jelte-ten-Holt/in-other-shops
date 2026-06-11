@@ -6,19 +6,12 @@ namespace InOtherShops\Taxonomy\Filament\Resources\TagResource\Pages;
 
 use InOtherShops\Taxonomy\Filament\Resources\TagResource;
 use InOtherShops\Translation\Filament\TranslationSchema;
-use Filament\Actions;
-use Filament\Resources\Pages\EditRecord;
+use InOtherShops\Support\Filament\PackageEditRecord;
 
-final class EditTag extends EditRecord
+final class EditTag extends PackageEditRecord
 {
     protected static string $resource = TagResource::class;
 
-    protected function getHeaderActions(): array
-    {
-        return [
-            Actions\DeleteAction::make(),
-        ];
-    }
 
     protected function mutateFormDataBeforeFill(array $data): array
     {

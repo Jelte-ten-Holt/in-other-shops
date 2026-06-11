@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace InOtherShops\Purchasing\Filament;
 
 use InOtherShops\Purchasing\Contracts\HasPurchases;
+use InOtherShops\Support\Filament\MoneyFields;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
@@ -50,20 +51,14 @@ final class PurchasingSchema
                 ->integer()
                 ->minValue(1)
                 ->default(1),
-            TextInput::make('unit_cost')
+            MoneyFields::moneyInput('unit_cost')
                 ->label('Unit cost (net)')
-                ->required()
-                ->numeric()
-                ->minValue(0)
-                ->formatStateUsing(fn ($state) => $state !== null ? number_format((int) $state / 100, 2, '.', '') : null)
-                ->dehydrateStateUsing(fn ($state) => $state !== null ? (int) round((float) $state * 100) : 0),
-            TextInput::make('input_vat')
+                ->required(),
+            // nullable: input_vat is a nullable column — blank means "not
+            // recorded", not zero VAT.
+            MoneyFields::moneyInput('input_vat', nullable: true)
                 ->label('Input VAT (reclaimable)')
-                ->numeric()
-                ->minValue(0)
-                ->nullable()
-                ->formatStateUsing(fn ($state) => $state !== null ? number_format((int) $state / 100, 2, '.', '') : null)
-                ->dehydrateStateUsing(fn ($state) => ($state === null || $state === '') ? null : (int) round((float) $state * 100)),
+                ->nullable(),
         ];
     }
 

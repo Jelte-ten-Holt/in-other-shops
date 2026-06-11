@@ -5,17 +5,33 @@ declare(strict_types=1);
 namespace InOtherShops\Logging;
 
 use Illuminate\Console\Scheduling\Schedule;
-use Illuminate\Support\ServiceProvider;
 use InOtherShops\Logging\Commands\PruneDomainLogsCommand;
 use InOtherShops\Logging\Contracts\LogHandler;
 use InOtherShops\Logging\Enums\LogLevel;
 use InOtherShops\Logging\Handlers\FilteredLogHandler;
+use InOtherShops\Support\DomainServiceProvider;
 
-final class LoggingServiceProvider extends ServiceProvider
+final class LoggingServiceProvider extends DomainServiceProvider
 {
+    protected function domainDir(): string
+    {
+        return __DIR__;
+    }
+
+    /** The one domain whose config key isn't its directory name. */
+    protected function configKey(): string
+    {
+        return 'domain-log';
+    }
+
+    protected function domainCommands(): array
+    {
+        return [PruneDomainLogsCommand::class];
+    }
+
     public function register(): void
     {
-        $this->mergeConfigFrom(__DIR__.'/config/domain-log.php', 'domain-log');
+        parent::register();
 
         $this->app->singleton(LogContext::class);
 
@@ -31,21 +47,17 @@ final class LoggingServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
-        $this->loadMigrationsFrom(__DIR__.'/Database/Migrations');
+        parent::boot();
 
+        // Keeps its historical 'logging-config' tag (the derived tag would
+        // be 'domain-log-config'), so the publish stays hand-rolled.
         $this->publishes([
             __DIR__.'/config/domain-log.php' => config_path('domain-log.php'),
         ], 'logging-config');
 
-        $this->commands([PruneDomainLogsCommand::class]);
-
-        if (config('domain-log.schedule.enabled', true)) {
-            $this->app->booted(function () {
-                $this->app->make(Schedule::class)
-                    ->command('logging:prune-domain-logs')
-                    ->daily();
-            });
-        }
+        $this->scheduleWhenEnabled(function (Schedule $schedule): void {
+            $schedule->command('logging:prune-domain-logs')->daily();
+        });
     }
 
     /**

@@ -4,31 +4,31 @@ declare(strict_types=1);
 
 namespace InOtherShops\Shipping;
 
-use Illuminate\Database\Eloquent\Relations\Relation;
-use Illuminate\Support\Facades\Event;
-use Illuminate\Support\ServiceProvider;
 use InOtherShops\Shipping\Listeners\ShipmentLogSubscriber;
+use InOtherShops\Support\DomainServiceProvider;
 
-final class ShippingServiceProvider extends ServiceProvider
+final class ShippingServiceProvider extends DomainServiceProvider
 {
-    public function register(): void
+    protected function domainDir(): string
     {
-        $this->mergeConfigFrom(__DIR__.'/config/shipping.php', 'shipping');
+        return __DIR__;
     }
 
-    public function boot(): void
+    protected function morphAliases(): array
     {
-        $this->loadMigrationsFrom(__DIR__.'/Database/Migrations');
-
-        Relation::morphMap([
+        return [
             'shipment' => Shipping::shipment(),
             'shipment_item' => Shipping::shipmentItem(),
-        ]);
+        ];
+    }
 
-        $this->publishes([
-            __DIR__.'/config/shipping.php' => config_path('shipping.php'),
-        ], 'shipping-config');
+    protected function logSubscriber(): ?string
+    {
+        return ShipmentLogSubscriber::class;
+    }
 
-        Event::subscribe(ShipmentLogSubscriber::class);
+    protected function publishesConfig(): bool
+    {
+        return true;
     }
 }

@@ -8,18 +8,13 @@ use InOtherShops\FlowChain\Events\FlowChainCompleted;
 use InOtherShops\FlowChain\Events\FlowChainFailed;
 use InOtherShops\FlowChain\Events\FlowChainStarted;
 use InOtherShops\FlowChain\Events\FlowChainStepFailed;
-use InOtherShops\Logging\DTOs\LogEntry;
 use InOtherShops\Logging\Enums\LogLevel;
-use InOtherShops\Logging\LogDispatcher;
+use InOtherShops\Logging\LogSubscriberBase;
 use Illuminate\Contracts\Events\Dispatcher;
 
-final class FlowChainLogSubscriber
+final class FlowChainLogSubscriber extends LogSubscriberBase
 {
-    private const string CHANNEL = 'flowchain';
-
-    public function __construct(
-        private readonly LogDispatcher $dispatcher,
-    ) {}
+    protected const string CHANNEL = 'flowchain';
 
     /** @return array<class-string, string> */
     public function subscribe(Dispatcher $events): array
@@ -34,57 +29,37 @@ final class FlowChainLogSubscriber
 
     public function handleStarted(FlowChainStarted $event): void
     {
-        $this->dispatcher->log(new LogEntry(
-            level: LogLevel::Info,
-            channel: self::CHANNEL,
-            message: "FlowChain started: {$event->flowName}.",
-            context: [
+        $this->log(LogLevel::Info, "FlowChain started: {$event->flowName}.", [
                 'flow' => $event->flowName,
-            ],
-        ));
+            ]);
     }
 
     public function handleCompleted(FlowChainCompleted $event): void
     {
-        $this->dispatcher->log(new LogEntry(
-            level: LogLevel::Info,
-            channel: self::CHANNEL,
-            message: "FlowChain completed: {$event->flowName}.",
-            context: [
+        $this->log(LogLevel::Info, "FlowChain completed: {$event->flowName}.", [
                 'flow' => $event->flowName,
                 'status' => $event->result->status->value,
                 'steps' => count($event->result->steps),
                 'duration_ms' => $event->result->durationMs,
-            ],
-        ));
+            ]);
     }
 
     public function handleFailed(FlowChainFailed $event): void
     {
-        $this->dispatcher->log(new LogEntry(
-            level: LogLevel::Error,
-            channel: self::CHANNEL,
-            message: "FlowChain failed: {$event->flowName}.",
-            context: [
+        $this->log(LogLevel::Error, "FlowChain failed: {$event->flowName}.", [
                 'flow' => $event->flowName,
                 'failed_step' => $event->result->failedStep,
                 'exception' => $event->result->exception?->getMessage(),
                 'duration_ms' => $event->result->durationMs,
-            ],
-        ));
+            ]);
     }
 
     public function handleStepFailed(FlowChainStepFailed $event): void
     {
-        $this->dispatcher->log(new LogEntry(
-            level: LogLevel::Warning,
-            channel: self::CHANNEL,
-            message: "FlowChain step failed: {$event->stepClass}.",
-            context: [
+        $this->log(LogLevel::Warning, "FlowChain step failed: {$event->stepClass}.", [
                 'flow' => $event->flowName,
                 'step' => $event->stepClass,
                 'exception' => $event->exception->getMessage(),
-            ],
-        ));
+            ]);
     }
 }

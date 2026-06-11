@@ -4,23 +4,20 @@ declare(strict_types=1);
 
 namespace InOtherShops\Translation;
 
-use Illuminate\Database\Eloquent\Relations\Relation;
-use Illuminate\Support\ServiceProvider;
+use InOtherShops\Support\DomainServiceProvider;
 
-final class TranslationServiceProvider extends ServiceProvider
+final class TranslationServiceProvider extends DomainServiceProvider
 {
-    public function register(): void
+    protected function domainDir(): string
     {
-        $this->mergeConfigFrom(__DIR__.'/config/translation.php', 'translation');
+        return __DIR__;
     }
 
-    public function boot(): void
+    protected function morphAliases(): array
     {
-        $this->loadMigrationsFrom(__DIR__.'/Database/Migrations');
-
-        Relation::morphMap([
+        return [
             'translation' => Translation::translation(),
             'locale_group' => Translation::localeGroup(),
-        ]);
+        ];
     }
 }

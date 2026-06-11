@@ -14,6 +14,7 @@ use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
 use InOtherShops\Tax\Enums\TaxCategory;
+use InOtherShops\Support\Filament\MoneyFields;
 use InOtherShops\Tax\Filament\Resources\TaxRateResource\Pages;
 use InOtherShops\Tax\Models\TaxRate;
 
@@ -72,7 +73,9 @@ final class TaxRateResource extends Resource
                     ->sortable(),
                 Tables\Columns\TextColumn::make('rate_bps')
                     ->label('Rate')
-                    ->formatStateUsing(fn (int $state): string => number_format($state / 100, 2).'%')
+                    // D2 (package-tightening): was '21.00%'; now matches the
+                    // voucher column's stripped format ('21%', '7.5%').
+                    ->formatStateUsing(fn (int $state): string => MoneyFields::percentLabel($state))
                     ->sortable(),
                 Tables\Columns\IconColumn::make('is_default')->label('Default')->boolean(),
                 Tables\Columns\TextColumn::make('updated_at')
@@ -89,11 +92,6 @@ final class TaxRateResource extends Resource
                     Actions\DeleteBulkAction::make(),
                 ]),
             ]);
-    }
-
-    public static function getRelations(): array
-    {
-        return [];
     }
 
     public static function getPages(): array

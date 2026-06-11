@@ -6,33 +6,36 @@ namespace InOtherShops\Purchasing;
 
 use InOtherShops\Purchasing\Commands\ReconcilePurchaseReceiptsCommand;
 use InOtherShops\Purchasing\Listeners\PurchasingLogSubscriber;
-use Illuminate\Database\Eloquent\Relations\Relation;
-use Illuminate\Support\Facades\Event;
-use Illuminate\Support\ServiceProvider;
+use InOtherShops\Support\DomainServiceProvider;
 
-final class PurchasingServiceProvider extends ServiceProvider
+final class PurchasingServiceProvider extends DomainServiceProvider
 {
-    public function register(): void
+    protected function domainDir(): string
     {
-        $this->mergeConfigFrom(__DIR__.'/config/purchasing.php', 'purchasing');
+        return __DIR__;
     }
 
-    public function boot(): void
+    protected function morphAliases(): array
     {
-        $this->loadMigrationsFrom(__DIR__.'/Database/Migrations');
-
-        Relation::morphMap([
+        return [
             'supplier' => Purchasing::supplier(),
             'purchase_order' => Purchasing::purchaseOrder(),
             'purchase_order_line' => Purchasing::purchaseOrderLine(),
-        ]);
+        ];
+    }
 
-        $this->publishes([
-            __DIR__.'/config/purchasing.php' => config_path('purchasing.php'),
-        ], 'purchasing-config');
+    protected function logSubscriber(): ?string
+    {
+        return PurchasingLogSubscriber::class;
+    }
 
-        Event::subscribe(PurchasingLogSubscriber::class);
+    protected function domainCommands(): array
+    {
+        return [ReconcilePurchaseReceiptsCommand::class];
+    }
 
-        $this->commands([ReconcilePurchaseReceiptsCommand::class]);
+    protected function publishesConfig(): bool
+    {
+        return true;
     }
 }

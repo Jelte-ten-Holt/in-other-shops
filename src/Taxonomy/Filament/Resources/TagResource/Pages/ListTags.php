@@ -5,17 +5,10 @@ declare(strict_types=1);
 namespace InOtherShops\Taxonomy\Filament\Resources\TagResource\Pages;
 
 use InOtherShops\Taxonomy\Filament\Resources\TagResource;
-use Filament\Actions;
-use Filament\Resources\Pages\ListRecords;
+use InOtherShops\Support\Filament\PackageListRecords;
 
-final class ListTags extends ListRecords
+final class ListTags extends PackageListRecords
 {
     protected static string $resource = TagResource::class;
 
-    protected function getHeaderActions(): array
-    {
-        return [
-            Actions\CreateAction::make(),
-        ];
-    }
 }

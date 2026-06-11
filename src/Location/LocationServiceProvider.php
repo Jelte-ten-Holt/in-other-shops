@@ -4,22 +4,19 @@ declare(strict_types=1);
 
 namespace InOtherShops\Location;
 
-use Illuminate\Database\Eloquent\Relations\Relation;
-use Illuminate\Support\ServiceProvider;
+use InOtherShops\Support\DomainServiceProvider;
 
-final class LocationServiceProvider extends ServiceProvider
+final class LocationServiceProvider extends DomainServiceProvider
 {
-    public function register(): void
+    protected function domainDir(): string
     {
-        $this->mergeConfigFrom(__DIR__.'/config/location.php', 'location');
+        return __DIR__;
     }
 
-    public function boot(): void
+    protected function morphAliases(): array
     {
-        $this->loadMigrationsFrom(__DIR__.'/Database/Migrations');
-
-        Relation::morphMap([
+        return [
             'address' => Location::address(),
-        ]);
+        ];
     }
 }

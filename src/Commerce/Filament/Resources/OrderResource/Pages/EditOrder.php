@@ -10,7 +10,7 @@ use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
-use Filament\Resources\Pages\EditRecord;
+use InOtherShops\Support\Filament\PackageEditRecord;
 use InOtherShops\Commerce\Filament\Resources\OrderResource;
 use InOtherShops\Commerce\Order\Actions\RefundOrder;
 use InOtherShops\Commerce\Order\DTOs\RefundActor;
@@ -20,7 +20,7 @@ use InOtherShops\Inventory\Enums\ReservationStatus;
 use InOtherShops\Inventory\Inventory;
 use InOtherShops\Payment\Enums\PaymentStatus;
 
-final class EditOrder extends EditRecord
+final class EditOrder extends PackageEditRecord
 {
     protected static string $resource = OrderResource::class;
 

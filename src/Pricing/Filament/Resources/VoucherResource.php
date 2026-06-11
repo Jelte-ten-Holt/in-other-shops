@@ -20,6 +20,7 @@ use InOtherShops\Pricing\Enums\VoucherType;
 use InOtherShops\Pricing\Filament\PricingSchema;
 use InOtherShops\Pricing\Filament\Resources\VoucherResource\Pages;
 use InOtherShops\Pricing\Models\Voucher;
+use InOtherShops\Support\Filament\MoneyFields;
 
 final class VoucherResource extends Resource
 {
@@ -59,7 +60,7 @@ final class VoucherResource extends Resource
                                 ? $state / 100
                                 : $state)
                             ->dehydrateStateUsing(fn (mixed $state, Get $get) => $get('type') === VoucherType::Percentage->value
-                                ? (int) round(((float) $state) * 100)
+                                ? MoneyFields::dehydrateBps($state)
                                 : (int) $state),
                         PricingSchema::currencySelect()
                             ->hidden(fn (Get $get) => $get('type') === VoucherType::Percentage->value)
@@ -101,7 +102,7 @@ final class VoucherResource extends Resource
                     ->badge(),
                 Tables\Columns\TextColumn::make('amount')
                     ->formatStateUsing(fn (Voucher $record) => $record->type === VoucherType::Percentage
-                        ? rtrim(rtrim(number_format($record->amount / 100, 2), '0'), '.').'%'
+                        ? MoneyFields::percentLabel($record->amount)
                         : ($record->currency instanceof Currency
                             ? $record->currency->format($record->amount)
                             : $record->amount)
