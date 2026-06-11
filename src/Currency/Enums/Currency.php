@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace InOtherShops\Currency\Enums;
 
+use InOtherShops\Currency\Support\DisplayLocale;
+use InOtherShops\Currency\Support\MoneyFormatter;
+
 enum Currency: string
 {
     case EUR = 'EUR';
@@ -26,16 +29,28 @@ enum Currency: string
         };
     }
 
-    public function format(int $amount): string
+    /**
+     * Format an integer minor-unit amount for human display, using the
+     * display locale's conventions (separators AND symbol placement, from
+     * CLDR): 'en' -> "€12.50", 'de'/'es' -> "12,50 €".
+     *
+     * Pass an explicit $locale in any non-request context (queued mail
+     * formats with the order's stored locale — ambient app locale in a
+     * worker is just the app default). In request context the ambient
+     * resolution (DisplayLocale) is correct: app locale on public surfaces,
+     * the admin's Accept-Language inside Filament panels.
+     *
+     * Never use this output as a machine format (APIs consumed by code,
+     * structured data, gateway payloads) — those stay on raw integer cents
+     * or hardcoded period formats.
+     */
+    public function format(int $amount, ?string $locale = null): string
     {
-        $value = number_format(
-            num: $amount / (10 ** $this->decimals()),
-            decimals: $this->decimals(),
-            decimal_separator: '.',
-            thousands_separator: ',',
+        return MoneyFormatter::formatCurrency(
+            $locale ?? DisplayLocale::resolve(),
+            $amount / (10 ** $this->decimals()),
+            $this->value,
         );
-
-        return $this->symbol().$value;
     }
 
     /**

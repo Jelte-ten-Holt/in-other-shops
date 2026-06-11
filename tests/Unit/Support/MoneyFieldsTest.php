@@ -85,7 +85,13 @@ final class MoneyFieldsTest extends TestCase
         $this->assertSame(0, MoneyFields::dehydrateBps('0'));
     }
 
-    /** @return array<string, array{int, string}> */
+    /**
+     * Locale passed explicitly: this suite runs without a container, and
+     * percentLabel's ambient resolution (DisplayLocale) needs a booted app.
+     * Ambient resolution is covered in Feature/Currency/CurrencyFormatLocaleTest.
+     *
+     * @return array<string, array{int, string}>
+     */
     public static function percentLabelCases(): array
     {
         return [
@@ -101,6 +107,6 @@ final class MoneyFieldsTest extends TestCase
     #[DataProvider('percentLabelCases')]
     public function percent_label_strips_trailing_zeros(int $bps, string $expected): void
     {
-        $this->assertSame($expected, MoneyFields::percentLabel($bps));
+        $this->assertSame($expected, MoneyFields::percentLabel($bps, locale: 'en'));
     }
 }

@@ -63,8 +63,8 @@ class Price extends Model
         return $this->belongsTo(Pricing::priceList());
     }
 
-    public function formattedAmount(): string
+    public function formattedAmount(?string $locale = null): string
     {
-        return $this->currency->format($this->amount);
+        return $this->currency->format($this->amount, $locale);
     }
 }
