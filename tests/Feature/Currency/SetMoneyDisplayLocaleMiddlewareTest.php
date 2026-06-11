@@ -78,4 +78,36 @@ final class SetMoneyDisplayLocaleMiddlewareTest extends TestCase
 
         $response->assertOk()->assertJson(['formatted' => '€12.50']);
     }
+
+    /**
+     * Livewire's persistent-middleware replay pipes a fake request through
+     * the middleware to COMPLETION before the component update renders
+     * (Pipeline ->then() returns a stub response immediately). The override
+     * must therefore survive the middleware's own pipeline exit and be
+     * cleared only at request termination — a try/finally around $next()
+     * wipes it exactly before the money text formats (the v0.37.0 bug:
+     * post-save renders fell back to the app locale until a full reload).
+     */
+    #[Test]
+    public function override_survives_pipeline_exit_so_livewire_replays_keep_the_locale(): void
+    {
+        $this->app->setLocale('en');
+
+        $request = \Illuminate\Http\Request::create('/admin/orders', 'GET');
+        $request->headers->set('Accept-Language', 'de-DE,de;q=0.9');
+
+        (new SetMoneyDisplayLocale())->handle($request, fn () => new \Illuminate\Http\Response());
+
+        // After handle() returns (= after Livewire's replay pipeline), the
+        // component render happens HERE — the German convention must hold.
+        $this->assertSame(
+            '12,50 €',
+            str_replace(["\u{00A0}", "\u{202F}"], ' ', Currency::EUR->format(1250)),
+        );
+
+        // Request termination is where cleanup belongs.
+        $this->app->terminate();
+
+        $this->assertSame('€12.50', Currency::EUR->format(1250));
+    }
 }

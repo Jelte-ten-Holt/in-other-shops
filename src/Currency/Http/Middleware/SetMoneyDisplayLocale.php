@@ -34,12 +34,17 @@ final class SetMoneyDisplayLocale
     {
         DisplayLocale::set($request->getPreferredLanguage());
 
-        try {
-            return $next($request);
-        } finally {
-            // Process state must not leak into the next request on
-            // long-running runtimes (Octane, queue-adjacent workers).
-            DisplayLocale::clear();
-        }
+        // Cleanup happens at request TERMINATION — never in a try/finally
+        // around $next(). Livewire's persistent-middleware replay (every
+        // Save click, table search, pagination) pipes a fake request
+        // through this middleware to completion BEFORE the component
+        // update renders: a finally here clears the locale at pipeline
+        // exit, exactly before the money text formats, and the post-save
+        // render falls back to the app locale (the v0.37.0 wrong-separator
+        // bug). terminating() still fires once per request on FPM and
+        // Octane, so the override cannot leak across requests.
+        app()->terminating(static fn () => DisplayLocale::clear());
+
+        return $next($request);
     }
 }
