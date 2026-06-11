@@ -30,7 +30,7 @@ So public surfaces follow the app locale by default — "the language in which t
 
 ### SetMoneyDisplayLocale middleware
 
-`Http\Middleware\SetMoneyDisplayLocale` — register on a Filament panel (consumer's panel provider). Resolves the money display locale from the request's `Accept-Language`, so server-rendered admin money text follows the operator's own browser settings — matching what the browser natively does to `type="number"` inputs. It deliberately never calls `app()->setLocale()`: number convention and panel UI language are decoupled. The override is cleared in a `finally` so it cannot leak between requests on long-running runtimes.
+`Http\Middleware\SetMoneyDisplayLocale` — register on a Filament panel **as persistent middleware**: `->middleware([SetMoneyDisplayLocale::class], isPersistent: true)`. Livewire AJAX requests (every Save click, table interaction, etc.) only replay persistent middleware — registered non-persistently, the post-save render falls back to the app locale and shows the wrong separator until a full page reload. The middleware resolves the money display locale from the request's `Accept-Language`, so server-rendered admin money text follows the operator's own browser settings — matching what the browser natively does to `type="number"` inputs. It deliberately never calls `app()->setLocale()`: number convention and panel UI language are decoupled. The override is cleared in a `finally` so it cannot leak between requests on long-running runtimes.
 
 ### Configuration
 

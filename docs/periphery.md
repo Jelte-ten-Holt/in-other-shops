@@ -217,7 +217,7 @@ Money display became locale-aware: `Currency::format()` renders per the resolved
 | `Pricing\Models\Price::formattedAmount(?string $locale = null)` | additive param | delegates to `Currency::format()` |
 | `Support\Filament\MoneyFields::percentLabel(int $bps, ?string $locale = null)` | additive param + locale-aware output | `de` → `7,5 %`; ambient resolution needs a booted app — pass explicit locale in container-less contexts |
 | `Currency\Support\DisplayLocale` | new | set/clear/resolve; per-request override used by the middleware |
-| `Currency\Http\Middleware\SetMoneyDisplayLocale` | new | consumers register on their Filament panel; resolves money display locale from `Accept-Language`; never touches `app()->setLocale()` |
+| `Currency\Http\Middleware\SetMoneyDisplayLocale` | new | consumers register on their Filament panel **with `isPersistent: true`** (Livewire AJAX saves only replay persistent middleware — non-persistent registration renders the wrong separator on the post-save response); resolves money display locale from `Accept-Language`; never touches `app()->setLocale()` |
 | `config('currency.display_locale')` | new key | ships `null` = follow app locale |
 | `ext-intl` | new composer requirement | already transitively required via filament/support |
 
