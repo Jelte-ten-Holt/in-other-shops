@@ -4,8 +4,13 @@ declare(strict_types=1);
 
 namespace InOtherShops\Shipping\Enums;
 
-enum ShipmentStatus: string
+use InOtherShops\Support\StateTransitions;
+use InOtherShops\Support\Transitionable;
+
+enum ShipmentStatus: string implements Transitionable
 {
+    use StateTransitions;
+
     case Pending = 'pending';
     case Ready = 'ready';
     case InTransit = 'in_transit';
@@ -47,10 +52,5 @@ enum ShipmentStatus: string
             self::ReturnedToSender => [self::Pending, self::Lost],
             self::Delivered, self::Lost => [],
         };
-    }
-
-    public function canTransitionTo(self $target): bool
-    {
-        return in_array($target, $this->allowedTransitions(), true);
     }
 }

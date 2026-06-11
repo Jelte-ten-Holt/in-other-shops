@@ -7,7 +7,6 @@ namespace InOtherShops\Tests\Stubs;
 use InOtherShops\Commerce\Cart\Concerns\InteractsWithCart;
 use InOtherShops\Commerce\Cart\Contracts\HasCart;
 use InOtherShops\Currency\Enums\Currency;
-use InOtherShops\Shipping\Concerns\InteractsWithShippability;
 use InOtherShops\Shipping\Contracts\HasShippability;
 use InOtherShops\Tax\Contracts\HasTaxCategory;
 use InOtherShops\Tax\Enums\TaxCategory;
@@ -19,7 +18,6 @@ final class TestShippableCartable extends Model implements HasCart, HasShippabil
 {
     use HasFactory;
     use InteractsWithCart;
-    use InteractsWithShippability;
 
     protected $guarded = [];
 
