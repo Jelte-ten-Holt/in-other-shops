@@ -1,5 +1,26 @@
 # Brief — Package tightening (DRY / cleanup / boilerplate consolidation)
 
+> **Status: BUILT ✅ (2026-06-11)** — all three phases implemented + tested on branch
+> `chore/package-tightening` (in-other-shops), suite green (853 tests, was 809 at baseline;
+> +44 new: BootConfigMergeTest, MoneyFieldsTest, PackagePageBasesTest,
+> EnabledCurrenciesConfigTest). **Not released / not pushed** — awaiting go-ahead to cut
+> v0.36.0 + bump both consumers. Commits: 41784f8 (Phase 1), 93514c0 (Phase 2),
+> 392a20a (Phase 3); in-other-worlds 0f8e023 (WI-10 consumer side, compatible with both
+> package versions, committed on its main).
+>
+> **Key build refinements vs. the v3 plan below:** (1) **WI-10**: in-other-worlds `Product`
+> turned out to define its own digital-aware `requiresShipping()` (`! is_digital`) that had
+> been shadowing the package trait all along — same for the package's own test stub — so the
+> trait was shadowed dead weight at every use site and the consumer fix is import-removal
+> only, no new method; (2) **WI-2**: `list_orders` previously let `per_page <= 0` reach
+> `paginate()`; the shared clamp floors it at 1 (deliberate micro-hardening, noted in the
+> Phase 1 commit); (3) **WI-6**: the commands hook is `domainCommands()` (the framework's
+> `ServiceProvider::commands()` already owns the obvious name), and Logging adopted the base
+> with a `configKey()` override while keeping its historical hand-rolled `logging-config`
+> publish tag; (4) **WI-7**: no Create-page base was needed (stubs were already minimal) and
+> `PackagePageBasesTest` pins the 20-page List/Edit census; (5) **WI-4** additionally applied
+> the same single-query derivation to the order table's refund badge (2 queries per row → 1).
+>
 > **Status: v3 (2026-06-11) — discuss pass 1 + adversarial critique pass 1 incorporated;
 > build-ready pending sign-off.** All five decisions settled (§5); D5 scoped down to one trait
 > (§10). Critique pass (4 parallel adversarial reviewers, claims re-verified against code)
