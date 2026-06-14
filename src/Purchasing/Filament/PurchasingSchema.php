@@ -9,6 +9,7 @@ use InOtherShops\Support\Filament\MoneyFields;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Component;
 use Filament\Schemas\Components\Utilities\Set;
@@ -39,9 +40,14 @@ final class PurchasingSchema
     {
         return [
             ...self::purchasableSelectFields(),
-            TextInput::make('description')
-                ->required()
-                ->maxLength(255),
+            // Optional: a line backed by a selected product snapshots its
+            // description automatically (see handlePurchasableSelected). Only a
+            // line with neither a product nor typed text is rejected — by the
+            // CreatePurchaseOrder action, which is the real invariant.
+            Textarea::make('description')
+                ->rows(2)
+                ->maxLength(255)
+                ->columnSpanFull(),
             TextInput::make('sku')
                 ->label('SKU')
                 ->maxLength(255),
