@@ -11,6 +11,7 @@ use Filament\Schemas\Components\Tabs\Tab;
 use Filament\Schemas\Components\Utilities\Set;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
+use InvalidArgumentException;
 
 final class TranslationSchema
 {
@@ -72,6 +73,23 @@ final class TranslationSchema
                         ->delete();
 
                     continue;
+                }
+
+                // The value column is a string. A non-scalar here means the
+                // caller passed raw form state, not the dehydrated state — a
+                // Filament RichEditor's raw state is a TipTap document (array),
+                // whose dehydrated form is the HTML string this column stores.
+                // Fail loud with the fix rather than silently corrupting the row
+                // (or throwing an opaque "Array to string conversion").
+                if (! is_scalar($value)) {
+                    throw new InvalidArgumentException(sprintf(
+                        'TranslationSchema cannot persist a non-scalar value for field "%s" (locale "%s"): got %s. '
+                        .'Feed afterCreate()/afterSave() the dehydrated form state — use the SyncsManualFormState '
+                        .'trait or $this->form->getState() — not the raw $this->data.',
+                        $field,
+                        $locale,
+                        get_debug_type($value),
+                    ));
                 }
 
                 $record->translations()->updateOrCreate(
