@@ -6,7 +6,7 @@ namespace InOtherShops\Taxonomy\Commands;
 
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
-use InOtherShops\Taxonomy\Support\CategoryAncestry;
+use InOtherShops\Taxonomy\Support\CategoryCountAggregator;
 
 /**
  * Rebuilds `category_morph_counts` from scratch by aggregating the
@@ -60,31 +60,9 @@ final class RecomputeCategoryCountsCommand extends Command
         DB::transaction(function (): void {
             DB::table('category_morph_counts')->delete();
 
-            $directCounts = DB::table('categorizables')
-                ->selectRaw('category_id, categorizable_type AS morph_alias, COUNT(*) AS count')
-                ->groupBy('category_id', 'categorizable_type')
-                ->get();
-
-            if ($directCounts->isEmpty()) {
-                return;
-            }
-
-            $parents = CategoryAncestry::parentMap();
-
-            $aggregated = [];
-
-            foreach ($directCounts as $row) {
-                $alias = (string) $row->morph_alias;
-                $count = (int) $row->count;
-
-                CategoryAncestry::walkUp((int) $row->category_id, $parents, function (int $categoryId) use (&$aggregated, $alias, $count): void {
-                    $aggregated[$categoryId][$alias] = ($aggregated[$categoryId][$alias] ?? 0) + $count;
-                });
-            }
-
             $rows = [];
 
-            foreach ($aggregated as $categoryId => $byAlias) {
+            foreach (CategoryCountAggregator::expected() as $categoryId => $byAlias) {
                 foreach ($byAlias as $alias => $count) {
                     $rows[] = [
                         'category_id' => $categoryId,

@@ -6,6 +6,7 @@ namespace InOtherShops\Taxonomy;
 
 use Illuminate\Support\Facades\Event;
 use InOtherShops\Support\DomainServiceProvider;
+use InOtherShops\Taxonomy\Commands\ReconcileCategoryCountsCommand;
 use InOtherShops\Taxonomy\Commands\RecomputeCategoryCountsCommand;
 use InOtherShops\Taxonomy\Listeners\MaintainCategoryCounts;
 use InOtherShops\Taxonomy\Observers\CategoryObserver;
@@ -27,7 +28,10 @@ final class TaxonomyServiceProvider extends DomainServiceProvider
 
     protected function domainCommands(): array
     {
-        return [RecomputeCategoryCountsCommand::class];
+        return [
+            RecomputeCategoryCountsCommand::class,
+            ReconcileCategoryCountsCommand::class,
+        ];
     }
 
     public function boot(): void
