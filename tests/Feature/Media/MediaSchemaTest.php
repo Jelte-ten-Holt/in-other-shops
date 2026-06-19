@@ -283,6 +283,83 @@ final class MediaSchemaTest extends TestCase
     }
 
     #[Test]
+    public function it_refuses_to_persist_a_non_cover_collection_as_the_cover(): void
+    {
+        // A collection holding embeds/documents opts out of covers. An embed URL
+        // is never a valid <img> source, so flagging one must not stick — even
+        // if the form state (or another write path) submits is_cover => true.
+        config(['media.collections.embed' => ['label' => 'Embed', 'cover' => false]]);
+
+        $record = TestMediable::factory()->create();
+
+        MediaSchema::saveFormData($record, [
+            '_media' => [
+                'embed' => [
+                    [
+                        'media_id' => null,
+                        'type' => MediaType::Embed->value,
+                        'url' => 'https://www.youtube.com/watch?v=jNQXAC9IVRw',
+                        'alt' => null,
+                        'is_cover' => true,
+                    ],
+                ],
+            ],
+        ]);
+
+        $persisted = $record->media()->wherePivot('collection', 'embed')->first();
+        $this->assertNotNull($persisted);
+        $this->assertFalse((bool) $persisted->pivot->is_cover);
+        $this->assertCount(0, $record->media()->wherePivot('is_cover', true)->get());
+    }
+
+    #[Test]
+    public function it_keeps_an_image_cover_when_a_non_cover_collection_also_claims_it(): void
+    {
+        // The image collection's cover wins; the embed's stray is_cover is dropped
+        // rather than competing for the single cover slot.
+        config(['media.collections.embed' => ['label' => 'Embed', 'cover' => false]]);
+
+        $record = TestMediable::factory()->create();
+        UploadedFile::fake()->create('a.jpeg', 100, 'image/jpeg')->storeAs('media', 'a.jpeg', 'public');
+
+        MediaSchema::saveFormData($record, [
+            '_media' => [
+                'images' => [
+                    [
+                        'media_id' => null,
+                        'type' => MediaType::Upload->value,
+                        'path' => 'media/a.jpeg',
+                        'alt' => null,
+                        'is_cover' => true,
+                    ],
+                ],
+                'embed' => [
+                    [
+                        'media_id' => null,
+                        'type' => MediaType::Embed->value,
+                        'url' => 'https://www.youtube.com/watch?v=jNQXAC9IVRw',
+                        'alt' => null,
+                        'is_cover' => true,
+                    ],
+                ],
+            ],
+        ]);
+
+        $cover = $record->coverImage();
+        $this->assertNotNull($cover);
+        $this->assertSame('media/a.jpeg', $cover->path);
+    }
+
+    #[Test]
+    public function collection_allows_cover_reads_the_config_flag(): void
+    {
+        config(['media.collections.embed' => ['label' => 'Embed', 'cover' => false]]);
+
+        $this->assertFalse(MediaSchema::collectionAllowsCover('embed'));
+        $this->assertTrue(MediaSchema::collectionAllowsCover('images'));
+    }
+
+    #[Test]
     public function it_includes_is_cover_when_filling_form_data(): void
     {
         $record = TestMediable::factory()->create();

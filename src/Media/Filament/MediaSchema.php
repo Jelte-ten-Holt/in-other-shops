@@ -30,55 +30,65 @@ final class MediaSchema
         $directory = config('media.directory');
         $label = self::collectionLabel($collection);
 
+        $schema = [
+            Hidden::make('media_id'),
+            Select::make('type')
+                ->options([
+                    MediaType::Upload->value => 'Upload',
+                    MediaType::External->value => 'External URL',
+                    MediaType::Embed->value => 'Embed',
+                ])
+                ->default(MediaType::Upload->value)
+                ->required()
+                ->live()
+                ->columnSpanFull(),
+            FileUpload::make('path')
+                ->required()
+                ->disk($disk)
+                ->directory($directory)
+                ->visibility('public')
+                // Allowlist of mime types served safely from the public disk.
+                // SVG is intentionally excluded — it executes JS when served inline.
+                // Size cap is 10 MB; raise per-collection if a use case justifies it.
+                ->acceptedFileTypes(self::allowedUploadMimeTypes())
+                ->maxSize(10240)
+                ->columnSpanFull()
+                ->visible(fn ($get) => $get('type') === MediaType::Upload->value),
+            TextInput::make('url')
+                ->label('URL')
+                ->required()
+                ->url()
+                ->live(onBlur: true)
+                ->columnSpanFull()
+                ->visible(fn ($get) => in_array($get('type'), [MediaType::External->value, MediaType::Embed->value], true)),
+            Html::make(fn ($get) => new HtmlString(
+                '<img src="'.e($get('url')).'" style="max-height: 150px; border-radius: 0.5rem;" />',
+            ))
+                ->visible(fn ($get) => $get('type') === MediaType::External->value && filled($get('url')))
+                ->columnSpanFull(),
+            Html::make(fn ($get) => self::embedPreview($get('url')))
+                ->visible(fn ($get) => $get('type') === MediaType::Embed->value && filled($get('url')))
+                ->columnSpanFull(),
+            TextInput::make('alt')
+                ->maxLength(255),
+        ];
+
+        // The cover toggle only makes sense for collections that hold actual
+        // images. A collection of video embeds (or documents) carries URLs that
+        // are never a valid <img> source, so flagging one as the cover yields a
+        // broken image downstream. Opt a collection out with `cover => false`
+        // in its `media.collections` config entry.
+        if (self::collectionAllowsCover($collection)) {
+            $schema[] = Toggle::make('is_cover')
+                ->label('Use as cover image')
+                ->helperText('The cover image is used in listings and social previews. Only one row across all media collections is kept as the cover.')
+                ->default(false);
+        }
+
         return Repeater::make("_media.{$collection}")
             ->label($label)
             ->defaultItems(0)
-            ->schema([
-                Hidden::make('media_id'),
-                Select::make('type')
-                    ->options([
-                        MediaType::Upload->value => 'Upload',
-                        MediaType::External->value => 'External URL',
-                        MediaType::Embed->value => 'Embed',
-                    ])
-                    ->default(MediaType::Upload->value)
-                    ->required()
-                    ->live()
-                    ->columnSpanFull(),
-                FileUpload::make('path')
-                    ->required()
-                    ->disk($disk)
-                    ->directory($directory)
-                    ->visibility('public')
-                    // Allowlist of mime types served safely from the public disk.
-                    // SVG is intentionally excluded — it executes JS when served inline.
-                    // Size cap is 10 MB; raise per-collection if a use case justifies it.
-                    ->acceptedFileTypes(self::allowedUploadMimeTypes())
-                    ->maxSize(10240)
-                    ->columnSpanFull()
-                    ->visible(fn ($get) => $get('type') === MediaType::Upload->value),
-                TextInput::make('url')
-                    ->label('URL')
-                    ->required()
-                    ->url()
-                    ->live(onBlur: true)
-                    ->columnSpanFull()
-                    ->visible(fn ($get) => in_array($get('type'), [MediaType::External->value, MediaType::Embed->value], true)),
-                Html::make(fn ($get) => new HtmlString(
-                    '<img src="'.e($get('url')).'" style="max-height: 150px; border-radius: 0.5rem;" />',
-                ))
-                    ->visible(fn ($get) => $get('type') === MediaType::External->value && filled($get('url')))
-                    ->columnSpanFull(),
-                Html::make(fn ($get) => self::embedPreview($get('url')))
-                    ->visible(fn ($get) => $get('type') === MediaType::Embed->value && filled($get('url')))
-                    ->columnSpanFull(),
-                TextInput::make('alt')
-                    ->maxLength(255),
-                Toggle::make('is_cover')
-                    ->label('Use as cover image')
-                    ->helperText('The cover image is used in listings and social previews. Only one row across all media collections is kept as the cover.')
-                    ->default(false),
-            ])
+            ->schema($schema)
             ->columns(1)
             ->reorderable()
             ->collapsible();
@@ -138,8 +148,10 @@ final class MediaSchema
         $coverClaimed = false;
 
         foreach ($mediaData as $collection => $items) {
+            $allowsCover = self::collectionAllowsCover($collection);
+
             foreach ($items ?? [] as $index => $item) {
-                $isCover = ! empty($item['is_cover']);
+                $isCover = $allowsCover && ! empty($item['is_cover']);
 
                 if ($isCover && ! $coverClaimed) {
                     $mediaData[$collection][$index]['is_cover'] = true;
@@ -159,6 +171,16 @@ final class MediaSchema
     public static function collections(): array
     {
         return config('media.collections', []);
+    }
+
+    /**
+     * Whether a collection's media can be flagged as the cover image. Defaults
+     * to true; a collection holding non-image media (video embeds, documents)
+     * opts out with `cover => false` in its `media.collections` config entry.
+     */
+    public static function collectionAllowsCover(string $collection): bool
+    {
+        return (self::collections()[$collection]['cover'] ?? true) !== false;
     }
 
     private static function syncCollection(Model&HasMedia $record, string $collection, array $items): void

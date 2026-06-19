@@ -31,6 +31,12 @@ return [
     | Define the available media collections. Keys are stored in the database;
     | labels are shown in the UI and can be passed through __() for translation.
     |
+    | Set `cover => false` on a collection that holds non-image media (e.g. video
+    | embeds or documents). The admin then hides its "Use as cover image" toggle
+    | and the schema refuses to persist that collection as the cover — an embed
+    | URL is never a valid <img> source. Omit the key (or set true) for image
+    | collections.
+    |
     */
     'collections' => [
         'images' => [
@@ -38,6 +44,7 @@ return [
         ],
         'documents' => [
             'label' => 'Documents',
+            'cover' => false,
         ],
     ],
 
