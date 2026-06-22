@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace InOtherShops\Taxonomy\Filament\Resources;
 
 use Filament\Actions;
+use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
@@ -16,7 +17,11 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\HtmlString;
+use Illuminate\Support\Str;
 use InOtherShops\Media\Filament\MediaSchema;
+use InOtherShops\Taxonomy\Actions\ListCategoriesInTreeOrder;
+use InOtherShops\Taxonomy\Actions\ListCategoryAttachments;
 use InOtherShops\Taxonomy\Filament\Resources\CategoryResource\Pages;
 use InOtherShops\Taxonomy\Models\Category;
 use InOtherShops\Translation\Filament\TranslationSchema;
@@ -77,6 +82,14 @@ final class CategoryResource extends Resource
                             ->helperText('Shown on category teasers and listings.')
                             ->maxItems(1),
                     ]),
+                Section::make('Assigned items')
+                    ->description('Products, bundles and content currently in this category, grouped by type.')
+                    ->hiddenOn('create')
+                    ->schema([
+                        Placeholder::make('assigned_items')
+                            ->hiddenLabel()
+                            ->content(fn (Category $record): HtmlString|string => self::renderAssignedItems($record)),
+                    ]),
             ]);
     }
 
@@ -101,7 +114,7 @@ final class CategoryResource extends Resource
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
-            ->defaultSort('position')
+            ->defaultSort(fn (Builder $query): Builder => self::applyTreeOrder($query))
             ->reorderable('position')
             ->actions([
                 Actions\EditAction::make(),
@@ -109,6 +122,57 @@ final class CategoryResource extends Resource
                     ->disabled(fn (Category $record): bool => $record->children()->exists())
                     ->modalDescription(fn (Category $record): string => self::deleteModalDescription($record)),
             ]);
+    }
+
+    /**
+     * Orders the index depth-first so each parent is immediately followed by
+     * its children. Applied as the table's default sort, so a column-header
+     * click still takes precedence (Filament adds the column sort first and
+     * this only tie-breaks) and drag-reorder bypasses it entirely.
+     */
+    private static function applyTreeOrder(Builder $query): Builder
+    {
+        $orderedIds = (new ListCategoriesInTreeOrder)();
+
+        if ($orderedIds === []) {
+            return $query;
+        }
+
+        $whens = [];
+        foreach ($orderedIds as $index => $id) {
+            $whens[] = "WHEN {$id} THEN {$index}";
+        }
+
+        $key = $query->getModel()->getQualifiedKeyName();
+
+        return $query->orderByRaw('CASE '.$key.' '.implode(' ', $whens).' END');
+    }
+
+    private static function renderAssignedItems(Category $record): HtmlString|string
+    {
+        $grouped = (new ListCategoryAttachments)($record);
+
+        if ($grouped === []) {
+            return 'No products, bundles or content are assigned to this category yet.';
+        }
+
+        $sections = '';
+
+        foreach ($grouped as $type => $labels) {
+            $heading = e(Str::headline($type)).' ('.count($labels).')';
+
+            $items = implode('', array_map(
+                static fn (string $label): string => '<li>'.e($label).'</li>',
+                $labels,
+            ));
+
+            $sections .= '<div class="mb-4">'
+                .'<p class="text-sm font-semibold text-gray-950 dark:text-white">'.$heading.'</p>'
+                .'<ul class="mt-1 list-disc ps-5 text-sm text-gray-600 dark:text-gray-400">'.$items.'</ul>'
+                .'</div>';
+        }
+
+        return new HtmlString($sections);
     }
 
     private static function deleteModalDescription(Category $record): string
