@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace InOtherShops\Taxonomy\Filament\Resources;
 
 use Filament\Actions;
+use Filament\Facades\Filament;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -16,6 +17,8 @@ use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\HtmlString;
 use Illuminate\Support\Str;
@@ -153,26 +156,72 @@ final class CategoryResource extends Resource
         $grouped = (new ListCategoryAttachments)($record);
 
         if ($grouped === []) {
-            return 'No products, bundles or content are assigned to this category yet.';
+            return 'No products, bundles or content are assigned to this category or its sub-categories yet.';
         }
 
         $sections = '';
 
-        foreach ($grouped as $type => $labels) {
-            $heading = e(Str::headline($type)).' ('.count($labels).')';
+        foreach ($grouped as $type => $items) {
+            $heading = e(Str::headline($type)).' ('.count($items).')';
 
-            $items = implode('', array_map(
-                static fn (string $label): string => '<li>'.e($label).'</li>',
-                $labels,
+            $listItems = implode('', array_map(
+                static fn (array $item): string => '<li>'.self::renderAssignedItem($type, $item).'</li>',
+                $items,
             ));
 
             $sections .= '<div class="mb-4">'
                 .'<p class="text-sm font-semibold text-gray-950 dark:text-white">'.$heading.'</p>'
-                .'<ul class="mt-1 list-disc ps-5 text-sm text-gray-600 dark:text-gray-400">'.$items.'</ul>'
+                .'<ul class="mt-1 list-disc ps-5 text-sm text-gray-600 dark:text-gray-400">'.$listItems.'</ul>'
                 .'</div>';
         }
 
         return new HtmlString($sections);
+    }
+
+    /**
+     * @param  array{id: int, label: string, filedUnder: ?string}  $item
+     */
+    private static function renderAssignedItem(string $type, array $item): string
+    {
+        $label = e($item['label']);
+        $url = self::resolveEditUrl($type, $item['id']);
+
+        $rendered = $url !== null
+            ? '<a href="'.e($url).'" class="text-primary-600 hover:underline dark:text-primary-400">'.$label.'</a>'
+            : $label;
+
+        if ($item['filedUnder'] !== null) {
+            $rendered .= ' <span class="text-gray-400 dark:text-gray-500">— '.e($item['filedUnder']).'</span>';
+        }
+
+        return $rendered;
+    }
+
+    /**
+     * Resolves the admin edit URL for an attached item by asking the panel which
+     * resource manages its model — so the package links to consumer-defined
+     * resources (Product/Content/Bundle) without importing them. Falls back to
+     * plain text when no resource, no edit page, or the URL can't be built.
+     */
+    private static function resolveEditUrl(string $type, int $id): ?string
+    {
+        $class = Relation::getMorphedModel($type) ?? $type;
+
+        if (! is_a($class, Model::class, true)) {
+            return null;
+        }
+
+        try {
+            $resource = Filament::getModelResource($class);
+
+            if ($resource === null || ! $resource::hasPage('edit')) {
+                return null;
+            }
+
+            return $resource::getUrl('edit', ['record' => $id]);
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     private static function deleteModalDescription(Category $record): string

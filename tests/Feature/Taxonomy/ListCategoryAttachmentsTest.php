@@ -36,9 +36,36 @@ final class ListCategoryAttachmentsTest extends TestCase
     }
 
     #[Test]
-    public function it_groups_attachments_by_morph_type_with_type_keys_sorted(): void
+    public function it_rolls_up_items_attached_to_descendant_categories(): void
     {
-        $category = Category::factory()->create();
+        $root = Category::factory()->create(['slug' => 'root']);
+        $child = Category::factory()->create(['slug' => 'combat', 'parent_id' => $root->id]);
+
+        $this->attachTaxonomized($child, 'Alpha');
+
+        $grouped = ($this->list)($root);
+
+        $this->assertSame(['test_taxonomized'], array_keys($grouped));
+        $this->assertSame('Alpha', $grouped['test_taxonomized'][0]['label']);
+        $this->assertSame('combat', $grouped['test_taxonomized'][0]['filedUnder']);
+    }
+
+    #[Test]
+    public function items_attached_directly_to_the_category_have_no_filed_under(): void
+    {
+        $category = Category::factory()->create(['slug' => 'root']);
+
+        $this->attachTaxonomized($category, 'Alpha');
+
+        $grouped = ($this->list)($category);
+
+        $this->assertNull($grouped['test_taxonomized'][0]['filedUnder']);
+    }
+
+    #[Test]
+    public function it_groups_by_morph_type_with_type_keys_sorted_and_labels_sorted(): void
+    {
+        $category = Category::factory()->create(['slug' => 'root']);
 
         $this->attachTaxonomized($category, 'Beta');
         $this->attachTaxonomized($category, 'Alpha');
@@ -47,25 +74,13 @@ final class ListCategoryAttachmentsTest extends TestCase
         $grouped = ($this->list)($category);
 
         $this->assertSame(['test_browsable', 'test_taxonomized'], array_keys($grouped));
-    }
-
-    #[Test]
-    public function it_labels_items_by_name_and_sorts_them_alphabetically(): void
-    {
-        $category = Category::factory()->create();
-
-        $this->attachTaxonomized($category, 'Beta');
-        $this->attachTaxonomized($category, 'Alpha');
-
-        $grouped = ($this->list)($category);
-
-        $this->assertSame(['Alpha', 'Beta'], $grouped['test_taxonomized']);
+        $this->assertSame(['Alpha', 'Beta'], array_column($grouped['test_taxonomized'], 'label'));
     }
 
     #[Test]
     public function it_falls_back_to_a_type_and_id_label_for_unresolvable_types(): void
     {
-        $category = Category::factory()->create();
+        $category = Category::factory()->create(['slug' => 'root']);
 
         DB::table('categorizables')->insert([
             'category_id' => $category->id,
@@ -77,7 +92,7 @@ final class ListCategoryAttachmentsTest extends TestCase
 
         $grouped = ($this->list)($category);
 
-        $this->assertSame(['ghost' => ['Ghost #42']], $grouped);
+        $this->assertSame('Ghost #42', $grouped['ghost'][0]['label']);
     }
 
     private function attachTaxonomized(Category $category, string $name): void
