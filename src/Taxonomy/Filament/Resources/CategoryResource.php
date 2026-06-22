@@ -58,7 +58,7 @@ final class CategoryResource extends Resource
                         Select::make('parent_id')
                             ->label('Parent Category')
                             ->relationship('parent')
-                            ->getOptionLabelFromRecordUsing(fn ($record) => $record->translated('name'))
+                            ->getOptionLabelFromRecordUsing(fn ($record) => $record->translated('name') ?? $record->slug)
                             ->searchable()
                             ->preload()
                             ->placeholder('None (root category)'),
@@ -72,7 +72,7 @@ final class CategoryResource extends Resource
                         Select::make('tags')
                             ->label('Tags')
                             ->relationship('tags')
-                            ->getOptionLabelFromRecordUsing(fn ($record) => $record->translated('name'))
+                            ->getOptionLabelFromRecordUsing(fn ($record) => $record->translated('name') ?? $record->slug)
                             ->multiple()
                             ->searchable()
                             ->preload()
