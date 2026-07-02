@@ -13,7 +13,7 @@ return new class extends Migration
         Schema::create('orders', function (Blueprint $table) {
             $table->id();
             $table->string('order_number')->unique();
-            $table->string('status', 20)->default('pending');
+            $table->status()->default('pending');
             $table->string('currency', 3);
             $table->integer('subtotal')->default(0);
             $table->integer('tax')->default(0);
@@ -23,8 +23,6 @@ return new class extends Migration
             $table->string('email')->nullable();
             $table->text('notes')->nullable();
             $table->timestamps();
-
-            $table->index('status');
         });
     }
 

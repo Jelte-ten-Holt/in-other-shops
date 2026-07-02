@@ -14,7 +14,7 @@ return new class extends Migration
             $table->id();
             $table->string('reference')->unique();
             $table->foreignId('supplier_id')->constrained('suppliers')->restrictOnDelete();
-            $table->string('status', 30)->default('draft');
+            $table->status()->default('draft');
             $table->string('currency', 3);
             $table->timestamp('ordered_at')->nullable();
             $table->date('expected_delivery_at')->nullable();
@@ -24,8 +24,6 @@ return new class extends Migration
             $table->integer('total')->default(0);
             $table->text('notes')->nullable();
             $table->timestamps();
-
-            $table->index('status');
         });
     }
 

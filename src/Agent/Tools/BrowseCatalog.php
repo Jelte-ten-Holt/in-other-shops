@@ -5,16 +5,18 @@ declare(strict_types=1);
 namespace InOtherShops\Agent\Tools;
 
 use InOtherShops\Agent\AgentTool;
+use InOtherShops\Agent\Support\ResolveBrowsableModel;
 use InOtherShops\Storefront\Actions\ListBrowsables;
-use InOtherShops\Storefront\Contracts\HasStorefrontPresence;
 use InOtherShops\Storefront\Resources\BrowsableResource;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\Request;
-use InvalidArgumentException;
 
 final class BrowseCatalog extends AgentTool
 {
-    public function __construct(private readonly ListBrowsables $listBrowsables) {}
+    public function __construct(
+        private readonly ListBrowsables $listBrowsables,
+        private readonly ResolveBrowsableModel $resolveBrowsableModel,
+    ) {}
 
     public static function identifier(): string
     {
@@ -76,38 +78,12 @@ final class BrowseCatalog extends AgentTool
     public function __invoke(array $arguments): array
     {
         $type = (string) ($arguments['type'] ?? '');
-        $modelClass = $this->resolveModelClass($type);
+        $modelClass = ($this->resolveBrowsableModel)($type);
         $request = $this->buildRequest($arguments);
 
         $paginator = ($this->listBrowsables)($modelClass, $request);
 
         return $this->shapePaginatedResponse($paginator, $request);
-    }
-
-    /** @return class-string<HasStorefrontPresence> */
-    private function resolveModelClass(string $type): string
-    {
-        /** @var array<string, class-string> $models */
-        $models = config('storefront.models', []);
-
-        if (! isset($models[$type])) {
-            $available = array_keys($models);
-
-            throw new InvalidArgumentException(
-                'Unknown browsable type "'.$type.'". Available: '.
-                    (count($available) > 0 ? implode(', ', $available) : '(none configured)').'.'
-            );
-        }
-
-        $modelClass = $models[$type];
-
-        if (! is_subclass_of($modelClass, HasStorefrontPresence::class)) {
-            throw new InvalidArgumentException(
-                "Model {$modelClass} does not implement HasStorefrontPresence."
-            );
-        }
-
-        return $modelClass;
     }
 
     /** @param array<string, mixed> $arguments */
@@ -125,12 +101,7 @@ final class BrowseCatalog extends AgentTool
         return [
             'ok' => true,
             'data' => $data,
-            'meta' => [
-                'current_page' => $paginator->currentPage(),
-                'last_page' => $paginator->lastPage(),
-                'per_page' => $paginator->perPage(),
-                'total' => $paginator->total(),
-            ],
+            'meta' => $this->paginationMeta($paginator),
         ];
     }
 }

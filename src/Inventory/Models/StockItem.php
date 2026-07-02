@@ -7,7 +7,6 @@ namespace InOtherShops\Inventory\Models;
 use InOtherShops\Inventory\Casts\StockCast;
 use InOtherShops\Inventory\Database\Factories\StockItemFactory;
 use InOtherShops\Inventory\Inventory;
-use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -19,10 +18,7 @@ class StockItem extends Model
 
     protected $guarded = [];
 
-    protected static function newFactory(): Factory
-    {
-        return new StockItemFactory;
-    }
+    protected static string $factory = StockItemFactory::class;
 
     protected function casts(): array
     {

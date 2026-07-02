@@ -7,7 +7,6 @@ namespace InOtherShops\Media\Concerns;
 use InOtherShops\Media\Media;
 use InOtherShops\Media\Models\Media as MediaModel;
 use Illuminate\Database\Eloquent\Relations\MorphToMany;
-use Illuminate\Support\Collection;
 
 trait InteractsWithMedia
 {
@@ -21,14 +20,6 @@ trait InteractsWithMedia
             ->withPivot('collection', 'position', 'is_cover')
             ->withTimestamps()
             ->orderByPivot('position');
-    }
-
-    /**
-     * @return Collection<int, MediaModel>
-     */
-    public function mediaInCollection(string $collection): Collection
-    {
-        return $this->media()->wherePivot('collection', $collection)->get();
     }
 
     public function firstMedia(?string $collection = null): ?MediaModel

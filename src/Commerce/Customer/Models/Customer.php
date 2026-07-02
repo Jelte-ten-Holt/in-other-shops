@@ -10,7 +10,6 @@ use InOtherShops\Location\Concerns\InteractsWithAddresses;
 use InOtherShops\Location\Contracts\HasAddresses;
 use InOtherShops\Payment\Concerns\InteractsWithPaymentProfiles;
 use InOtherShops\Payment\Contracts\HasPaymentProfiles;
-use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -25,10 +24,7 @@ class Customer extends Model implements HasAddresses, HasPaymentProfiles
 
     protected $guarded = [];
 
-    protected static function newFactory(): Factory
-    {
-        return new CustomerFactory;
-    }
+    protected static string $factory = CustomerFactory::class;
 
     public function authenticatable(): MorphTo
     {

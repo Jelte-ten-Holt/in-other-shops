@@ -53,14 +53,14 @@ final class StoreMedia
         ]);
     }
 
-    private function attachToModel(HasMedia&Model $model, Media $media, ?string $collection): void
+    private function attachToModel(HasMedia&Model $model, Media $media, string $collection): void
     {
         $nextPosition = $model->media()
-            ->wherePivot('collection', $collection ?? '')
+            ->wherePivot('collection', $collection)
             ->max('mediables.position') + 1;
 
         $model->media()->attach($media->id, [
-            'collection' => $collection ?? '',
+            'collection' => $collection,
             'position' => $nextPosition,
         ]);
     }

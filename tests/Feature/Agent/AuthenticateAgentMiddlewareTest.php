@@ -308,4 +308,227 @@ final class AuthenticateAgentMiddlewareTest extends TestCase
 
         Log::shouldNotHaveReceived('warning');
     }
+
+    // -----------------------------------------------------------------------
+    // T-SEC1 — admin elevation requires a trusted client, not just the scope.
+    //
+    // Passport is not a dev dependency, so these fake the OAuth path with a
+    // stub `api` guard returning a user whose `token()` carries scopes + a
+    // duck-typed client (confidential()/firstParty()/getKey()) — the exact
+    // shape AuthenticateAgent reads.
+    // -----------------------------------------------------------------------
+
+    #[Test]
+    public function an_admin_scope_token_from_a_public_client_is_not_elevated(): void
+    {
+        // The headline exploit: a self-registered (public) client that carries
+        // the admin scope must NOT get is_admin — it degrades to base access.
+        $this->actAsOauthClient(['agent', 'agent.admin'], $this->fakeClient('public-1', confidential: false, firstParty: false));
+
+        $body = $this->oauthProbe()->assertOk()->json();
+
+        $this->assertFalse($body['agent.is_admin'], 'A public client with the admin scope must not elevate.');
+        // Side-effect check: it still authenticates at base scope (not a 401),
+        // proving the gate strips elevation rather than rejecting the request.
+        $this->assertContains('agent', $body['agent.scopes']);
+    }
+
+    #[Test]
+    public function an_admin_scope_token_from_an_allowlisted_confidential_client_is_elevated(): void
+    {
+        config()->set('agent.auth.oauth.admin_client_ids', ['trusted-9']);
+
+        $this->actAsOauthClient(['agent', 'agent.admin'], $this->fakeClient('trusted-9', confidential: true, firstParty: false));
+
+        $body = $this->oauthProbe()->assertOk()->json();
+
+        $this->assertTrue($body['agent.is_admin']);
+    }
+
+    #[Test]
+    public function an_admin_scope_token_from_a_confidential_first_party_client_is_elevated(): void
+    {
+        // First-party confidential clients are operator-provisioned and elevate
+        // without needing to be listed in admin_client_ids.
+        $this->actAsOauthClient(['agent', 'agent.admin'], $this->fakeClient('first-party', confidential: true, firstParty: true));
+
+        $body = $this->oauthProbe()->assertOk()->json();
+
+        $this->assertTrue($body['agent.is_admin']);
+    }
+
+    #[Test]
+    public function a_confidential_client_that_is_neither_first_party_nor_allowlisted_is_not_elevated(): void
+    {
+        // Confidential alone is not enough — proves the allowlist/first-party
+        // gate, not just the public/confidential split.
+        config()->set('agent.auth.oauth.admin_client_ids', []);
+
+        $this->actAsOauthClient(['agent', 'agent.admin'], $this->fakeClient('rando-confidential', confidential: true, firstParty: false));
+
+        $body = $this->oauthProbe()->assertOk()->json();
+
+        $this->assertFalse($body['agent.is_admin']);
+        $this->assertContains('agent', $body['agent.scopes']);
+    }
+
+    #[Test]
+    public function a_base_scope_token_from_a_trusted_client_is_not_admin(): void
+    {
+        // Elevation still requires the admin scope: a trusted (confidential
+        // first-party) client without the admin scope stays base-only.
+        $this->actAsOauthClient(['agent'], $this->fakeClient('first-party', confidential: true, firstParty: true));
+
+        $body = $this->oauthProbe()->assertOk()->json();
+
+        $this->assertFalse($body['agent.is_admin']);
+    }
+
+    private function oauthProbe(): \Illuminate\Testing\TestResponse
+    {
+        return $this->getJson(self::PROBE_PATH, ['Authorization' => 'Bearer oauth-access-token']);
+    }
+
+    /**
+     * Register a stub `api` guard whose user carries a token with the given
+     * scopes and client.
+     *
+     * @param  array<int, string>  $scopes
+     */
+    private function actAsOauthClient(array $scopes, object $client): void
+    {
+        config()->set('agent.auth.oauth.enabled', true);
+        config()->set('auth.guards.api', ['driver' => 'agent-oauth-stub', 'provider' => null]);
+
+        $token = new class($scopes, $client)
+        {
+            public ?int $id = 4242;
+
+            public string|int|null $client_id;
+
+            /** @param array<int, string> $scopes */
+            public function __construct(public array $scopes, public object $client)
+            {
+                $this->client_id = $client->getKey();
+            }
+
+            public function can(string $scope): bool
+            {
+                return in_array($scope, $this->scopes, true) || in_array('*', $this->scopes, true);
+            }
+        };
+
+        $user = new class($token) implements \Illuminate\Contracts\Auth\Authenticatable
+        {
+            public function __construct(private object $tk) {}
+
+            public function token(): object
+            {
+                return $this->tk;
+            }
+
+            public function getAuthIdentifierName(): string
+            {
+                return 'id';
+            }
+
+            public function getAuthIdentifier(): int
+            {
+                return 99;
+            }
+
+            public function getAuthPassword(): string
+            {
+                return '';
+            }
+
+            public function getAuthPasswordName(): string
+            {
+                return 'password';
+            }
+
+            public function getRememberToken(): string
+            {
+                return '';
+            }
+
+            public function setRememberToken($value): void {}
+
+            public function getRememberTokenName(): string
+            {
+                return '';
+            }
+        };
+
+        Auth::extend('agent-oauth-stub', fn () => new class($user) implements Guard
+        {
+            public function __construct(private object $usr) {}
+
+            public function check(): bool
+            {
+                return true;
+            }
+
+            public function guest(): bool
+            {
+                return false;
+            }
+
+            public function user(): object
+            {
+                return $this->usr;
+            }
+
+            public function id(): int
+            {
+                return 99;
+            }
+
+            public function validate(array $credentials = []): bool
+            {
+                return true;
+            }
+
+            public function hasUser(): bool
+            {
+                return true;
+            }
+
+            public function setUser($user): self
+            {
+                return $this;
+            }
+        });
+    }
+
+    /**
+     * A duck-typed Passport-Client stand-in: the middleware only calls
+     * confidential(), firstParty() and getKey() on it.
+     */
+    private function fakeClient(string|int $id, bool $confidential, bool $firstParty): object
+    {
+        return new class($id, $confidential, $firstParty)
+        {
+            public function __construct(
+                private string|int $id,
+                private bool $confidential,
+                private bool $firstParty,
+            ) {}
+
+            public function confidential(): bool
+            {
+                return $this->confidential;
+            }
+
+            public function firstParty(): bool
+            {
+                return $this->firstParty;
+            }
+
+            public function getKey(): string|int
+            {
+                return $this->id;
+            }
+        };
+    }
 }

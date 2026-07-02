@@ -18,19 +18,20 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
-use Filament\Resources\Resource;
+use InOtherShops\Support\Filament\NavigationGroup;
+use InOtherShops\Support\Filament\PackageResource;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
 
-class PurchaseOrderResource extends Resource
+class PurchaseOrderResource extends PackageResource
 {
     protected static ?string $model = PurchaseOrder::class;
 
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-inbox-arrow-down';
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Purchasing';
+    protected static string|\UnitEnum|null $navigationGroup = NavigationGroup::Purchasing;
 
     public static function form(Schema $schema): Schema
     {

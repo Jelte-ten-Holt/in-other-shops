@@ -100,14 +100,7 @@ final class RecordRefund
             alreadyReversedBase: $alreadyBase,
         );
 
-        return array_map(
-            fn (TaxBreakdownLine $line): array => [
-                'rate_bps' => $line->rateBps,
-                'taxable_base' => $line->taxableBase,
-                'tax' => $line->tax,
-            ],
-            $deltas,
-        );
+        return TaxBreakdownLine::serializeMany($deltas);
     }
 
     /**

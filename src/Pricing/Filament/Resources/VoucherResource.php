@@ -9,7 +9,8 @@ use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
-use Filament\Resources\Resource;
+use InOtherShops\Support\Filament\NavigationGroup;
+use InOtherShops\Support\Filament\PackageResource;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
@@ -22,13 +23,13 @@ use InOtherShops\Pricing\Filament\Resources\VoucherResource\Pages;
 use InOtherShops\Pricing\Models\Voucher;
 use InOtherShops\Support\Filament\MoneyFields;
 
-final class VoucherResource extends Resource
+final class VoucherResource extends PackageResource
 {
     protected static ?string $model = Voucher::class;
 
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-ticket';
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Shop';
+    protected static string|\UnitEnum|null $navigationGroup = NavigationGroup::Pricing;
 
     public static function form(Schema $schema): Schema
     {

@@ -140,19 +140,6 @@ trait InteractsWithTranslations
     }
 
     /**
-     * Get all translations for a field, keyed by locale.
-     *
-     * @return array<string, string>
-     */
-    public function translationsFor(string $field): array
-    {
-        return $this->translations
-            ->where('field', $field)
-            ->pluck('value', 'locale')
-            ->all();
-    }
-
-    /**
      * Set a translation for the given field and locale.
      */
     public function setTranslation(string $field, string $locale, string $value): void

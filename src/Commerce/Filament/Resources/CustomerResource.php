@@ -11,19 +11,20 @@ use InOtherShops\Location\Filament\LocationSchema;
 use Filament\Actions;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
-use Filament\Resources\Resource;
+use InOtherShops\Support\Filament\NavigationGroup;
+use InOtherShops\Support\Filament\PackageResource;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
 
-class CustomerResource extends Resource
+class CustomerResource extends PackageResource
 {
     protected static ?string $model = Customer::class;
 
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-users';
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Commerce';
+    protected static string|\UnitEnum|null $navigationGroup = NavigationGroup::Commerce;
 
     public static function form(Schema $schema): Schema
     {

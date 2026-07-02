@@ -11,7 +11,6 @@ use InOtherShops\Translation\Concerns\InteractsWithTranslations;
 use InOtherShops\Translation\Contracts\HasTranslations;
 use InOtherShops\Variants\Database\Factories\OptionValueFactory;
 use InOtherShops\Variants\Variants;
-use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -35,10 +34,7 @@ class OptionValue extends Model implements HasMedia, HasTranslations
 
     protected $guarded = [];
 
-    protected static function newFactory(): Factory
-    {
-        return new OptionValueFactory;
-    }
+    protected static string $factory = OptionValueFactory::class;
 
     protected function casts(): array
     {

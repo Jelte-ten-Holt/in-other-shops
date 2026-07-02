@@ -84,14 +84,7 @@ final class AdjustStock extends AgentTool
         $target = ['type' => $type, 'slug' => $slug];
 
         if (! $this->isAdmin()) {
-            return [
-                'ok' => false,
-                'target' => $target,
-                'error' => [
-                    'code' => 'forbidden',
-                    'message' => 'adjust_stock requires the admin scope or the operator bearer token.',
-                ],
-            ];
+            return $this->failure('forbidden', 'adjust_stock requires the admin scope or the operator bearer token.', $target);
         }
 
         $delta = (int) ($arguments['delta'] ?? 0);
@@ -107,14 +100,7 @@ final class AdjustStock extends AgentTool
             ->first();
 
         if ($model === null) {
-            return [
-                'ok' => false,
-                'target' => $target,
-                'error' => [
-                    'code' => 'not_found',
-                    'message' => "No {$type} with slug '{$slug}'.",
-                ],
-            ];
+            return $this->failure('not_found', "No {$type} with slug '{$slug}'.", $target);
         }
 
         /** @var \Illuminate\Database\Eloquent\Model&HasStock $model */

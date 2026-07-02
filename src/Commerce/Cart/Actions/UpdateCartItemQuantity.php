@@ -12,6 +12,7 @@ final class UpdateCartItemQuantity
 {
     public function __construct(
         private readonly EnsureCartableInStock $ensureCartableInStock,
+        private readonly RemoveFromCart $removeFromCart,
     ) {}
 
     /**
@@ -22,7 +23,9 @@ final class UpdateCartItemQuantity
     public function __invoke(CartItem $item, int $quantity): ?CartItem
     {
         if ($quantity <= 0) {
-            return $this->removeItem($item);
+            ($this->removeFromCart)($item);
+
+            return null;
         }
 
         $cartable = $item->cartable;
@@ -31,17 +34,6 @@ final class UpdateCartItemQuantity
         }
 
         return $this->updateQuantity($item, $quantity);
-    }
-
-    private function removeItem(CartItem $item): null
-    {
-        $cart = $item->cart;
-
-        $item->delete();
-
-        CartUpdated::dispatch($cart);
-
-        return null;
     }
 
     private function updateQuantity(CartItem $item, int $quantity): CartItem

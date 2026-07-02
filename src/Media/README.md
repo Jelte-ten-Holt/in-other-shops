@@ -85,7 +85,6 @@ The `collection` string on the `mediables` pivot references these keys.
 interface HasMedia
 {
     public function media(): MorphToMany;
-    public function mediaInCollection(string $collection): Collection;
     public function firstMedia(?string $collection = null): ?Media;
     public function coverImage(): ?Media;
 }

@@ -7,7 +7,6 @@ namespace InOtherShops\Inventory\Models;
 use InOtherShops\Inventory\Database\Factories\StockReservationFactory;
 use InOtherShops\Inventory\Enums\ReservationStatus;
 use InOtherShops\Inventory\Inventory;
-use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -19,10 +18,7 @@ class StockReservation extends Model
 
     protected $guarded = [];
 
-    protected static function newFactory(): Factory
-    {
-        return new StockReservationFactory;
-    }
+    protected static string $factory = StockReservationFactory::class;
 
     protected function casts(): array
     {

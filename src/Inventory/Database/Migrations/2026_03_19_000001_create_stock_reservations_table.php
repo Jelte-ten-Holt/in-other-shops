@@ -16,7 +16,7 @@ return new class extends Migration
             $table->foreignId('reserve_movement_id')->constrained('stock_movements')->cascadeOnDelete();
             $table->foreignId('release_movement_id')->nullable()->constrained('stock_movements')->nullOnDelete();
             $table->unsignedInteger('quantity');
-            $table->string('status');
+            $table->status(index: false);
             $table->timestamp('reserved_until')->nullable();
             $table->timestamp('resolved_at')->nullable();
             $table->nullableMorphs('reference');

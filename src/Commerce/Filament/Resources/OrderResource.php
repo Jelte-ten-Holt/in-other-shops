@@ -10,7 +10,8 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
-use Filament\Resources\Resource;
+use InOtherShops\Support\Filament\NavigationGroup;
+use InOtherShops\Support\Filament\PackageResource;
 use Filament\Schemas\Components\Component;
 use Filament\Schemas\Components\Tabs;
 use Filament\Schemas\Components\Tabs\Tab;
@@ -30,13 +31,13 @@ use InOtherShops\Shipping\Filament\RelationManagers\ShipmentsRelationManager;
 use InOtherShops\Support\Filament\BackedEnumState;
 use InOtherShops\Support\Filament\MoneyFields;
 
-class OrderResource extends Resource
+class OrderResource extends PackageResource
 {
     protected static ?string $model = Order::class;
 
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-shopping-bag';
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Commerce';
+    protected static string|\UnitEnum|null $navigationGroup = NavigationGroup::Commerce;
 
     public static function form(Schema $schema): Schema
     {

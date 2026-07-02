@@ -58,7 +58,6 @@ interface HasPrices
 {
     public function prices(): MorphMany;
     public function priceFor(Currency $currency, ?PriceList $priceList = null): ?Price;
-    public function priceCurrencies(): array;
 }
 ```
 

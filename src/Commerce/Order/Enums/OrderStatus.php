@@ -4,25 +4,18 @@ declare(strict_types=1);
 
 namespace InOtherShops\Commerce\Order\Enums;
 
+use InOtherShops\Support\HasLabel;
 use InOtherShops\Support\StateTransitions;
 use InOtherShops\Support\Transitionable;
 
 enum OrderStatus: string implements Transitionable
 {
+    use HasLabel;
     use StateTransitions;
 
     case Pending = 'pending';
     case Confirmed = 'confirmed';
     case Cancelled = 'cancelled';
-
-    public function label(): string
-    {
-        return match ($this) {
-            self::Pending => 'Pending',
-            self::Confirmed => 'Confirmed',
-            self::Cancelled => 'Cancelled',
-        };
-    }
 
     public function color(): string
     {

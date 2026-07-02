@@ -4,14 +4,16 @@ declare(strict_types=1);
 
 namespace InOtherShops\Commerce\Order\Actions;
 
-use Illuminate\Support\Facades\DB;
 use InOtherShops\Commerce\Exceptions\InvalidOrderStatusTransitionException;
 use InOtherShops\Commerce\Order\Enums\OrderStatus;
 use InOtherShops\Commerce\Order\Events\OrderStatusChanged;
 use InOtherShops\Commerce\Order\Models\Order;
+use InOtherShops\Support\Concerns\RunsLockedTransactions;
 
 final class UpdateOrderStatus
 {
+    use RunsLockedTransactions;
+
     /**
      * The status write, the event, and the synchronous listeners it triggers
      * (inventory sync, log subscriber) all run inside one transaction. A
@@ -34,9 +36,7 @@ final class UpdateOrderStatus
      */
     public function __invoke(Order $order, OrderStatus $newStatus): Order
     {
-        return DB::transaction(function () use ($order, $newStatus): Order {
-            $locked = $order->newQuery()->lockForUpdate()->find($order->getKey());
-
+        return $this->withLocked($order, function (?Order $locked) use ($order, $newStatus): Order {
             if ($locked === null) {
                 return $order;
             }

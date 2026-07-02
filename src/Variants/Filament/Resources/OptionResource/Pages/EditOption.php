@@ -4,34 +4,31 @@ declare(strict_types=1);
 
 namespace InOtherShops\Variants\Filament\Resources\OptionResource\Pages;
 
+use InOtherShops\Support\Filament\FormSync;
 use InOtherShops\Support\Filament\PackageEditRecord;
+use InOtherShops\Support\Filament\SavesTranslatableForm;
 use InOtherShops\Translation\Filament\TranslationSchema;
 use InOtherShops\Variants\Filament\Resources\OptionResource;
 
 final class EditOption extends PackageEditRecord
 {
+    use SavesTranslatableForm;
+
     protected static string $resource = OptionResource::class;
 
-
-    protected function mutateFormDataBeforeFill(array $data): array
+    protected function syncSchemas(): array
     {
-        $this->record->load('translations');
-
-        $data = array_merge($data, TranslationSchema::fillFormData($this->record));
-
-        return OptionResource::fillValues($this->record, $data);
-    }
-
-    protected function mutateFormDataBeforeSave(array $data): array
-    {
-        unset($data['translations'], $data['_values']);
-
-        return $data;
-    }
-
-    protected function afterSave(): void
-    {
-        TranslationSchema::saveFormData($this->record, $this->data);
-        OptionResource::saveValues($this->record, $this->data);
+        return [
+            new FormSync(
+                keys: ['translations'],
+                fill: fn ($record, array $data) => array_merge($data, TranslationSchema::fillFormData($record->load('translations'))),
+                save: fn ($record, array $data) => TranslationSchema::saveFormData($record, $data),
+            ),
+            new FormSync(
+                keys: ['_values'],
+                fill: fn ($record, array $data) => OptionResource::fillValues($record, $data),
+                save: fn ($record, array $data) => OptionResource::saveValues($record, $data),
+            ),
+        ];
     }
 }

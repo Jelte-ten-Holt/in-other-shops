@@ -10,7 +10,6 @@ use InOtherShops\Pricing\Enums\VoucherType;
 use InOtherShops\Pricing\Exceptions\VoucherCurrencyMismatchException;
 use InOtherShops\Pricing\Exceptions\VoucherInvalidException;
 use InOtherShops\Pricing\Exceptions\VoucherMinimumNotMetException;
-use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -20,10 +19,7 @@ class Voucher extends Model
 
     protected $guarded = [];
 
-    protected static function newFactory(): Factory
-    {
-        return new VoucherFactory;
-    }
+    protected static string $factory = VoucherFactory::class;
 
     protected function casts(): array
     {

@@ -92,12 +92,7 @@ final class ListStockLevels extends AgentTool
             'data' => $paginator->getCollection()
                 ->map(fn (Model $model): array => $this->shape($model))
                 ->all(),
-            'meta' => [
-                'current_page' => $paginator->currentPage(),
-                'last_page' => $paginator->lastPage(),
-                'per_page' => $paginator->perPage(),
-                'total' => $paginator->total(),
-            ],
+            'meta' => $this->paginationMeta($paginator),
         ];
     }
 

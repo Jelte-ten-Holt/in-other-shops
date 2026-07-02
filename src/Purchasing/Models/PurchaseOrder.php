@@ -8,7 +8,6 @@ use InOtherShops\Currency\Enums\Currency;
 use InOtherShops\Purchasing\Database\Factories\PurchaseOrderFactory;
 use InOtherShops\Purchasing\Enums\PurchaseOrderStatus;
 use InOtherShops\Purchasing\Purchasing;
-use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -26,10 +25,7 @@ class PurchaseOrder extends Model
 
     protected $guarded = [];
 
-    protected static function newFactory(): Factory
-    {
-        return new PurchaseOrderFactory;
-    }
+    protected static string $factory = PurchaseOrderFactory::class;
 
     protected function casts(): array
     {

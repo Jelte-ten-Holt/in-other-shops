@@ -28,16 +28,4 @@ trait InteractsWithPrices
             priceList: $priceList,
         );
     }
-
-    /**
-     * @return array<string>
-     */
-    public function priceCurrencies(): array
-    {
-        return $this->prices()
-            ->distinct()
-            ->pluck('currency')
-            ->map(fn (Currency $currency): string => $currency->value)
-            ->all();
-    }
 }

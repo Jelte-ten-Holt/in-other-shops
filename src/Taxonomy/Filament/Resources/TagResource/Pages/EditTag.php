@@ -4,31 +4,26 @@ declare(strict_types=1);
 
 namespace InOtherShops\Taxonomy\Filament\Resources\TagResource\Pages;
 
+use InOtherShops\Support\Filament\FormSync;
+use InOtherShops\Support\Filament\PackageEditRecord;
+use InOtherShops\Support\Filament\SavesTranslatableForm;
 use InOtherShops\Taxonomy\Filament\Resources\TagResource;
 use InOtherShops\Translation\Filament\TranslationSchema;
-use InOtherShops\Support\Filament\PackageEditRecord;
 
 final class EditTag extends PackageEditRecord
 {
+    use SavesTranslatableForm;
+
     protected static string $resource = TagResource::class;
 
-
-    protected function mutateFormDataBeforeFill(array $data): array
+    protected function syncSchemas(): array
     {
-        $this->record->load('translations');
-
-        return array_merge($data, TranslationSchema::fillFormData($this->record));
-    }
-
-    protected function mutateFormDataBeforeSave(array $data): array
-    {
-        unset($data['translations']);
-
-        return $data;
-    }
-
-    protected function afterSave(): void
-    {
-        TranslationSchema::saveFormData($this->record, $this->data);
+        return [
+            new FormSync(
+                keys: ['translations'],
+                fill: fn ($record, array $data) => array_merge($data, TranslationSchema::fillFormData($record->load('translations'))),
+                save: fn ($record, array $data) => TranslationSchema::saveFormData($record, $data),
+            ),
+        ];
     }
 }

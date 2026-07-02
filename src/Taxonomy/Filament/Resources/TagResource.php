@@ -7,7 +7,8 @@ namespace InOtherShops\Taxonomy\Filament\Resources;
 use Filament\Actions;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
-use Filament\Resources\Resource;
+use InOtherShops\Support\Filament\NavigationGroup;
+use InOtherShops\Support\Filament\PackageResource;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use Filament\Tables;
@@ -17,13 +18,13 @@ use InOtherShops\Taxonomy\Filament\Resources\TagResource\Pages;
 use InOtherShops\Taxonomy\Models\Tag;
 use InOtherShops\Translation\Filament\TranslationSchema;
 
-final class TagResource extends Resource
+final class TagResource extends PackageResource
 {
     protected static ?string $model = Tag::class;
 
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-tag';
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Taxonomy';
+    protected static string|\UnitEnum|null $navigationGroup = NavigationGroup::Taxonomy;
 
     public static function form(Schema $schema): Schema
     {

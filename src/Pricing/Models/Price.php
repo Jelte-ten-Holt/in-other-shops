@@ -8,7 +8,6 @@ use InOtherShops\Currency\Enums\Currency;
 use InOtherShops\Pricing\Database\Factories\PriceFactory;
 use InOtherShops\Pricing\Exceptions\InvalidCompareAtPriceException;
 use InOtherShops\Pricing\Pricing;
-use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -20,10 +19,7 @@ class Price extends Model
 
     protected $guarded = [];
 
-    protected static function newFactory(): Factory
-    {
-        return new PriceFactory;
-    }
+    protected static string $factory = PriceFactory::class;
 
     /**
      * Invariant: a strikethrough price is only a discount if it sits above
