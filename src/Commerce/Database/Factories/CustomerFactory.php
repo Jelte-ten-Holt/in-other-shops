@@ -8,14 +8,15 @@ use Illuminate\Database\Eloquent\Factories\Factory;
 use InOtherShops\Commerce\Commerce;
 use InOtherShops\Commerce\Customer\Models\Customer;
 use InOtherShops\Commerce\Customer\Models\CustomerGroup;
-use InOtherShops\Location\Enums\AddressType;
-use InOtherShops\Location\Location;
+use InOtherShops\Commerce\Database\Factories\Concerns\CreatesAddressPair;
 
 /**
  * @extends Factory<Customer>
  */
 final class CustomerFactory extends Factory
 {
+    use CreatesAddressPair;
+
     public function modelName(): string
     {
         return Commerce::customer();
@@ -35,20 +36,5 @@ final class CustomerFactory extends Factory
         return $this->state(fn (): array => [
             'customer_group_id' => $group?->id,
         ]);
-    }
-
-    public function withAddresses(): static
-    {
-        return $this->afterCreating(function (Customer $customer): void {
-            Location::address()::factory()
-                ->for($customer, 'addressable')
-                ->state(['type' => AddressType::Shipping])
-                ->create();
-
-            Location::address()::factory()
-                ->for($customer, 'addressable')
-                ->state(['type' => AddressType::Billing])
-                ->create();
-        });
     }
 }

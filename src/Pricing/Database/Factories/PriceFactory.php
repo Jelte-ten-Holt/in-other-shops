@@ -23,7 +23,7 @@ final class PriceFactory extends Factory
     public function definition(): array
     {
         return [
-            'currency' => Currency::EUR->value,
+            'currency' => Currency::EUR,
             'amount' => 1000,
             'compare_at_amount' => null,
             'compare_at_until' => null,
