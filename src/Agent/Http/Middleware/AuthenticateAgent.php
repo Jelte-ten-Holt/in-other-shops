@@ -111,10 +111,10 @@ final class AuthenticateAgent
         // Base scope honors wildcards (Passport's normal contract). Admin
         // requires the literal scope — a wildcard PAT must not silently
         // unlock AdjustStock and unfiltered order reads — AND the token's
-        // client must be trusted to elevate (confidential + first-party or
-        // allowlisted). The scope alone is not enough: it fails closed so a
-        // self-registered client that somehow obtained the admin scope stays
-        // a base-scope caller.
+        // client must be trusted to elevate (confidential AND on the
+        // admin_client_ids allowlist). The scope alone is not enough: it
+        // fails closed so a self-registered client that somehow obtained the
+        // admin scope stays a base-scope caller.
         $hasBase = $this->tokenHasScope($token, $baseScope);
         $hasAdmin = $adminScope !== null
             && $this->tokenHasScope($token, $adminScope, strict: true)
@@ -160,10 +160,12 @@ final class AuthenticateAgent
      * Whether the OAuth token's client is trusted to elevate to admin.
      *
      * Carrying the admin scope is necessary but not sufficient — the client
-     * must be confidential (operator-provisioned, holds a secret) AND either
-     * first-party or explicitly allowlisted. Public / DCR-registered clients
-     * are self-service and never elevate, even if they somehow obtained the
-     * admin scope. Fails closed: if the client can't be resolved, no elevation.
+     * must be confidential (operator-provisioned, holds a secret) AND on the
+     * admin_client_ids allowlist. Passport's firstParty() is NOT trusted: it
+     * is true for every ownerless client, including DCR-registered ones, so
+     * "confidential + first-party" is self-service-satisfiable. The allowlist
+     * is the only grant. Fails closed: if the client can't be resolved, no
+     * elevation.
      */
     private function clientMayElevate(object $token): bool
     {
