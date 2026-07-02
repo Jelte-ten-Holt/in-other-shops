@@ -48,17 +48,12 @@ final class ConfirmReservation
             ->get();
 
         return $reservations
-            ->map(fn (StockReservation $reservation): ?StockReservation => $this->confirm($reservation, $description))
-            ->filter()
+            ->map(fn (StockReservation $reservation): StockReservation => $this->confirm($reservation, $description))
             ->values();
     }
 
-    private function confirm(StockReservation $reservation, ?string $description): ?StockReservation
+    private function confirm(StockReservation $reservation, ?string $description): StockReservation
     {
-        if ($reservation->status !== ReservationStatus::Pending) {
-            return null;
-        }
-
         $attributes = [
             'status' => ReservationStatus::Confirmed,
             'resolved_at' => now(),

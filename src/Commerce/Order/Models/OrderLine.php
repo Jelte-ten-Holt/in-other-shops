@@ -9,7 +9,6 @@ use InOtherShops\Commerce\Database\Factories\OrderLineFactory;
 use InOtherShops\Currency\Enums\Currency;
 use InOtherShops\Tax\Enums\TaxCategory;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -21,10 +20,7 @@ class OrderLine extends Model
 
     protected $guarded = [];
 
-    protected static function newFactory(): Factory
-    {
-        return new OrderLineFactory;
-    }
+    protected static string $factory = OrderLineFactory::class;
 
     protected function casts(): array
     {

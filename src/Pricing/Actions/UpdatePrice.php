@@ -12,14 +12,7 @@ final class UpdatePrice
 {
     public function __invoke(Price $price, PriceData $data): Price
     {
-        $price->update([
-            'amount' => $data->amount,
-            'currency' => $data->currency,
-            'compare_at_amount' => $data->compareAtAmount,
-            'compare_at_until' => $data->compareAtUntil,
-            'price_list_id' => $data->priceListId,
-            'minimum_quantity' => $data->minimumQuantity,
-        ]);
+        $price->update($data->attributes());
 
         PriceUpdated::dispatch($price);
 

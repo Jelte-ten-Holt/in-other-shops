@@ -8,7 +8,8 @@ use Filament\Actions;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
-use Filament\Resources\Resource;
+use InOtherShops\Support\Filament\NavigationGroup;
+use InOtherShops\Support\Filament\PackageResource;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use Filament\Tables;
@@ -18,13 +19,13 @@ use InOtherShops\Support\Filament\MoneyFields;
 use InOtherShops\Tax\Filament\Resources\TaxRateResource\Pages;
 use InOtherShops\Tax\Models\TaxRate;
 
-final class TaxRateResource extends Resource
+final class TaxRateResource extends PackageResource
 {
     protected static ?string $model = TaxRate::class;
 
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-receipt-percent';
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Shop';
+    protected static string|\UnitEnum|null $navigationGroup = NavigationGroup::Tax;
 
     public static function form(Schema $schema): Schema
     {

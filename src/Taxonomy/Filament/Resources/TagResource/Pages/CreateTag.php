@@ -4,23 +4,26 @@ declare(strict_types=1);
 
 namespace InOtherShops\Taxonomy\Filament\Resources\TagResource\Pages;
 
+use Filament\Resources\Pages\CreateRecord;
+use InOtherShops\Support\Filament\FormSync;
+use InOtherShops\Support\Filament\SavesTranslatableForm;
 use InOtherShops\Taxonomy\Filament\Resources\TagResource;
 use InOtherShops\Translation\Filament\TranslationSchema;
-use Filament\Resources\Pages\CreateRecord;
 
 final class CreateTag extends CreateRecord
 {
+    use SavesTranslatableForm;
+
     protected static string $resource = TagResource::class;
 
-    protected function mutateFormDataBeforeCreate(array $data): array
+    protected function syncSchemas(): array
     {
-        unset($data['translations']);
-
-        return $data;
-    }
-
-    protected function afterCreate(): void
-    {
-        TranslationSchema::saveFormData($this->record, $this->data);
+        return [
+            new FormSync(
+                keys: ['translations'],
+                fill: null,
+                save: fn ($record, array $data) => TranslationSchema::saveFormData($record, $data),
+            ),
+        ];
     }
 }

@@ -11,7 +11,8 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
-use Filament\Resources\Resource;
+use InOtherShops\Support\Filament\NavigationGroup;
+use InOtherShops\Support\Filament\PackageResource;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use Filament\Tables;
@@ -29,13 +30,13 @@ use InOtherShops\Taxonomy\Filament\Resources\CategoryResource\Pages;
 use InOtherShops\Taxonomy\Models\Category;
 use InOtherShops\Translation\Filament\TranslationSchema;
 
-final class CategoryResource extends Resource
+final class CategoryResource extends PackageResource
 {
     protected static ?string $model = Category::class;
 
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-folder';
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Taxonomy';
+    protected static string|\UnitEnum|null $navigationGroup = NavigationGroup::Taxonomy;
 
     public static function form(Schema $schema): Schema
     {

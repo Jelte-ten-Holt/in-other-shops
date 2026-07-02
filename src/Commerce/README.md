@@ -177,7 +177,12 @@ final class Product extends Model implements HasOrders
     public function availableCurrencies(): array
     {
         // Return ISO 4217 codes this model has prices for
-        return $this->priceCurrencies();
+        return $this->prices()
+            ->pluck('currency')
+            ->map(fn (Currency $currency): string => $currency->value)
+            ->unique()
+            ->values()
+            ->all();
     }
 }
 ```

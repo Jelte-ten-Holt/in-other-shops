@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace InOtherShops\Tests\Feature\Agent;
 
+use InOtherShops\Agent\Tools\Ping;
 use InOtherShops\Tests\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 
@@ -61,6 +62,21 @@ final class McpEndpointTest extends TestCase
         // Mutator tool must serialize over the HTTP boundary; if the endpoint
         // ever drops it, agent admins lose stock-adjust capability silently.
         $this->assertContains('adjust_stock', $toolNames);
+    }
+
+    #[Test]
+    public function tools_list_advertises_the_human_readable_title_from_display_name(): void
+    {
+        // T-A6: title() wires to displayName() so the MCP title surfaces the
+        // tool's human-readable label instead of only the snake_case name.
+        $body = $this->postJson('/mcp', $this->toolsListPayload(), [
+            'Authorization' => 'Bearer '.self::BEARER,
+        ])->assertStatus(200)->json();
+
+        $ping = collect($body['result']['tools'])->firstWhere('name', 'ping');
+
+        $this->assertNotNull($ping, 'ping tool missing from tools/list.');
+        $this->assertSame(Ping::displayName(), $ping['title'] ?? null);
     }
 
     #[Test]

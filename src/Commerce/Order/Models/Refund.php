@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace InOtherShops\Commerce\Order\Models;
 
-use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -28,10 +27,7 @@ class Refund extends Model
 
     protected $guarded = [];
 
-    protected static function newFactory(): Factory
-    {
-        return new RefundFactory;
-    }
+    protected static string $factory = RefundFactory::class;
 
     protected function casts(): array
     {
@@ -59,14 +55,7 @@ class Refund extends Model
      */
     public function taxSummary(): array
     {
-        return array_map(
-            fn (array $row): TaxBreakdownLine => new TaxBreakdownLine(
-                rateBps: (int) $row['rate_bps'],
-                taxableBase: (int) $row['taxable_base'],
-                tax: (int) $row['tax'],
-            ),
-            $this->tax_summary ?? [],
-        );
+        return TaxBreakdownLine::listFromRows($this->tax_summary);
     }
 
     public function actor(): RefundActor

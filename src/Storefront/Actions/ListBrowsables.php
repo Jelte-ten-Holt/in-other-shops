@@ -98,7 +98,11 @@ final class ListBrowsables
 
     private function paginate(Builder $query, Request $request): LengthAwarePaginator
     {
-        $perPage = min((int) $request->input('per_page', config('storefront.defaults.per_page', 24)), 100);
+        // Floor at 1 as well as capping at 100: a per_page of 0 or negative
+        // would otherwise reach paginate() (0 = "all rows", negative = undefined)
+        // — invalid input must degrade to a single-item page, not dump the table.
+        $requested = (int) $request->input('per_page', config('storefront.defaults.per_page', 24));
+        $perPage = min(max($requested, 1), 100);
 
         return $query->paginate($perPage)->withQueryString();
     }

@@ -4,17 +4,20 @@ declare(strict_types=1);
 
 namespace InOtherShops\Payment\Actions;
 
-use Illuminate\Support\Facades\DB;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use InOtherShops\Payment\DTOs\RefundResult;
 use InOtherShops\Payment\Enums\PaymentStatus;
 use InOtherShops\Payment\Exceptions\PaymentNotRefundableException;
 use InOtherShops\Payment\Exceptions\RefundAmountExceededException;
 use InOtherShops\Payment\Models\Payment;
 use InOtherShops\Payment\PaymentGatewayManager;
+use InOtherShops\Support\Concerns\RunsLockedTransactions;
 use InvalidArgumentException;
 
 final class RefundPayment
 {
+    use RunsLockedTransactions;
+
     public function __construct(
         private readonly PaymentGatewayManager $gateways,
     ) {}
@@ -55,10 +58,10 @@ final class RefundPayment
         // ProcessPaymentWebhookRefundTest). Revisit if async payment methods
         // land (the webhook may then arrive much later — same trigger as the
         // deferred F14 auto-refund).
-        return DB::transaction(function () use ($payment, $amount): RefundResult {
-            $locked = Payment::query()
-                ->lockForUpdate()
-                ->findOrFail($payment->getKey());
+        return $this->withLocked($payment, function (?Payment $locked) use ($payment, $amount): RefundResult {
+            if ($locked === null) {
+                throw (new ModelNotFoundException)->setModel(Payment::class, [$payment->getKey()]);
+            }
 
             $this->validateRefundable($locked);
             $refundAmount = $this->resolveRefundAmount($locked, $amount);

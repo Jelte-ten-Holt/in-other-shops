@@ -4,25 +4,32 @@ declare(strict_types=1);
 
 namespace InOtherShops\Taxonomy\Filament\Resources\CategoryResource\Pages;
 
+use Filament\Resources\Pages\CreateRecord;
 use InOtherShops\Media\Filament\MediaSchema;
+use InOtherShops\Support\Filament\FormSync;
+use InOtherShops\Support\Filament\SavesTranslatableForm;
 use InOtherShops\Taxonomy\Filament\Resources\CategoryResource;
 use InOtherShops\Translation\Filament\TranslationSchema;
-use Filament\Resources\Pages\CreateRecord;
 
 final class CreateCategory extends CreateRecord
 {
+    use SavesTranslatableForm;
+
     protected static string $resource = CategoryResource::class;
 
-    protected function mutateFormDataBeforeCreate(array $data): array
+    protected function syncSchemas(): array
     {
-        unset($data['translations'], $data['_media']);
-
-        return $data;
-    }
-
-    protected function afterCreate(): void
-    {
-        TranslationSchema::saveFormData($this->record, $this->data);
-        MediaSchema::saveFormData($this->record, $this->data);
+        return [
+            new FormSync(
+                keys: ['translations'],
+                fill: null,
+                save: fn ($record, array $data) => TranslationSchema::saveFormData($record, $data),
+            ),
+            new FormSync(
+                keys: ['_media'],
+                fill: null,
+                save: fn ($record, array $data) => MediaSchema::saveFormData($record, $data),
+            ),
+        ];
     }
 }

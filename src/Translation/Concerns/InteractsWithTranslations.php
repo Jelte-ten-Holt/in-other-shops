@@ -30,15 +30,6 @@ trait InteractsWithTranslations
         return $this->findFallbackTranslation($field, $locale);
     }
 
-    /** @return array<string, string> */
-    public function translationsFor(string $field): array
-    {
-        return $this->translations
-            ->where('field', $field)
-            ->pluck('value', 'locale')
-            ->all();
-    }
-
     public function setTranslation(string $field, string $locale, string $value): void
     {
         $this->translations()->updateOrCreate(

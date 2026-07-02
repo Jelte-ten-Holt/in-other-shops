@@ -33,7 +33,9 @@ use Throwable;
  *
  *   - `agent.user`     — the authenticated user (OAuth) or null (bearer)
  *   - `agent.scopes`   — the granted scope list
- *   - `agent.is_admin` — true if bearer OR the token carries admin scope
+ *   - `agent.is_admin` — true if bearer OR (the token carries the admin scope
+ *                        AND its client is confidential + first-party/allowlisted;
+ *                        see {@see self::clientMayElevate()})
  *
  * On 401 the response advertises the RFC 9728 protected-resource-metadata
  * URL via `WWW-Authenticate`, so OAuth-capable clients can discover how
@@ -108,9 +110,15 @@ final class AuthenticateAgent
 
         // Base scope honors wildcards (Passport's normal contract). Admin
         // requires the literal scope — a wildcard PAT must not silently
-        // unlock AdjustStock and unfiltered order reads.
+        // unlock AdjustStock and unfiltered order reads — AND the token's
+        // client must be trusted to elevate (confidential + first-party or
+        // allowlisted). The scope alone is not enough: it fails closed so a
+        // self-registered client that somehow obtained the admin scope stays
+        // a base-scope caller.
         $hasBase = $this->tokenHasScope($token, $baseScope);
-        $hasAdmin = $adminScope !== null && $this->tokenHasScope($token, $adminScope, strict: true);
+        $hasAdmin = $adminScope !== null
+            && $this->tokenHasScope($token, $adminScope, strict: true)
+            && $this->clientMayElevate($token);
 
         if (! $hasBase && ! $hasAdmin) {
             return false;
@@ -146,6 +154,65 @@ final class AuthenticateAgent
         }
 
         return false;
+    }
+
+    /**
+     * Whether the OAuth token's client is trusted to elevate to admin.
+     *
+     * Carrying the admin scope is necessary but not sufficient — the client
+     * must be confidential (operator-provisioned, holds a secret) AND either
+     * first-party or explicitly allowlisted. Public / DCR-registered clients
+     * are self-service and never elevate, even if they somehow obtained the
+     * admin scope. Fails closed: if the client can't be resolved, no elevation.
+     */
+    private function clientMayElevate(object $token): bool
+    {
+        try {
+            $client = $token->client ?? null;
+        } catch (Throwable $e) {
+            // Resolving the client relation touched the DB and threw. Fail
+            // closed — a caller we can't vet does not get admin.
+            $this->logAuthFailure('Resolving the OAuth client for admin elevation threw.', $e);
+
+            return false;
+        }
+
+        if (! is_object($client)) {
+            return false;
+        }
+
+        // A public client (no secret) is never a trusted operator.
+        $confidential = method_exists($client, 'confidential') && (bool) $client->confidential();
+
+        if (! $confidential) {
+            return false;
+        }
+
+        $clientId = (string) (
+            (method_exists($client, 'getKey') ? $client->getKey() : null)
+            ?? $client->id
+            ?? ($token->client_id ?? '')
+        );
+
+        if ($clientId !== '' && in_array($clientId, $this->adminClientIds(), true)) {
+            return true;
+        }
+
+        // First-party clients are owned by this app (not self-registered), so a
+        // confidential first-party client is a trusted operator by construction.
+        return method_exists($client, 'firstParty') && (bool) $client->firstParty();
+    }
+
+    /** @return array<int, string> */
+    private function adminClientIds(): array
+    {
+        $ids = config('agent.auth.oauth.admin_client_ids', []);
+
+        if (! is_array($ids)) {
+            return [];
+        }
+
+        return array_values(array_map(static fn ($id): string => (string) $id, $ids));
     }
 
     /** @return array<int, string> */

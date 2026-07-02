@@ -4,14 +4,18 @@ declare(strict_types=1);
 
 namespace InOtherShops\Taxonomy\Filament\Resources\CategoryResource\Pages;
 
+use Filament\Actions;
 use InOtherShops\Media\Filament\MediaSchema;
+use InOtherShops\Support\Filament\FormSync;
+use InOtherShops\Support\Filament\PackageEditRecord;
+use InOtherShops\Support\Filament\SavesTranslatableForm;
 use InOtherShops\Taxonomy\Filament\Resources\CategoryResource;
 use InOtherShops\Translation\Filament\TranslationSchema;
-use Filament\Actions;
-use InOtherShops\Support\Filament\PackageEditRecord;
 
 final class EditCategory extends PackageEditRecord
 {
+    use SavesTranslatableForm;
+
     protected static string $resource = CategoryResource::class;
 
     protected function getHeaderActions(): array
@@ -22,25 +26,19 @@ final class EditCategory extends PackageEditRecord
         ];
     }
 
-    protected function mutateFormDataBeforeFill(array $data): array
+    protected function syncSchemas(): array
     {
-        $this->record->load('translations');
-
-        $data = array_merge($data, TranslationSchema::fillFormData($this->record));
-
-        return MediaSchema::fillFormData($this->record, $data);
-    }
-
-    protected function mutateFormDataBeforeSave(array $data): array
-    {
-        unset($data['translations'], $data['_media']);
-
-        return $data;
-    }
-
-    protected function afterSave(): void
-    {
-        TranslationSchema::saveFormData($this->record, $this->data);
-        MediaSchema::saveFormData($this->record, $this->data);
+        return [
+            new FormSync(
+                keys: ['translations'],
+                fill: fn ($record, array $data) => array_merge($data, TranslationSchema::fillFormData($record->load('translations'))),
+                save: fn ($record, array $data) => TranslationSchema::saveFormData($record, $data),
+            ),
+            new FormSync(
+                keys: ['_media'],
+                fill: fn ($record, array $data) => MediaSchema::fillFormData($record, $data),
+                save: fn ($record, array $data) => MediaSchema::saveFormData($record, $data),
+            ),
+        ];
     }
 }

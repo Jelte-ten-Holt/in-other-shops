@@ -6,34 +6,44 @@ namespace InOtherShops\Payment;
 
 use InOtherShops\Payment\Commands\PrunePaymentWebhookEventsCommand;
 use InOtherShops\Payment\Listeners\PaymentLogSubscriber;
-use Illuminate\Database\Eloquent\Relations\Relation;
-use Illuminate\Support\Facades\Event;
-use Illuminate\Support\ServiceProvider;
+use InOtherShops\Support\DomainServiceProvider;
 
-final class PaymentServiceProvider extends ServiceProvider
+final class PaymentServiceProvider extends DomainServiceProvider
 {
-    public function register(): void
+    protected function domainDir(): string
     {
-        $this->mergeConfigFrom(__DIR__.'/config/payment.php', 'payment');
-
-        $this->app->singleton(PaymentGatewayManager::class);
+        return __DIR__;
     }
 
-    public function boot(): void
+    protected function morphAliases(): array
     {
-        $this->loadMigrationsFrom(__DIR__.'/Database/Migrations');
-
-        Relation::morphMap([
+        return [
             'payment' => Payment::payment(),
             'payment_profile' => Payment::paymentProfile(),
-        ]);
+        ];
+    }
 
-        $this->publishes([
-            __DIR__.'/config/payment.php' => config_path('payment.php'),
-        ], 'payment-config');
+    protected function logSubscriber(): ?string
+    {
+        return PaymentLogSubscriber::class;
+    }
 
-        $this->commands([PrunePaymentWebhookEventsCommand::class]);
+    protected function domainCommands(): array
+    {
+        return [PrunePaymentWebhookEventsCommand::class];
+    }
 
-        Event::subscribe(PaymentLogSubscriber::class);
+    protected function publishesConfig(): bool
+    {
+        return true;
+    }
+
+    public function register(): void
+    {
+        parent::register();
+
+        // The one bespoke binding this domain needs beyond the base
+        // register/boot: the gateway manager singleton.
+        $this->app->singleton(PaymentGatewayManager::class);
     }
 }

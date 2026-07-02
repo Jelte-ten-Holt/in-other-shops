@@ -8,7 +8,6 @@ use InOtherShops\Commerce\Cart\Contracts\HasCart;
 use InOtherShops\Commerce\Cart\FlowChains\AddToCartPayload;
 use InOtherShops\Commerce\Cart\Models\Cart;
 use InOtherShops\Commerce\Cart\Models\CartItem;
-use InOtherShops\Currency\Enums\Currency;
 use InOtherShops\FlowChain\AbstractFlowStep;
 use InOtherShops\FlowChain\Contracts\FlowPayload;
 
@@ -34,7 +33,7 @@ final class FindOrCreateCartItemStep extends AbstractFlowStep
             return;
         }
 
-        $currency = $this->resolveCurrency($payload->cart);
+        $currency = $payload->cart->effectiveCurrency();
 
         $payload->cartItem = $payload->cart->items()->create([
             'cartable_type' => $payload->cartable->getMorphClass(),
@@ -60,14 +59,5 @@ final class FindOrCreateCartItemStep extends AbstractFlowStep
         return [
             'cartItem' => CartItem::class,
         ];
-    }
-
-    private function resolveCurrency(Cart $cart): Currency
-    {
-        if ($cart->currency instanceof Currency) {
-            return $cart->currency;
-        }
-
-        return Currency::from(config('commerce.cart.api.default_currency', 'EUR'));
     }
 }

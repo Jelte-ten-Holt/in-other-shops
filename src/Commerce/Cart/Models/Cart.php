@@ -8,7 +8,6 @@ use InOtherShops\Commerce\Commerce;
 use InOtherShops\Commerce\Database\Factories\CartFactory;
 use InOtherShops\Currency\Enums\Currency;
 use InOtherShops\Shipping\Contracts\HasShippability;
-use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -20,10 +19,7 @@ class Cart extends Model
 
     protected $guarded = [];
 
-    protected static function newFactory(): Factory
-    {
-        return new CartFactory;
-    }
+    protected static string $factory = CartFactory::class;
 
     protected function casts(): array
     {
@@ -31,6 +27,29 @@ class Cart extends Model
             'currency' => Currency::class,
             'expires_at' => 'datetime',
         ];
+    }
+
+    /**
+     * The API default cart currency. The single home for the
+     * `commerce.cart.api.default_currency` literal — every currency resolver
+     * routes through here, so a future move to a `currency.default` home
+     * (T-D3) repoints one place.
+     */
+    public static function defaultCurrency(): Currency
+    {
+        return Currency::from(config('commerce.cart.api.default_currency', 'EUR'));
+    }
+
+    /**
+     * The currency this cart prices in: its own stamped currency, else the
+     * default. Was duplicated across the cart HTTP resources and the
+     * add-to-cart step.
+     */
+    public function effectiveCurrency(): Currency
+    {
+        return $this->currency instanceof Currency
+            ? $this->currency
+            : self::defaultCurrency();
     }
 
     public function owner(): MorphTo

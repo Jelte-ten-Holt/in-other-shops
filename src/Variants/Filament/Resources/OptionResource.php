@@ -8,7 +8,8 @@ use Filament\Actions;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\TextInput;
-use Filament\Resources\Resource;
+use InOtherShops\Support\Filament\NavigationGroup;
+use InOtherShops\Support\Filament\PackageResource;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use Filament\Tables;
@@ -32,13 +33,13 @@ use InOtherShops\Variants\Variants;
  * Values are managed via a manual-sync repeater (`_values`) — see
  * {@see self::fillValues()} / {@see self::saveValues()}, wired from the pages.
  */
-final class OptionResource extends Resource
+final class OptionResource extends PackageResource
 {
     protected static ?string $model = Option::class;
 
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-adjustments-horizontal';
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Shop';
+    protected static string|\UnitEnum|null $navigationGroup = NavigationGroup::Variants;
 
     public static function form(Schema $schema): Schema
     {

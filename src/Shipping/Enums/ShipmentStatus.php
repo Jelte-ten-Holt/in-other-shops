@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace InOtherShops\Shipping\Enums;
 
+use InOtherShops\Support\HasLabel;
 use InOtherShops\Support\StateTransitions;
 use InOtherShops\Support\Transitionable;
 
 enum ShipmentStatus: string implements Transitionable
 {
+    use HasLabel;
     use StateTransitions;
 
     case Pending = 'pending';
@@ -17,18 +19,6 @@ enum ShipmentStatus: string implements Transitionable
     case Delivered = 'delivered';
     case ReturnedToSender = 'returned_to_sender';
     case Lost = 'lost';
-
-    public function label(): string
-    {
-        return match ($this) {
-            self::Pending => 'Pending',
-            self::Ready => 'Ready',
-            self::InTransit => 'In transit',
-            self::Delivered => 'Delivered',
-            self::ReturnedToSender => 'Returned to sender',
-            self::Lost => 'Lost',
-        };
-    }
 
     public function color(): string
     {

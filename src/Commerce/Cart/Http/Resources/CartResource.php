@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace InOtherShops\Commerce\Cart\Http\Resources;
 
-use InOtherShops\Commerce\Cart\Contracts\HasCart;
 use InOtherShops\Commerce\Cart\Models\Cart;
 use InOtherShops\Currency\Enums\Currency;
 use Illuminate\Http\Request;
@@ -16,9 +15,7 @@ final class CartResource extends JsonResource
     public function toArray(Request $request): array
     {
         $items = $this->resource->items;
-        $currency = $this->resource->currency instanceof Currency
-            ? $this->resource->currency
-            : Currency::from(config('commerce.cart.api.default_currency', 'EUR'));
+        $currency = $this->resource->effectiveCurrency();
 
         $itemResources = CartItemResource::collection($items);
         $subtotal = $this->subtotal($items, $currency);
@@ -42,23 +39,7 @@ final class CartResource extends JsonResource
         $total = 0;
 
         foreach ($items as $item) {
-            $unitPrice = $item->unit_price;
-
-            if ($unitPrice === null) {
-                $cartable = $item->cartable;
-
-                if (! $cartable instanceof HasCart) {
-                    continue;
-                }
-
-                $unitPrice = $cartable->getCartableUnitPrice($currency);
-            }
-
-            if ($unitPrice === null) {
-                continue;
-            }
-
-            $total += $unitPrice * $item->quantity;
+            $total += ($item->effectiveUnitPrice($currency) ?? 0) * $item->quantity;
         }
 
         return $total;

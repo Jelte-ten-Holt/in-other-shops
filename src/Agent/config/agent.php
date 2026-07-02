@@ -115,11 +115,32 @@ return [
             'scope' => env('AGENT_OAUTH_SCOPE', 'agent'),
 
             // Elevated scope that unlocks admin-only tools (AdjustStock)
-            // and un-scoped reads. Not grantable via DCR — provision
-            // admin clients through Passport directly. Set to null to
-            // disable admin OAuth entirely; admin stays reachable via
-            // the static bearer in that case.
+            // and un-scoped reads. Set to null to disable admin OAuth
+            // entirely; admin stays reachable via the static bearer in
+            // that case.
+            //
+            // SECURITY: `admin_scope` must NEVER be registered as an
+            // interactively-grantable Passport scope (do not list it in
+            // `Passport::tokensCan()`), or a self-registered DCR / public
+            // client could request it and self-elevate. Carrying the scope
+            // is necessary but NOT sufficient: elevation additionally
+            // requires the token's client to be confidential AND either
+            // first-party or listed in `admin_client_ids` below (see
+            // `AuthenticateAgent::clientMayElevate`). Provision admin clients
+            // through Passport directly (a confidential first-party client),
+            // or pin their ids here.
             'admin_scope' => env('AGENT_OAUTH_ADMIN_SCOPE', 'agent.admin'),
+
+            // Allowlist of OAuth client ids permitted to elevate to admin
+            // (in addition to being confidential). First-party confidential
+            // clients elevate without being listed here; this is for pinning
+            // specific confidential third-party clients. Comma-separated in
+            // the env var. Empty (the default) means "first-party confidential
+            // clients only". A public/DCR client is never elevated regardless.
+            'admin_client_ids' => array_values(array_filter(array_map(
+                'trim',
+                explode(',', (string) env('AGENT_OAUTH_ADMIN_CLIENT_IDS', '')),
+            ), static fn (string $id): bool => $id !== '')),
 
             // Reject OAuth requests that omit the RFC 8707 `resource`
             // parameter. Off by default to preserve the "single-resource

@@ -1,5 +1,7 @@
 # Dependency Graph Audit — 2026-05-13
 
+> **Superseded framing (2026-07-02):** this audit treats the Shipping↔Commerce cycle and other cross-domain deps as "drift" and "blocking for a split," on the premise that every domain should stay independently extractable. That premise was retired — the package is now a **modular monolith with one real seam (generic leaves vs. shop core)**, and cross-coupling *within the shop core* (Commerce/Shipping/Purchasing) is accepted, not drift. See `CLAUDE.md` §"A Modular Monolith With One Real Seam" and `AUDIT-2026-07-02.md`. The coupling facts below are still accurate; only the "must decouple to split" conclusions are downgraded. The `SharesInventory` fix (finding #2) still stands as leaf-hygiene; the `Shippable` polymorphism refactor (finding #1) is now needed **only** if a non-order shipment use case appears, not to preserve extractability.
+
 Audit motivated by the question "is it worth splitting in-other-shops into per-domain Composer packages before bianka-shop-one starts?" The answer was *not yet* (both consumers pre-launch, Bianka uses nearly every domain). But before split pressure is real, the documented dependency graph in [CLAUDE.md:17-34](../../../CLAUDE.md) should match what the code actually does — otherwise drift hardens and the eventual split becomes more expensive.
 
 ## Method

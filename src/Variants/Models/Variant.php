@@ -15,7 +15,6 @@ use InOtherShops\Pricing\Concerns\InteractsWithPrices;
 use InOtherShops\Pricing\Contracts\HasPrices;
 use InOtherShops\Variants\Database\Factories\VariantFactory;
 use InOtherShops\Variants\Variants;
-use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -40,10 +39,7 @@ class Variant extends Model implements HasCart, HasMedia, HasPrices, HasStock
 
     protected $guarded = [];
 
-    protected static function newFactory(): Factory
-    {
-        return new VariantFactory;
-    }
+    protected static string $factory = VariantFactory::class;
 
     protected function casts(): array
     {

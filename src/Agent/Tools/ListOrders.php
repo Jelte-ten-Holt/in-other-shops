@@ -88,12 +88,7 @@ final class ListOrders extends AgentTool
             'data' => $paginator->getCollection()
                 ->map(fn (Model $order) => $this->summariseOrder($order))
                 ->all(),
-            'meta' => [
-                'current_page' => $paginator->currentPage(),
-                'last_page' => $paginator->lastPage(),
-                'per_page' => $paginator->perPage(),
-                'total' => $paginator->total(),
-            ],
+            'meta' => $this->paginationMeta($paginator),
         ];
     }
 

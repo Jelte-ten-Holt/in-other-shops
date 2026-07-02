@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace InOtherShops\Shipping\Models;
 
-use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -19,10 +18,7 @@ class Shipment extends Model
 
     protected $guarded = [];
 
-    protected static function newFactory(): Factory
-    {
-        return new ShipmentFactory;
-    }
+    protected static string $factory = ShipmentFactory::class;
 
     protected function casts(): array
     {

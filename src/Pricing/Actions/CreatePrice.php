@@ -14,14 +14,7 @@ final class CreatePrice
 {
     public function __invoke(Model&HasPrices $priceable, PriceData $data): Price
     {
-        $price = $priceable->prices()->create([
-            'amount' => $data->amount,
-            'currency' => $data->currency,
-            'compare_at_amount' => $data->compareAtAmount,
-            'compare_at_until' => $data->compareAtUntil,
-            'price_list_id' => $data->priceListId,
-            'minimum_quantity' => $data->minimumQuantity,
-        ]);
+        $price = $priceable->prices()->create($data->attributes());
 
         PriceCreated::dispatch($price);
 

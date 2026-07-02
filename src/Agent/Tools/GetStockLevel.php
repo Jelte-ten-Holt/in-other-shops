@@ -57,14 +57,7 @@ final class GetStockLevel extends AgentTool
         $target = ['type' => $type, 'slug' => $slug];
 
         if ($model === null) {
-            return [
-                'ok' => false,
-                'target' => $target,
-                'error' => [
-                    'code' => 'not_found',
-                    'message' => "No {$type} with slug '{$slug}'.",
-                ],
-            ];
+            return $this->failure('not_found', "No {$type} with slug '{$slug}'.", $target);
         }
 
         /** @var HasStock $model */

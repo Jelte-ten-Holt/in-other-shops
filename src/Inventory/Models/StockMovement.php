@@ -7,7 +7,6 @@ namespace InOtherShops\Inventory\Models;
 use InOtherShops\Inventory\Database\Factories\StockMovementFactory;
 use InOtherShops\Inventory\Enums\StockMovementReason;
 use InOtherShops\Inventory\Inventory;
-use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -28,10 +27,7 @@ class StockMovement extends Model
 
     protected $guarded = [];
 
-    protected static function newFactory(): Factory
-    {
-        return new StockMovementFactory;
-    }
+    protected static string $factory = StockMovementFactory::class;
 
     protected function casts(): array
     {

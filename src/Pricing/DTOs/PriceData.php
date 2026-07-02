@@ -39,4 +39,22 @@ final readonly class PriceData
             throw InvalidCompareAtPriceException::endDateInPast($this->compareAtUntil);
         }
     }
+
+    /**
+     * The `prices` column map — the single write shape shared by CreatePrice
+     * (insert) and UpdatePrice (update), so a new field lands here once.
+     *
+     * @return array<string, mixed>
+     */
+    public function attributes(): array
+    {
+        return [
+            'amount' => $this->amount,
+            'currency' => $this->currency,
+            'compare_at_amount' => $this->compareAtAmount,
+            'compare_at_until' => $this->compareAtUntil,
+            'price_list_id' => $this->priceListId,
+            'minimum_quantity' => $this->minimumQuantity,
+        ];
+    }
 }

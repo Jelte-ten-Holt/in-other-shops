@@ -53,6 +53,31 @@ final class BrowseCatalogToolTest extends TestCase
     }
 
     #[Test]
+    public function it_floors_a_zero_per_page_at_one_item_instead_of_returning_all(): void
+    {
+        // T-A3: per_page 0 previously reached paginate(0) = "all rows". Invalid
+        // input must degrade to a single-item page, not dump the table.
+        TestBrowsable::factory()->count(3)->create();
+
+        $result = app(BrowseCatalog::class)(['type' => 'browsable', 'per_page' => 0]);
+
+        $this->assertSame(1, $result['meta']['per_page']);
+        $this->assertCount(1, $result['data']);
+        $this->assertSame(3, $result['meta']['total']);
+    }
+
+    #[Test]
+    public function it_floors_a_negative_per_page_at_one_item(): void
+    {
+        TestBrowsable::factory()->count(3)->create();
+
+        $result = app(BrowseCatalog::class)(['type' => 'browsable', 'per_page' => -5]);
+
+        $this->assertSame(1, $result['meta']['per_page']);
+        $this->assertCount(1, $result['data']);
+    }
+
+    #[Test]
     public function it_filters_by_search(): void
     {
         TestBrowsable::factory()->create(['name' => 'Alpha', 'slug' => 'alpha']);

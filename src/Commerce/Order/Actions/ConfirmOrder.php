@@ -11,7 +11,7 @@ use InOtherShops\Commerce\Order\Models\Order;
 use InOtherShops\Inventory\Actions\ConfirmReservation;
 use InOtherShops\Inventory\Enums\ReservationStatus;
 use InOtherShops\Inventory\Inventory;
-use Illuminate\Support\Facades\DB;
+use InOtherShops\Support\Concerns\RunsLockedTransactions;
 
 /**
  * Idempotently confirm a paid order, exactly once, with the stock guard that F14
@@ -33,6 +33,8 @@ use Illuminate\Support\Facades\DB;
  */
 final class ConfirmOrder
 {
+    use RunsLockedTransactions;
+
     public function __construct(
         private readonly ConfirmReservation $confirmReservation,
         private readonly UpdateOrderStatus $updateOrderStatus,
@@ -40,9 +42,7 @@ final class ConfirmOrder
 
     public function __invoke(Order $order): ConfirmOrderOutcome
     {
-        return DB::transaction(function () use ($order): ConfirmOrderOutcome {
-            $locked = $order->newQuery()->lockForUpdate()->find($order->getKey());
-
+        return $this->withLocked($order, function (?Order $locked) use ($order): ConfirmOrderOutcome {
             if ($locked === null) {
                 return ConfirmOrderOutcome::NotConfirmable;
             }

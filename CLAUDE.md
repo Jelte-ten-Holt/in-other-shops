@@ -4,42 +4,65 @@ Modular e-commerce domain packages for Laravel 12+, bundled as a single Composer
 
 ## Architecture
 
-### Domains Are Independently Extractable
+### A Modular Monolith With One Real Seam
 
-Every directory under `src/` is a self-contained domain package. They are bundled here for convenience — the plan is to extract individual domains into their own Composer packages as the need arises (e.g., when a new project only needs a subset).
+`in-other-shops` is **one** Composer package, deliberately organized as internal domains under `src/`. The organizing goal is a **modular monolith** — clean domain boundaries that keep a 29k-line package navigable and maintainable — **not** a staging ground for 18 independently extractable packages.
 
-**This means:**
-- Domains must not be coupled to each other beyond their declared dependencies (see table below).
-- Each domain has its own service provider, migrations, config, contracts, concerns, and optionally Filament components.
-- Cross-domain relationships use polymorphic morphs, never direct foreign keys.
-- When a domain depends on another, it uses the other domain's registry class and contracts — never concrete model imports.
+The earlier "every domain is independently extractable" framing has been retired (2026-07-02). It stopped being true — two-thirds of the package can't be cleanly separated (see tiers) — it aimed the extraction discipline at the tier least able to use it (the shop core, which no one will ever reuse), and its one concrete pain, migrations running in every consumer, has a cheaper fix than a split: a per-domain `{domain}.migrations.enabled` config gate.
+
+**The modular discipline stays regardless — it earns its keep as maintainability, independent of any split:**
+- `Has*` contracts + `InteractsWith*` traits decouple the package from each consumer's models. Load-bearing for having 2+ consumers.
+- Config namespacing, explicit event wiring, and the `Support\DomainServiceProvider` base keep the canonical per-domain sequence from drifting.
+- Per-domain factories, symmetric structure, and the architecture test keep the package self-enforcing.
+
+What we drop is the *pretense that any domain can become its own package*. Keep the boundaries clean; stop contorting the code to preserve separability that will never be cashed in.
+
+### The Four Tiers (and the one seam that matters)
+
+The real structure is not 18 peers:
+
+- **Generic leaves** — Currency, Translation, Logging, Location, Media, FlowChain, Support. Domain-neutral, genuinely decoupled, and the **only** tier where extraction is both feasible *and* valuable (a future non-shop app could reuse Logging or Media). **This is the one seam worth protecting** — keep these sharply independent.
+- **Middle band** — Pricing, Taxonomy, Payment, Tax, Inventory. Depend only on leaves. Extractable in principle, but there is no reuse case outside a shop, so don't spend effort keeping them split-ready beyond ordinary hygiene.
+- **Shop core** — Commerce + Shipping + Purchasing. Treat as **one unit.** Commerce's transitive closure is most of the package, and Shipping↔Commerce is a live cycle. Cross-coupling *within* this cluster is expected and fine — do not contort it for separability. If the package is ever split, this cluster moves together as a single "shop core" package.
+- **Integration tier** — Storefront, Variants, Agent. Sit on top, depend on many domains, and are **not extractable by design** — they wire the package to a specific consumer surface (read API, variant catalog, MCP).
+
+**Extraction policy:** on-demand and leaf-only. Split a generic leaf into its own lower-level package **only** when a concrete non-shop consumer needs it without the shop. Never split speculatively; never try to separate the shop core or the integration tier.
 
 ### Domain Dependency Graph
 
-Hard dep = concrete model, action, DTO, or exception import. Soft dep = contract, event, or registry call only. Logging is consumed by every audit-relevant domain via subscribers — listed inline rather than repeated below.
+Hard dep = concrete model, action, DTO, or exception import. Soft dep = contract, event, or registry call only. Config-key reads (e.g. one domain reading another's config) are a coupling category too — grep for `use` statements misses them. Logging is consumed by nearly every domain via subscribers — noted inline rather than repeated.
 
 ```
-Currency ─────── (independent, foundational)
-Translation ──── (independent, foundational)
-Logging ──────── (independent — consumed by Commerce/FlowChain/Inventory/Payment/Pricing/Shipping/Agent)
-Location ─────── (independent)
-Media ────────── (independent)
-FlowChain ────── (independent of domain code)
-Inventory ────── soft-dep on Translation (HasLocaleGroup instanceof in AdjustStock) ⚠ drift — to remove
-Pricing ──────── depends on Currency
-Taxonomy ─────── depends on Translation, Media (Category implements HasMedia for a cover image)
-Payment ──────── depends on Currency
-Tax ──────────── depends on Location
-Shipping ─────── depends on Currency, Location; hard-dep on Commerce (OrderLine FK in ShipmentItem) ⚠ drift — creates cycle with Commerce
-Commerce ─────── depends on Currency, Location, Payment, Pricing, Shipping, Tax; depends on Inventory contracts + InsufficientStockException
-Storefront ───── depends on Currency, Inventory, Media, Pricing, Taxonomy, Translation
-Variants ─────── depends on Commerce (package Variant implements HasCart), Inventory, Media, Pricing, Translation. Integration-tier, not a leaf. No cycle — Commerce does not depend on Variants. Adopted only by consumers with variant catalogs (bianka), not in-other-worlds (flat SKUs)
-Agent ────────── integration layer; depends on Commerce, Inventory, Storefront, Taxonomy — sits at the top, not extractable as a leaf
+Generic leaves — keep sharply independent (the one real seam):
+  Currency ────── (independent, foundational)
+  Translation ─── (independent, foundational)
+  Logging ─────── (independent — but CONSUMED by nearly every domain via subscribers; would need to publish first in any split)
+  Location ────── (independent)
+  Media ───────── (independent)
+  FlowChain ───── (independent of domain code)
+  Support ─────── shared kernel: DomainServiceProvider base + Filament base classes + StateTransitions; consumed by ~12 domains; itself depends on Currency (MoneyFields) + Filament
+
+Middle band — depend only on leaves:
+  Pricing ─────── depends on Currency
+  Taxonomy ────── depends on Translation, Media (Category implements HasMedia for a cover image)
+  Payment ─────── depends on Currency
+  Tax ─────────── depends on Location
+  Inventory ───── soft-dep on Translation (HasLocaleGroup instanceof in AdjustStock) ⚠ drift — to remove via a SharesInventory contract
+
+Shop core — one unit; moves together if ever split; internal coupling is expected, not drift:
+  Commerce ────── depends on Currency, Location, Payment, Pricing, Shipping, Tax, FlowChain (registers AddToCartChain); Inventory contracts + InsufficientStockException
+  Shipping ────── depends on Currency, Location; hard-dep on Commerce (OrderLine in ShipmentItem) — cycle with Commerce, ACCEPTED within shop core. The Shippable-polymorphism fix is only needed if a non-order shipment use case appears (warehouse transfer, B2B sample, returns)
+  Purchasing ──── depends on Inventory (AdjustStock action, StockMovementReason enum), Tax (TaxCategory enum)
+
+Integration tier — not extractable by design:
+  Storefront ──── depends on Currency, Inventory, Media, Pricing, Taxonomy, Translation
+  Variants ────── depends on Commerce (package Variant implements HasCart), Inventory, Media, Pricing, Translation; also READS commerce.cart.api.default_currency config. No cycle — Commerce does not depend on Variants. Adopted only by consumers with variant catalogs (bianka), not in-other-worlds (flat SKUs)
+  Agent ────────── depends on Commerce, Inventory, Storefront, Taxonomy — top of the graph
 ```
 
-The drift cases are tracked in [docs/audits/2026-05-13/dep-graph-audit.md](docs/audits/2026-05-13/dep-graph-audit.md) along with the fix shape for each.
+Drift cases and fix shapes are tracked in [docs/audits/2026-05-13/dep-graph-audit.md](docs/audits/2026-05-13/dep-graph-audit.md) (read its top banner — its "blocking for a split" framing predates the modular-monolith reframe).
 
-Adding a dependency between domains is a significant decision — it means those domains must be extracted together or one must depend on the other. Flag new cross-domain dependencies to the developer.
+Adding a dependency is judged by tier, not by a blanket "significant decision" rule: **coupling within the shop core is fine**; a new dep that reaches **into a generic leaf**, or makes a **leaf depend on a non-leaf**, is the thing to flag — it erodes the one seam worth protecting. Flag those to the developer.
 
 ### Key Patterns
 
@@ -77,9 +100,10 @@ Adding a dependency between domains is a significant decision — it means those
 - **PSR-12** with `declare(strict_types=1)` on all PHP files
 - **`final` classes** unless inheritance is explicitly needed (models are non-final for extension via registry)
 - **Actions** are invokable, stateless, single-responsibility
-- **Enums** are always string-backed
+- **Enums** are always string-backed. Admin `label()` comes from the `Support\HasLabel` trait — a sentence-case transform of the backing value (`partially_received` → "Partially received"). `use HasLabel` rather than hand-rolling a `match`; override `label()` only for a label the value can't produce (an ampersand, an abbreviation), delegating the ordinary cases to `defaultLabel()`. It satisfies `Transitionable::label()` for status enums.
 - **Models** use `protected $guarded = []`, method-syntax `casts()`, morph map aliases
 - **Service providers** are `final`, register config in `register()`, load migrations and morph maps in `boot()`
+- **Status columns** use the `$table->status()` Blueprint macro (registered once in `Support\SupportServiceProvider`) — `string(30)` + a single-column index. Pass `status(index: false)` when the column carries its own composite index. Standardises what was a mix of 20/30/255-length status columns.
 
 ## Tests
 

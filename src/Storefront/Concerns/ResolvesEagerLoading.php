@@ -44,13 +44,13 @@ trait ResolvesEagerLoading
         }
 
         if (is_subclass_of($modelClass, HasCategories::class)) {
+            // The nested `categories.translations` already eager-loads the
+            // `categories` relation itself — a bare 'categories' key is redundant.
             $relations['categories.translations'] = fn ($q) => $q->where('locale', $locale);
-            $relations[] = 'categories';
         }
 
         if (is_subclass_of($modelClass, HasTags::class)) {
             $relations['tags.translations'] = fn ($q) => $q->where('locale', $locale);
-            $relations[] = 'tags';
         }
 
         if (is_subclass_of($modelClass, HasMedia::class)) {

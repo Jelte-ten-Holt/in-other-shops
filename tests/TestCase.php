@@ -17,6 +17,7 @@ use InOtherShops\Pricing\PricingServiceProvider;
 use InOtherShops\Purchasing\PurchasingServiceProvider;
 use InOtherShops\Shipping\ShippingServiceProvider;
 use InOtherShops\Storefront\StorefrontServiceProvider;
+use InOtherShops\Support\SupportServiceProvider;
 use InOtherShops\Tax\TaxServiceProvider;
 use InOtherShops\Taxonomy\TaxonomyServiceProvider;
 use InOtherShops\Tests\Stubs\TestBrowsable;
@@ -77,6 +78,7 @@ abstract class TestCase extends Orchestra
     protected function getPackageProviders($app): array
     {
         return [
+            SupportServiceProvider::class,
             CurrencyServiceProvider::class,
             TranslationServiceProvider::class,
             LoggingServiceProvider::class,

@@ -78,6 +78,7 @@
         },
         "laravel": {
             "providers": [
+                "InOtherShops\\Support\\SupportServiceProvider",
                 "InOtherShops\\Currency\\CurrencyServiceProvider",
                 "InOtherShops\\Translation\\TranslationServiceProvider",
                 "InOtherShops\\Logging\\LoggingServiceProvider",

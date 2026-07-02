@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace InOtherShops\Payment\Models;
 
 use InOtherShops\Payment\Database\Factories\WebhookEventFactory;
-use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -20,10 +19,7 @@ final class WebhookEvent extends Model
 
     protected $guarded = [];
 
-    protected static function newFactory(): Factory
-    {
-        return new WebhookEventFactory;
-    }
+    protected static string $factory = WebhookEventFactory::class;
 
     public $timestamps = false;
 

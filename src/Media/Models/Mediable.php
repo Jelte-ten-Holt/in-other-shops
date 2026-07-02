@@ -6,7 +6,6 @@ namespace InOtherShops\Media\Models;
 
 use InOtherShops\Media\Database\Factories\MediableFactory;
 use InOtherShops\Media\Media as MediaRegistry;
-use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphPivot;
@@ -17,10 +16,7 @@ class Mediable extends MorphPivot
 
     protected $table = 'mediables';
 
-    protected static function newFactory(): Factory
-    {
-        return new MediableFactory;
-    }
+    protected static string $factory = MediableFactory::class;
 
     public $timestamps = true;
 

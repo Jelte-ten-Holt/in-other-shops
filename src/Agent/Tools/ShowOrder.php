@@ -52,14 +52,7 @@ final class ShowOrder extends AgentTool
             ->find($id);
 
         if ($order === null || ! $this->callerCanSee($order)) {
-            return [
-                'ok' => false,
-                'target' => $target,
-                'error' => [
-                    'code' => 'not_found',
-                    'message' => "No order with id {$id}.",
-                ],
-            ];
+            return $this->failure('not_found', "No order with id {$id}.", $target);
         }
 
         return [

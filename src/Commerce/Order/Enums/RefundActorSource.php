@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace InOtherShops\Commerce\Order\Enums;
 
+use InOtherShops\Support\HasLabel;
+
 /**
  * Who initiated a refund. Recorded explicitly so a refund's actor is never a
  * silent null — a gateway-initiated refund (Stripe dashboard, dispute auto-
@@ -11,14 +13,8 @@ namespace InOtherShops\Commerce\Order\Enums;
  */
 enum RefundActorSource: string
 {
+    use HasLabel;
+
     case Admin = 'admin';
     case Gateway = 'gateway';
-
-    public function label(): string
-    {
-        return match ($this) {
-            self::Admin => 'Admin',
-            self::Gateway => 'Gateway',
-        };
-    }
 }

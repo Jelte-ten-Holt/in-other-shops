@@ -111,7 +111,7 @@ final class CreateOrder
             'tax' => $breakdown->tax,
             'tax_rate_bps' => $taxSnapshot?->rateBps,
             'tax_rate_country_code' => $taxSnapshot?->countryCode,
-            'tax_summary' => $this->serializeTaxSummary($breakdown->taxBreakdown),
+            'tax_summary' => TaxBreakdownLine::serializeMany($breakdown->taxBreakdown),
             'discount' => $breakdown->discount,
             'total' => $breakdown->total,
             'shipping_method_identifier' => $shippingSnapshot?->methodIdentifier,
@@ -184,7 +184,7 @@ final class CreateOrder
     private function buildLineDraft(mixed $item, PriceBreakdown $breakdown, int $index): array
     {
         $cartable = $item->cartable;
-        $line = $this->resolveLineData($cartable, $breakdown->currency->value, $item->quantity, $item->unit_price);
+        $line = $this->resolveLineData($cartable, $breakdown->currency->value, $item->unit_price);
         $line['quantity'] = $item->quantity;
         $line['line_total'] = $line['unit_price'] * $item->quantity;
         $line['tax_category'] = $this->resolveLineTaxCategory($cartable);
@@ -201,22 +201,6 @@ final class CreateOrder
         }
 
         return TaxCategory::PhysicalGoods->value;
-    }
-
-    /**
-     * @param  list<TaxBreakdownLine>  $taxBreakdown
-     * @return list<array{rate_bps: int, taxable_base: int, tax: int}>
-     */
-    private function serializeTaxSummary(array $taxBreakdown): array
-    {
-        return array_map(
-            fn (TaxBreakdownLine $bracket): array => [
-                'rate_bps' => $bracket->rateBps,
-                'taxable_base' => $bracket->taxableBase,
-                'tax' => $bracket->tax,
-            ],
-            $taxBreakdown,
-        );
     }
 
     /**
@@ -237,7 +221,7 @@ final class CreateOrder
     /**
      * @return array{description: string, sku: string|null, currency: string, unit_price: int, is_pre_order?: bool, expected_ship_date?: string|null}
      */
-    private function resolveLineData(mixed $cartable, string $currencyCode, int $quantity, ?int $snapshotUnitPrice): array
+    private function resolveLineData(mixed $cartable, string $currencyCode, ?int $snapshotUnitPrice): array
     {
         if ($cartable instanceof HasOrders) {
             return $cartable->toOrderLineData($currencyCode);

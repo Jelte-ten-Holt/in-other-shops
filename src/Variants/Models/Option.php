@@ -8,7 +8,6 @@ use InOtherShops\Translation\Concerns\InteractsWithTranslations;
 use InOtherShops\Translation\Contracts\HasTranslations;
 use InOtherShops\Variants\Database\Factories\OptionFactory;
 use InOtherShops\Variants\Variants;
-use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -26,10 +25,7 @@ class Option extends Model implements HasTranslations
 
     protected $guarded = [];
 
-    protected static function newFactory(): Factory
-    {
-        return new OptionFactory;
-    }
+    protected static string $factory = OptionFactory::class;
 
     protected function casts(): array
     {

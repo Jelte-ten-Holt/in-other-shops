@@ -4,8 +4,12 @@ declare(strict_types=1);
 
 namespace InOtherShops\Payment\Enums;
 
+use InOtherShops\Support\HasLabel;
+
 enum PaymentStatus: string
 {
+    use HasLabel;
+
     case Pending = 'pending';
     case Succeeded = 'succeeded';
     case Failed = 'failed';
@@ -13,19 +17,6 @@ enum PaymentStatus: string
     case Expired = 'expired';
     case Refunded = 'refunded';
     case PartiallyRefunded = 'partially_refunded';
-
-    public function label(): string
-    {
-        return match ($this) {
-            self::Pending => 'Pending',
-            self::Succeeded => 'Succeeded',
-            self::Failed => 'Failed',
-            self::Cancelled => 'Cancelled',
-            self::Expired => 'Expired',
-            self::Refunded => 'Refunded',
-            self::PartiallyRefunded => 'Partially Refunded',
-        };
-    }
 
     public function color(): string
     {

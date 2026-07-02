@@ -80,13 +80,7 @@ final class GetRecentProblems extends AgentTool
     public function __invoke(array $arguments): array
     {
         if (! $this->isAdmin()) {
-            return [
-                'ok' => false,
-                'error' => [
-                    'code' => 'forbidden',
-                    'message' => 'get_recent_problems is admin-only.',
-                ],
-            ];
+            return $this->failure('forbidden', 'get_recent_problems is admin-only.');
         }
 
         $sinceHours = $this->sinceHours($arguments);

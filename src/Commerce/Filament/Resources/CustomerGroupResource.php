@@ -8,18 +8,19 @@ use InOtherShops\Commerce\Customer\Models\CustomerGroup;
 use InOtherShops\Commerce\Filament\Resources\CustomerGroupResource\Pages;
 use Filament\Actions;
 use Filament\Forms\Components\TextInput;
-use Filament\Resources\Resource;
+use InOtherShops\Support\Filament\NavigationGroup;
+use InOtherShops\Support\Filament\PackageResource;
 use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
 
-class CustomerGroupResource extends Resource
+class CustomerGroupResource extends PackageResource
 {
     protected static ?string $model = CustomerGroup::class;
 
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-user-group';
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Commerce';
+    protected static string|\UnitEnum|null $navigationGroup = NavigationGroup::Commerce;
 
     public static function form(Schema $schema): Schema
     {

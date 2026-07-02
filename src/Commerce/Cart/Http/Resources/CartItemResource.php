@@ -16,8 +16,8 @@ final class CartItemResource extends JsonResource
     public function toArray(Request $request): array
     {
         $cartable = $this->resource->cartable;
-        $currency = $this->resolveCurrency();
-        $unitPrice = $this->resolveUnitPrice($cartable, $currency);
+        $currency = $this->resource->effectiveCurrency();
+        $unitPrice = $this->resource->effectiveUnitPrice($currency);
         $lineTotal = $unitPrice !== null ? $unitPrice * $this->resource->quantity : null;
 
         return [
@@ -42,30 +42,4 @@ final class CartItemResource extends JsonResource
         ];
     }
 
-    private function resolveCurrency(): Currency
-    {
-        if ($this->resource->currency instanceof Currency) {
-            return $this->resource->currency;
-        }
-
-        $cart = $this->resource->cart;
-        if ($cart && $cart->currency instanceof Currency) {
-            return $cart->currency;
-        }
-
-        return Currency::from(config('commerce.cart.api.default_currency', 'EUR'));
-    }
-
-    private function resolveUnitPrice(mixed $cartable, Currency $currency): ?int
-    {
-        if ($this->resource->unit_price !== null) {
-            return $this->resource->unit_price;
-        }
-
-        if (! $cartable instanceof HasCart) {
-            return null;
-        }
-
-        return $cartable->getCartableUnitPrice($currency);
-    }
 }
