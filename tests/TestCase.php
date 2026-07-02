@@ -20,20 +20,7 @@ use InOtherShops\Storefront\StorefrontServiceProvider;
 use InOtherShops\Support\SupportServiceProvider;
 use InOtherShops\Tax\TaxServiceProvider;
 use InOtherShops\Taxonomy\TaxonomyServiceProvider;
-use InOtherShops\Tests\Stubs\TestBrowsable;
-use InOtherShops\Tests\Stubs\TestCartable;
-use InOtherShops\Tests\Stubs\TestLocalizable;
-use InOtherShops\Tests\Stubs\TestMediable;
-use InOtherShops\Tests\Stubs\TestPayable;
-use InOtherShops\Tests\Stubs\TestPriceable;
-use InOtherShops\Tests\Stubs\TestPurchasable;
-use InOtherShops\Tests\Stubs\TestTaxonomized;
-use InOtherShops\Tests\Stubs\TestTranslatable;
-use InOtherShops\Tests\Stubs\TestShippableCartable;
-use InOtherShops\Tests\Stubs\TestStockable;
-use InOtherShops\Tests\Stubs\TestStockableCartable;
-use InOtherShops\Tests\Stubs\TestStockableLocalizable;
-use InOtherShops\Tests\Stubs\TestVariantable;
+use InOtherShops\Tests\Stubs\StubModel;
 use InOtherShops\Translation\TranslationServiceProvider;
 use InOtherShops\Variants\VariantsServiceProvider;
 use Illuminate\Database\Eloquent\Relations\Relation;
@@ -52,22 +39,7 @@ abstract class TestCase extends Orchestra
             'foreign_key_constraints' => true,
         ]);
 
-        Relation::morphMap([
-            'test_stockable' => TestStockable::class,
-            'test_payable' => TestPayable::class,
-            'test_cartable' => TestCartable::class,
-            'test_shippable_cartable' => TestShippableCartable::class,
-            'test_stockable_cartable' => TestStockableCartable::class,
-            'test_browsable' => TestBrowsable::class,
-            'test_localizable' => TestLocalizable::class,
-            'test_stockable_localizable' => TestStockableLocalizable::class,
-            'test_mediable' => TestMediable::class,
-            'test_priceable' => TestPriceable::class,
-            'test_purchasable' => TestPurchasable::class,
-            'test_taxonomized' => TestTaxonomized::class,
-            'test_translatable' => TestTranslatable::class,
-            'test_variantable' => TestVariantable::class,
-        ]);
+        Relation::morphMap(StubModel::stubClasses());
     }
 
     protected function defineDatabaseMigrations(): void

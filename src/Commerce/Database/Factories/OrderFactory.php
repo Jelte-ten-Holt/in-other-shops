@@ -7,17 +7,18 @@ namespace InOtherShops\Commerce\Database\Factories;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use InOtherShops\Commerce\Commerce;
 use InOtherShops\Commerce\Customer\Models\Customer;
+use InOtherShops\Commerce\Database\Factories\Concerns\CreatesAddressPair;
 use InOtherShops\Commerce\Order\Enums\OrderStatus;
 use InOtherShops\Commerce\Order\Models\Order;
 use InOtherShops\Currency\Enums\Currency;
-use InOtherShops\Location\Enums\AddressType;
-use InOtherShops\Location\Location;
 
 /**
  * @extends Factory<Order>
  */
 final class OrderFactory extends Factory
 {
+    use CreatesAddressPair;
+
     public function modelName(): string
     {
         return Commerce::order();
@@ -51,21 +52,6 @@ final class OrderFactory extends Factory
         return $this->state(fn (): array => [
             'customer_id' => $customer?->id ?? Commerce::customer()::factory(),
         ]);
-    }
-
-    public function withAddresses(): static
-    {
-        return $this->afterCreating(function (Order $order): void {
-            Location::address()::factory()
-                ->for($order, 'addressable')
-                ->state(['type' => AddressType::Shipping])
-                ->create();
-
-            Location::address()::factory()
-                ->for($order, 'addressable')
-                ->state(['type' => AddressType::Billing])
-                ->create();
-        });
     }
 
     public function withLines(int $count = 3): static

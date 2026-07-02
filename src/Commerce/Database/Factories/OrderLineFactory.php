@@ -28,7 +28,7 @@ final class OrderLineFactory extends Factory
         return [
             'description' => fake()->words(3, true),
             'sku' => null,
-            'currency' => Currency::EUR->value,
+            'currency' => Currency::EUR,
             'unit_price' => $unit,
             'quantity' => $qty,
             'line_total' => $unit * $qty,

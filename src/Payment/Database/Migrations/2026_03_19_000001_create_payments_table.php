@@ -17,7 +17,7 @@ return new class extends Migration
             $table->integer('amount');
             $table->integer('amount_refunded')->default(0);
             $table->string('currency', 3);
-            $table->status()->default('pending');
+            $table->string('status')->default('pending');
             $table->string('gateway');
             $table->string('gateway_reference')->nullable();
             $table->json('gateway_data')->nullable();

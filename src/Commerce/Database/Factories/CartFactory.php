@@ -23,7 +23,7 @@ final class CartFactory extends Factory
     {
         return [
             'session_token' => fake()->unique()->uuid(),
-            'currency' => Currency::EUR->value,
+            'currency' => Currency::EUR,
         ];
     }
 }

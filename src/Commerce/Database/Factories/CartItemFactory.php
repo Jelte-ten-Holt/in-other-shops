@@ -27,7 +27,7 @@ final class CartItemFactory extends Factory
             'cartable_id' => 1,
             'quantity' => fake()->numberBetween(1, 5),
             'unit_price' => fake()->numberBetween(500, 9999),
-            'currency' => Currency::EUR->value,
+            'currency' => Currency::EUR,
         ];
     }
 }

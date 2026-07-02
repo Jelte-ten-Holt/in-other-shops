@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('shipments', function (Blueprint $table) {
             $table->id();
             $table->morphs('shippable');
-            $table->status()->default(ShipmentStatus::Pending->value);
+            $table->string('status')->default(ShipmentStatus::Pending->value);
             $table->string('method')->nullable();
             $table->string('carrier')->nullable();
             $table->string('tracking_number')->nullable();
