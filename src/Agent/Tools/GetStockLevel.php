@@ -22,7 +22,7 @@ final class GetStockLevel extends AgentTool
 
     public function description(): string
     {
-        return 'Return the current stock level and availability for a browsable (product, bundle, etc.) identified by type + slug.';
+        return 'Return availability for a browsable (product, bundle, etc.) identified by type + slug. Admin callers get the exact stock_level; non-admin callers get the in_stock flag only.';
     }
 
     public function inputSchema(): array
@@ -61,13 +61,18 @@ final class GetStockLevel extends AgentTool
         }
 
         /** @var HasStock $model */
+        $data = ['in_stock' => $model->isInStock()];
+
+        // Exact quantities are business-sensitive (restock urgency, sell-through);
+        // the storefront only ever shows the boolean. Admin-only.
+        if ($this->isAdmin()) {
+            $data['stock_level'] = $model->stockLevel();
+        }
+
         return [
             'ok' => true,
             'target' => $target,
-            'data' => [
-                'stock_level' => $model->stockLevel(),
-                'in_stock' => $model->isInStock(),
-            ],
+            'data' => $data,
         ];
     }
 }

@@ -22,9 +22,10 @@ use Illuminate\Support\ServiceProvider;
  * the lowercased domain directory name and must match the config filename.
  *
  * Deliberately NOT adopted by the irregular providers (Currency, Storefront,
- * Payment, Agent, FlowChain, Stripe) — forcing them under the base would
- * mean more override noise than the symmetry buys. See the
- * package-tightening brief, WI-6.
+ * Agent, FlowChain, Stripe) — forcing them under the base would mean more
+ * override noise than the symmetry buys. See the package-tightening brief,
+ * WI-6. (Payment moved onto the base in T-S-PROVIDER: its only extra is one
+ * singleton, a register() override away.)
  */
 abstract class DomainServiceProvider extends ServiceProvider
 {

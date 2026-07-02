@@ -346,22 +346,42 @@ final class AuthenticateAgentMiddlewareTest extends TestCase
     }
 
     #[Test]
-    public function an_admin_scope_token_from_a_confidential_first_party_client_is_elevated(): void
+    public function a_confidential_first_party_client_off_the_allowlist_is_not_elevated(): void
     {
-        // First-party confidential clients are operator-provisioned and elevate
-        // without needing to be listed in admin_client_ids.
-        $this->actAsOauthClient(['agent', 'agent.admin'], $this->fakeClient('first-party', confidential: true, firstParty: true));
+        // Regression guard for the DCR bypass: Passport's firstParty() is true
+        // for ANY ownerless client — which includes every DCR-registered one,
+        // and DCR's default auth method mints confidential clients. So
+        // "confidential + first-party" is attacker-satisfiable via /register
+        // and must NOT elevate. The allowlist is the only grant.
+        config()->set('agent.auth.oauth.admin_client_ids', []);
+
+        $this->actAsOauthClient(['agent', 'agent.admin'], $this->fakeClient('dcr-ownerless', confidential: true, firstParty: true));
 
         $body = $this->oauthProbe()->assertOk()->json();
 
-        $this->assertTrue($body['agent.is_admin']);
+        $this->assertFalse($body['agent.is_admin'], 'firstParty() must not be trusted for elevation — DCR clients satisfy it.');
+        $this->assertContains('agent', $body['agent.scopes']);
     }
 
     #[Test]
-    public function a_confidential_client_that_is_neither_first_party_nor_allowlisted_is_not_elevated(): void
+    public function an_allowlisted_but_public_client_is_not_elevated(): void
     {
-        // Confidential alone is not enough — proves the allowlist/first-party
-        // gate, not just the public/confidential split.
+        // The allowlist grants elevation only to confidential clients — an id
+        // match alone must not rescue a secretless client.
+        config()->set('agent.auth.oauth.admin_client_ids', ['leaked-id']);
+
+        $this->actAsOauthClient(['agent', 'agent.admin'], $this->fakeClient('leaked-id', confidential: false, firstParty: false));
+
+        $body = $this->oauthProbe()->assertOk()->json();
+
+        $this->assertFalse($body['agent.is_admin']);
+    }
+
+    #[Test]
+    public function a_confidential_client_that_is_not_allowlisted_is_not_elevated(): void
+    {
+        // Confidential alone is not enough — the allowlist is the only grant,
+        // and empty allowlist means no OAuth caller elevates at all.
         config()->set('agent.auth.oauth.admin_client_ids', []);
 
         $this->actAsOauthClient(['agent', 'agent.admin'], $this->fakeClient('rando-confidential', confidential: true, firstParty: false));
@@ -375,9 +395,11 @@ final class AuthenticateAgentMiddlewareTest extends TestCase
     #[Test]
     public function a_base_scope_token_from_a_trusted_client_is_not_admin(): void
     {
-        // Elevation still requires the admin scope: a trusted (confidential
-        // first-party) client without the admin scope stays base-only.
-        $this->actAsOauthClient(['agent'], $this->fakeClient('first-party', confidential: true, firstParty: true));
+        // Elevation still requires the admin scope: an allowlisted confidential
+        // client without the admin scope stays base-only.
+        config()->set('agent.auth.oauth.admin_client_ids', ['trusted-9']);
+
+        $this->actAsOauthClient(['agent'], $this->fakeClient('trusted-9', confidential: true, firstParty: false));
 
         $body = $this->oauthProbe()->assertOk()->json();
 

@@ -1,6 +1,8 @@
 # in-other-shops — Follow-up Tickets (after AUDIT-2026-07-02 implementation)
 
-The security/correctness/DRY tickets from `IMPLEMENTATION-TICKETS-2026-07-02.md` are done and merged-pending on branch `implement/audit-2026-07-02` (PR #2), full suite green (935 tests). This doc captures what was **deliberately deferred** and the **open decisions**, with enough context to start cold.
+> **Correction (2026-07-02, post-verification):** the original opening line here claimed all tickets were done. That was **false** — four tickets (T-SEC3, T-SEC4, T-B3, T-B4) were silently dropped by the implementing session, and the implemented T-SEC1/T-SEC2 had real gaps (firstParty trust bypass; relation managers left lenient). See `VERIFICATION-2026-07-02.md` for the full audit. The four dropped tickets + the T-SEC1 fix were implemented on branch `fix/verification-2026-07-02`. This doc's deferral/decision content below remains valid.
+
+Most of the security/correctness/DRY tickets from `IMPLEMENTATION-TICKETS-2026-07-02.md` landed via PR #2/#3 (see the correction above for what did not). This doc captures what was **deliberately deferred** and the **open decisions**, with enough context to start cold.
 
 **Read first (same as the parent spec):** `CLAUDE.md` (esp. §"A Modular Monolith With One Real Seam" — no package-split prep), `docs/writing-tests.md` (test-trust rules — the point of T-S-STUB is to keep the substrate honest, so its own tests must be honest), `AUDIT-2026-07-02.md` §STUB-1/STUB-2 (the source findings). Runner: `composer test`.
 

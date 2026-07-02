@@ -10,6 +10,7 @@ use Illuminate\Support\ServiceProvider;
 use InOtherShops\Agent\Http\Middleware\AuthenticateAgent;
 use InOtherShops\Agent\Http\Middleware\EnforceResourceParameter;
 use InOtherShops\Agent\Listeners\AgentLogSubscriber;
+use InOtherShops\Agent\Support\CanonicalUrl;
 use InOtherShops\Agent\Support\ToolRegistry;
 
 final class AgentServiceProvider extends ServiceProvider
@@ -37,6 +38,10 @@ final class AgentServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        // Fail closed before anything is served: OAuth without a pinned
+        // canonical URL would advertise a Host-header-derived resource/issuer.
+        CanonicalUrl::assertConfiguredForOauth();
+
         // Route registration is deferred to `app.booted` because the `/mcp`
         // route file calls the `Route::mcp(...)` macro from opgginc/laravel-
         // -mcp-server, and that macro is installed in the opgginc provider's

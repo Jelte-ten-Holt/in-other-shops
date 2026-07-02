@@ -34,8 +34,8 @@ use Throwable;
  *   - `agent.user`     — the authenticated user (OAuth) or null (bearer)
  *   - `agent.scopes`   — the granted scope list
  *   - `agent.is_admin` — true if bearer OR (the token carries the admin scope
- *                        AND its client is confidential + first-party/allowlisted;
- *                        see {@see self::clientMayElevate()})
+ *                        AND its client is confidential + on the admin_client_ids
+ *                        allowlist; see {@see self::clientMayElevate()})
  *
  * On 401 the response advertises the RFC 9728 protected-resource-metadata
  * URL via `WWW-Authenticate`, so OAuth-capable clients can discover how
@@ -194,13 +194,13 @@ final class AuthenticateAgent
             ?? ($token->client_id ?? '')
         );
 
-        if ($clientId !== '' && in_array($clientId, $this->adminClientIds(), true)) {
-            return true;
-        }
-
-        // First-party clients are owned by this app (not self-registered), so a
-        // confidential first-party client is a trusted operator by construction.
-        return method_exists($client, 'firstParty') && (bool) $client->firstParty();
+        // The allowlist is the ONLY elevation grant. Passport's firstParty()
+        // is deliberately NOT trusted here: it returns true for any client
+        // with no owner — which includes every DCR-registered client — so a
+        // "confidential first-party" check is satisfiable by the package's
+        // own /register endpoint (DCR defaults to client_secret_basic, i.e.
+        // confidential). Empty allowlist = no OAuth caller elevates, ever.
+        return $clientId !== '' && in_array($clientId, $this->adminClientIds(), true);
     }
 
     /** @return array<int, string> */

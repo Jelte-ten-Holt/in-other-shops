@@ -124,19 +124,19 @@ return [
             // `Passport::tokensCan()`), or a self-registered DCR / public
             // client could request it and self-elevate. Carrying the scope
             // is necessary but NOT sufficient: elevation additionally
-            // requires the token's client to be confidential AND either
-            // first-party or listed in `admin_client_ids` below (see
-            // `AuthenticateAgent::clientMayElevate`). Provision admin clients
-            // through Passport directly (a confidential first-party client),
-            // or pin their ids here.
+            // requires the token's client to be confidential AND listed in
+            // `admin_client_ids` below (see AuthenticateAgent::clientMayElevate).
+            // Passport's firstParty() is deliberately NOT trusted — it returns
+            // true for every ownerless client, which includes every
+            // DCR-registered client.
             'admin_scope' => env('AGENT_OAUTH_ADMIN_SCOPE', 'agent.admin'),
 
             // Allowlist of OAuth client ids permitted to elevate to admin
-            // (in addition to being confidential). First-party confidential
-            // clients elevate without being listed here; this is for pinning
-            // specific confidential third-party clients. Comma-separated in
-            // the env var. Empty (the default) means "first-party confidential
-            // clients only". A public/DCR client is never elevated regardless.
+            // (in addition to being confidential). This is the ONLY elevation
+            // grant: empty (the default) means NO OAuth caller elevates —
+            // admin stays reachable via the static bearer only. Provision an
+            // admin client through Passport directly and pin its id here.
+            // Comma-separated in the env var.
             'admin_client_ids' => array_values(array_filter(array_map(
                 'trim',
                 explode(',', (string) env('AGENT_OAUTH_ADMIN_CLIENT_IDS', '')),
