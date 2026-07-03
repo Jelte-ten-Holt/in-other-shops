@@ -7,6 +7,7 @@ namespace InOtherShops\Tests\Feature\Agent;
 use Illuminate\Contracts\Auth\Guard;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
 use InOtherShops\Agent\Http\Middleware\AuthenticateAgent;
@@ -404,6 +405,100 @@ final class AuthenticateAgentMiddlewareTest extends TestCase
         $body = $this->oauthProbe()->assertOk()->json();
 
         $this->assertFalse($body['agent.is_admin']);
+    }
+
+    // -----------------------------------------------------------------------
+    // Consumer user-gate — restrict *which* OAuth users may open a session.
+    //
+    // `agent.auth.oauth.user_gate` names a Gate ability; a scoped token whose
+    // user fails it gets 403 (not 401, not a silent bearer fallthrough). The
+    // static bearer is never gated. See AuthenticateAgent::passesUserGate().
+    // -----------------------------------------------------------------------
+
+    #[Test]
+    public function an_oauth_user_that_passes_the_user_gate_proceeds(): void
+    {
+        Gate::define('use-mcp', fn ($user): bool => true);
+        config()->set('agent.auth.oauth.user_gate', 'use-mcp');
+
+        $this->actAsOauthClient(['agent'], $this->fakeClient('c1', confidential: false, firstParty: false));
+
+        $this->oauthProbe()->assertOk();
+    }
+
+    #[Test]
+    public function an_oauth_user_that_fails_the_user_gate_is_forbidden_with_403(): void
+    {
+        // 403, not 401: the token is valid and scoped, the user simply isn't
+        // permitted. No WWW-Authenticate — re-authenticating won't help.
+        Gate::define('use-mcp', fn ($user): bool => false);
+        config()->set('agent.auth.oauth.user_gate', 'use-mcp');
+
+        $this->actAsOauthClient(['agent'], $this->fakeClient('c1', confidential: false, firstParty: false));
+
+        $this->oauthProbe()
+            ->assertStatus(403)
+            ->assertExactJson(['error' => 'forbidden'])
+            ->assertHeaderMissing('WWW-Authenticate');
+    }
+
+    #[Test]
+    public function no_user_gate_configured_admits_any_scoped_oauth_user(): void
+    {
+        // Back-compat: with user_gate unset, a scoped token proceeds regardless
+        // of user — preserving pre-gate behaviour for consumers (e.g. bianka)
+        // that don't set one.
+        config()->set('agent.auth.oauth.user_gate', null);
+
+        $this->actAsOauthClient(['agent'], $this->fakeClient('c1', confidential: false, firstParty: false));
+
+        $this->oauthProbe()->assertOk();
+    }
+
+    #[Test]
+    public function an_undefined_user_gate_ability_fails_closed_with_403(): void
+    {
+        // Misconfiguration guard: user_gate names an ability the consumer never
+        // defined. Gate::allows returns false → 403; the gate never opens the
+        // surface by default.
+        config()->set('agent.auth.oauth.user_gate', 'ability-that-does-not-exist');
+
+        $this->actAsOauthClient(['agent'], $this->fakeClient('c1', confidential: false, firstParty: false));
+
+        $this->oauthProbe()->assertStatus(403);
+    }
+
+    #[Test]
+    public function the_static_bearer_is_never_subject_to_the_user_gate(): void
+    {
+        // The bearer is the operator credential. Even a deny-all gate must not
+        // lock it out — in production the bearer isn't a Passport token, so the
+        // OAuth path skips (no user resolved) and the bearer path admits it
+        // ungated. No stub guard here: mirrors that production shape.
+        Gate::define('use-mcp', fn ($user): bool => false);
+        config()->set('agent.auth.oauth.enabled', true);
+        config()->set('agent.auth.oauth.user_gate', 'use-mcp');
+
+        $body = $this->getJson(self::PROBE_PATH, ['Authorization' => 'Bearer '.self::BEARER])
+            ->assertOk()->json();
+
+        $this->assertTrue($body['agent.is_admin']);
+    }
+
+    #[Test]
+    public function a_user_gate_denial_is_logged_at_warning_level(): void
+    {
+        Gate::define('use-mcp', fn ($user): bool => false);
+        config()->set('agent.auth.oauth.user_gate', 'use-mcp');
+        $this->actAsOauthClient(['agent'], $this->fakeClient('c1', confidential: false, firstParty: false));
+        Log::spy();
+
+        $this->oauthProbe()->assertStatus(403);
+
+        Log::shouldHaveReceived('warning')
+            ->withArgs(fn (string $message, array $context = []): bool => str_contains($message, 'user_gate')
+                && ($context['ability'] ?? null) === 'use-mcp')
+            ->once();
     }
 
     private function oauthProbe(): \Illuminate\Testing\TestResponse
