@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace InOtherShops\Tests\Feature\Pricing;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use InOtherShops\Currency\Enums\Currency;
 use InOtherShops\Pricing\Actions\ResolvePrice;
 use InOtherShops\Pricing\Models\PriceList;
@@ -209,5 +210,56 @@ final class ResolvePriceTest extends TestCase
         ]);
 
         $this->assertSame($listPrice->id, $priceable->priceFor(Currency::EUR, $list)->id);
+    }
+
+    #[Test]
+    public function it_resolves_from_a_loaded_relation_without_issuing_a_query(): void
+    {
+        // SCALE-2: when the caller eager-loaded `prices` (the catalogue does),
+        // resolving must not hit the DB again — the whole point of `with('prices')`.
+        $priceable = TestPriceable::factory()->create();
+        $priceable->prices()->create([
+            'currency' => Currency::EUR->value, 'amount' => 1500, 'minimum_quantity' => 1, 'price_list_id' => null,
+        ]);
+
+        $loaded = TestPriceable::query()->with('prices')->findOrFail($priceable->id);
+
+        DB::connection()->enableQueryLog();
+        $resolved = ($this->resolve)($loaded, Currency::EUR);
+        $queries = DB::connection()->getQueryLog();
+        DB::connection()->disableQueryLog();
+
+        $this->assertNotNull($resolved);
+        $this->assertSame(1500, $resolved->amount);
+        $this->assertCount(0, $queries, 'A loaded prices relation must resolve in-memory with no extra query.');
+    }
+
+    #[Test]
+    public function the_loaded_relation_path_matches_the_query_semantics(): void
+    {
+        // Parity: the in-memory pick must honour price-list preference, the
+        // base-list fallback, the tiered minimum_quantity rule, and currency
+        // isolation — exactly as the query path does.
+        $priceable = TestPriceable::factory()->create();
+        $list = PriceList::factory()->create(['name' => 'wholesale']);
+
+        $priceable->prices()->create([
+            'currency' => Currency::EUR->value, 'amount' => 1500, 'minimum_quantity' => 1, 'price_list_id' => null,
+        ]);
+        $bulkBase = $priceable->prices()->create([
+            'currency' => Currency::EUR->value, 'amount' => 1100, 'minimum_quantity' => 10, 'price_list_id' => null,
+        ]);
+        $listPrice = $priceable->prices()->create([
+            'currency' => Currency::EUR->value, 'amount' => 1200, 'minimum_quantity' => 1, 'price_list_id' => $list->id,
+        ]);
+
+        $loaded = TestPriceable::query()->with('prices')->findOrFail($priceable->id);
+
+        $this->assertSame($listPrice->id, ($this->resolve)($loaded, Currency::EUR, priceList: $list)->id,
+            'Requested price list wins from the loaded relation.');
+        $this->assertSame($bulkBase->id, ($this->resolve)($loaded, Currency::EUR, quantity: 12)->id,
+            'Highest satisfied tier wins from the loaded relation.');
+        $this->assertNull(($this->resolve)($loaded, Currency::USD),
+            'Currency isolation holds from the loaded relation.');
     }
 }
