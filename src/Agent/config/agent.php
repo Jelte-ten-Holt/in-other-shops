@@ -142,6 +142,23 @@ return [
                 explode(',', (string) env('AGENT_OAUTH_ADMIN_CLIENT_IDS', '')),
             ), static fn (string $id): bool => $id !== '')),
 
+            // Optional consumer authorization gate applied to OAuth *user*
+            // tokens. A token that passes scope checks additionally has its
+            // resolved user run through `Gate::forUser($user)->allows($ability)`;
+            // failing it returns 403 (authenticated, not authorized). This is
+            // how a consumer restricts "who may open an MCP session at all"
+            // (e.g. only operators) without gating every tool individually —
+            // base scope alone is grantable to any account via the standard
+            // OAuth flow, so a scope check is not an authorization check.
+            //
+            // Set to a Gate ability name defined by the consumer. Null (the
+            // default) means no gate — every scoped token proceeds, preserving
+            // prior behaviour. The static bearer is the operator credential and
+            // is NEVER subject to this gate. Fails closed: an unknown/undefined
+            // ability denies (Gate returns false), so a misconfigured gate
+            // locks the surface rather than opening it.
+            'user_gate' => env('AGENT_OAUTH_USER_GATE'),
+
             // Reject OAuth requests that omit the RFC 8707 `resource`
             // parameter. Off by default to preserve the "single-resource
             // AS" shortcut; turn on in production once every known client
