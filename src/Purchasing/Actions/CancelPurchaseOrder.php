@@ -6,7 +6,6 @@ namespace InOtherShops\Purchasing\Actions;
 
 use InOtherShops\Purchasing\Enums\PurchaseOrderStatus;
 use InOtherShops\Purchasing\Events\PurchaseOrderCancelled;
-use InOtherShops\Purchasing\Exceptions\InvalidPurchaseOrderTransitionException;
 use InOtherShops\Purchasing\Models\PurchaseOrder;
 
 /**
@@ -16,13 +15,13 @@ use InOtherShops\Purchasing\Models\PurchaseOrder;
  */
 final class CancelPurchaseOrder
 {
+    public function __construct(
+        private readonly UpdatePurchaseOrderStatus $updateStatus,
+    ) {}
+
     public function __invoke(PurchaseOrder $order): PurchaseOrder
     {
-        if (! $order->status->canTransitionTo(PurchaseOrderStatus::Cancelled)) {
-            throw InvalidPurchaseOrderTransitionException::between($order->status, PurchaseOrderStatus::Cancelled);
-        }
-
-        $order->update(['status' => PurchaseOrderStatus::Cancelled]);
+        ($this->updateStatus)($order, PurchaseOrderStatus::Cancelled);
 
         PurchaseOrderCancelled::dispatch($order);
 

@@ -43,7 +43,7 @@ final class ListStockLevels extends AgentTool
 
     public function description(): string
     {
-        return 'Bulk stock readout for a browsable type. Returns slug, name, stock_level, in_stock, and tracks_stock for each item from browseQuery(). Pass low_threshold to restrict to items currently at or below a stock level (sorted by stock_level ascending — most urgent first). Without low_threshold, items are returned in browseQuery() order.';
+        return 'Bulk availability readout for a browsable type. Returns slug, name, in_stock, and tracks_stock for each item from browseQuery(); admin callers additionally get the exact stock_level. low_threshold (restrict to items at or below a stock level, sorted most-urgent-first) is admin-only — it is a quantity oracle.';
     }
 
     public function inputSchema(): array
@@ -58,7 +58,7 @@ final class ListStockLevels extends AgentTool
                 'low_threshold' => [
                     'type' => 'integer',
                     'minimum' => 0,
-                    'description' => 'When set, returns only items with stock_level <= this number (sorted ascending). Items with no stock_items row are excluded.',
+                    'description' => 'Admin-only. When set, returns only items with stock_level <= this number (sorted ascending). Items with no stock_items row are excluded.',
                 ],
                 'page' => [
                     'type' => 'integer',
@@ -81,16 +81,30 @@ final class ListStockLevels extends AgentTool
         $modelClass = (new ResolveStockableModel)($type);
 
         $lowThreshold = $this->intArg($arguments, 'low_threshold');
+
+        // low_threshold is a quantity oracle: a non-admin could binary-search
+        // exact stock levels through it even with stock_level omitted from
+        // the shape. Admin-only, like the quantities themselves.
+        if ($lowThreshold !== null && ! $this->isAdmin()) {
+            return $this->failure(
+                'forbidden',
+                'low_threshold requires the admin scope or the operator bearer token.',
+                ['type' => $type, 'low_threshold' => $lowThreshold],
+            );
+        }
+
         $pagination = PaginationParams::fromArguments($arguments, self::MAX_PER_PAGE, self::DEFAULT_PER_PAGE);
 
         $paginator = $this->buildQuery($modelClass, $lowThreshold)
             ->paginate(perPage: $pagination->perPage, page: $pagination->page);
 
+        $isAdmin = $this->isAdmin();
+
         return [
             'ok' => true,
             'target' => ['type' => $type, 'low_threshold' => $lowThreshold],
             'data' => $paginator->getCollection()
-                ->map(fn (Model $model): array => $this->shape($model))
+                ->map(fn (Model $model): array => $this->shape($model, $isAdmin))
                 ->all(),
             'meta' => $this->paginationMeta($paginator),
         ];
@@ -124,16 +138,21 @@ final class ListStockLevels extends AgentTool
     }
 
     /** @return array<string, mixed> */
-    private function shape(Model $model): array
+    private function shape(Model $model, bool $includeQuantities): array
     {
         /** @var HasStorefrontPresence&HasStock $model */
-        return [
+        $shape = [
             'slug' => $model->getBrowsableSlug(),
             'name' => $model->getBrowsableName(),
-            'stock_level' => $model->stockLevel(),
             'in_stock' => $model->isInStock(),
             'tracks_stock' => $model->tracksStock(),
         ];
+
+        if ($includeQuantities) {
+            $shape['stock_level'] = $model->stockLevel();
+        }
+
+        return $shape;
     }
 
     /** @param array<string, mixed> $arguments */

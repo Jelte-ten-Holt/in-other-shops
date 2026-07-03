@@ -6,7 +6,6 @@ namespace InOtherShops\Purchasing\Actions;
 
 use InOtherShops\Purchasing\Enums\PurchaseOrderStatus;
 use InOtherShops\Purchasing\Events\PurchaseOrderPlaced;
-use InOtherShops\Purchasing\Exceptions\InvalidPurchaseOrderTransitionException;
 use InOtherShops\Purchasing\Models\PurchaseOrder;
 
 /**
@@ -15,16 +14,13 @@ use InOtherShops\Purchasing\Models\PurchaseOrder;
  */
 final class PlacePurchaseOrder
 {
+    public function __construct(
+        private readonly UpdatePurchaseOrderStatus $updateStatus,
+    ) {}
+
     public function __invoke(PurchaseOrder $order): PurchaseOrder
     {
-        if (! $order->status->canTransitionTo(PurchaseOrderStatus::Ordered)) {
-            throw InvalidPurchaseOrderTransitionException::between($order->status, PurchaseOrderStatus::Ordered);
-        }
-
-        $order->update([
-            'status' => PurchaseOrderStatus::Ordered,
-            'ordered_at' => now(),
-        ]);
+        ($this->updateStatus)($order, PurchaseOrderStatus::Ordered, ['ordered_at' => now()]);
 
         PurchaseOrderPlaced::dispatch($order);
 

@@ -25,6 +25,15 @@ final class ListStockLevelsToolTest extends TestCase
         ]);
     }
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // Exact quantities + low_threshold are admin-only (T-SEC3); the shape
+        // tests below exercise the admin view. Non-admin has its own tests.
+        request()->attributes->set('agent.is_admin', true);
+    }
+
     #[Test]
     public function it_lists_stock_levels_for_a_browsable_type(): void
     {
@@ -133,5 +142,40 @@ final class ListStockLevelsToolTest extends TestCase
     {
         $this->expectException(InvalidArgumentException::class);
         app(ListStockLevels::class)(['type' => 'browsable', 'low_threshold' => -1]);
+    }
+
+    #[Test]
+    public function non_admin_rows_carry_availability_but_never_the_exact_stock_level(): void
+    {
+        request()->attributes->set('agent.is_admin', false);
+
+        $thing = TestBrowsable::factory()->create(['slug' => 'thing-1']);
+        StockItem::factory()->withLevel(3)->create([
+            'stockable_type' => 'test_browsable',
+            'stockable_id' => $thing->id,
+        ]);
+
+        $result = app(ListStockLevels::class)(['type' => 'browsable']);
+
+        $this->assertTrue($result['ok']);
+        $row = collect($result['data'])->firstWhere('slug', 'thing-1');
+        $this->assertTrue($row['in_stock']);
+        $this->assertTrue($row['tracks_stock']);
+        $this->assertArrayNotHasKey('stock_level', $row);
+    }
+
+    #[Test]
+    public function non_admin_low_threshold_is_forbidden(): void
+    {
+        // low_threshold is a quantity oracle — a non-admin could binary-search
+        // exact levels through it even with stock_level omitted from the rows.
+        request()->attributes->set('agent.is_admin', false);
+
+        TestBrowsable::factory()->create(['slug' => 'thing-1']);
+
+        $result = app(ListStockLevels::class)(['type' => 'browsable', 'low_threshold' => 5]);
+
+        $this->assertFalse($result['ok']);
+        $this->assertSame('forbidden', $result['error']['code']);
     }
 }

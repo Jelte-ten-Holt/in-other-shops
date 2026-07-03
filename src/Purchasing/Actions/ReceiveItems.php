@@ -29,6 +29,7 @@ final class ReceiveItems
 {
     public function __construct(
         private readonly AdjustStock $adjustStock,
+        private readonly UpdatePurchaseOrderStatus $updateStatus,
     ) {}
 
     /**
@@ -108,7 +109,9 @@ final class ReceiveItems
         };
 
         if ($target !== $order->status) {
-            $order->update(['status' => $target]);
+            // Route through the state machine — a bare update() here would let
+            // a future status/flow change silently bypass allowedTransitions.
+            ($this->updateStatus)($order, $target);
         }
 
         return $order;

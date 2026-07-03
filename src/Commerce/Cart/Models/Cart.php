@@ -30,10 +30,11 @@ class Cart extends Model
     }
 
     /**
-     * The API default cart currency. The single home for the
-     * `commerce.cart.api.default_currency` literal — every currency resolver
-     * routes through here, so a future move to a `currency.default` home
-     * (T-D3) repoints one place.
+     * The API default cart currency. The home for the
+     * `commerce.cart.api.default_currency` literal on the cart path — with
+     * one known exception: Variants/Filament/VariantsSchema reads the config
+     * key directly (admin price fields, outside the cart object graph). A
+     * future move to a `currency.default` home (T-D3) must repoint BOTH.
      */
     public static function defaultCurrency(): Currency
     {

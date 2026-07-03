@@ -25,6 +25,15 @@ final class GetStockLevelToolTest extends TestCase
         ]);
     }
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // Exact quantities are admin-only (T-SEC3); the shape tests below
+        // exercise the admin view. Non-admin coarsening has its own tests.
+        request()->attributes->set('agent.is_admin', true);
+    }
+
     #[Test]
     public function it_returns_stock_level_and_availability(): void
     {
@@ -73,5 +82,39 @@ final class GetStockLevelToolTest extends TestCase
         $this->expectException(InvalidArgumentException::class);
 
         app(GetStockLevel::class)(['type' => 'mystery', 'slug' => 'whatever']);
+    }
+
+    #[Test]
+    public function non_admin_gets_in_stock_but_never_the_exact_stock_level(): void
+    {
+        request()->attributes->set('agent.is_admin', false);
+
+        $browsable = TestBrowsable::factory()->create(['slug' => 'stocked-thing']);
+        StockItem::factory()
+            ->withLevel(7)
+            ->create([
+                'stockable_type' => 'test_browsable',
+                'stockable_id' => $browsable->id,
+            ]);
+
+        $result = app(GetStockLevel::class)(['type' => 'browsable', 'slug' => 'stocked-thing']);
+
+        $this->assertTrue($result['ok']);
+        $this->assertTrue($result['data']['in_stock']);
+        $this->assertArrayNotHasKey('stock_level', $result['data']);
+    }
+
+    #[Test]
+    public function an_unstamped_request_is_treated_as_non_admin(): void
+    {
+        // Fail-closed default: no middleware stamp = no quantities.
+        request()->attributes->remove('agent.is_admin');
+
+        TestBrowsable::factory()->create(['slug' => 'unlinked-thing']);
+
+        $result = app(GetStockLevel::class)(['type' => 'browsable', 'slug' => 'unlinked-thing']);
+
+        $this->assertTrue($result['ok']);
+        $this->assertArrayNotHasKey('stock_level', $result['data']);
     }
 }
