@@ -326,6 +326,16 @@ The audit-actor work makes a slice of the Logging domain consumer-facing: a cons
 
 Renaming/retyping any of these is breaking for the consumer middleware. The dispatcher's precedence (explicit > ambient > unknown) means a consumer that sets nothing still gets `unknown` rows, never null.
 
+### Agent session authorization gate (consumer-facing)
+
+The `/mcp` endpoint authenticates OAuth user tokens and the static bearer via `AuthenticateAgent`. The base `agent` scope is grantable to any account through the standard OAuth flow, so scope alone is not authorization. Consumers restrict *which users may open an agent session* via a config knob:
+
+| Symbol | Consumer use |
+| --- | --- |
+| `config('agent.auth.oauth.user_gate')` (env `AGENT_OAUTH_USER_GATE`) | Names a consumer-defined Gate ability. A scoped OAuth token whose resolved user fails `Gate::forUser($user)->allows($ability)` gets **403** (not 401, no bearer fallthrough). Null (default) = no gate, every scoped token proceeds (back-compat — bianka sets none). The **static bearer is never gated** (operator credential, userless path). Fails closed: an undefined ability denies. |
+
+in-other-worlds wires this to a `use-mcp` ability (`is_super_admin` via `Gate::before`, else the `can_use_mcp` user flag). Removing the knob or changing its 403 semantics is breaking for any consumer relying on it to gate the surface.
+
 ### What is NOT part of the external surface
 
 - Internal model classes intended for swap via registry (`Currency.php`, `Commerce.php`, `Taxonomy.php`) — consumers configure via `config/{domain}.php` model keys; the registry method names are public, the resolved class names are not.

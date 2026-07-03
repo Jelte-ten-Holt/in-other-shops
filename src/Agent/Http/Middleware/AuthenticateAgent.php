@@ -8,6 +8,7 @@ use Closure;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
 use InOtherShops\Agent\Support\CanonicalUrl;
 use InOtherShops\Logging\DTOs\LogActor;
@@ -37,12 +38,31 @@ use Throwable;
  *                        AND its client is confidential + on the admin_client_ids
  *                        allowlist; see {@see self::clientMayElevate()})
  *
+ * An OAuth token that passes scope checks is additionally run through the
+ * optional consumer authorization gate ({@see self::passesUserGate()}). The
+ * base scope is grantable to any account via the standard OAuth flow, so a
+ * scope check is not an authorization check — a consumer that wants to
+ * restrict *who may open a session* (e.g. operators only) sets
+ * `agent.auth.oauth.user_gate` to a Gate ability. A resolved user that fails
+ * it gets 403 (authenticated, not authorized) and the request does NOT fall
+ * through to the bearer path. The static bearer is the operator credential and
+ * is never gated.
+ *
  * On 401 the response advertises the RFC 9728 protected-resource-metadata
  * URL via `WWW-Authenticate`, so OAuth-capable clients can discover how
  * to obtain a token without out-of-band config.
  */
 final class AuthenticateAgent
 {
+    /** OAuth token authenticated and authorized — proceed. */
+    private const int OAUTH_PROCEED = 1;
+
+    /** Not a usable OAuth token (no token, wrong/absent scope) — fall through. */
+    private const int OAUTH_SKIP = 0;
+
+    /** Valid, scoped OAuth token whose user failed the consumer gate — 403. */
+    private const int OAUTH_FORBIDDEN = -1;
+
     public function __construct(
         private readonly LogContext $logContext,
     ) {}
@@ -51,8 +71,18 @@ final class AuthenticateAgent
     {
         $bearer = (string) $request->bearerToken();
 
-        if ($bearer !== '' && $this->oauthEnabled() && $this->authenticateViaOauth($request)) {
-            return $next($request);
+        if ($bearer !== '' && $this->oauthEnabled()) {
+            $outcome = $this->authenticateViaOauth($request);
+
+            if ($outcome === self::OAUTH_PROCEED) {
+                return $next($request);
+            }
+
+            // A scoped token whose user is not authorized: fail as 403, and do
+            // NOT fall through to the bearer path (that would mask the reason).
+            if ($outcome === self::OAUTH_FORBIDDEN) {
+                return $this->forbidden();
+            }
         }
 
         if ($bearer !== '' && $this->authenticateViaStaticBearer($bearer, $request)) {
@@ -67,7 +97,8 @@ final class AuthenticateAgent
         return (bool) config('agent.auth.oauth.enabled', false);
     }
 
-    private function authenticateViaOauth(Request $request): bool
+    /** @return self::OAUTH_* */
+    private function authenticateViaOauth(Request $request): int
     {
         try {
             $guard = Auth::guard('api');
@@ -80,7 +111,7 @@ final class AuthenticateAgent
             // that case is invisible.
             $this->logAuthFailure('Auth::guard("api") failed to resolve.', $e);
 
-            return false;
+            return self::OAUTH_SKIP;
         }
 
         try {
@@ -92,17 +123,17 @@ final class AuthenticateAgent
             // this log, that surfaces as a generic 401 with no breadcrumb.
             $this->logAuthFailure('Auth::guard("api")->user() threw during token validation.', $e);
 
-            return false;
+            return self::OAUTH_SKIP;
         }
 
         if ($user === null) {
-            return false;
+            return self::OAUTH_SKIP;
         }
 
         $token = method_exists($user, 'token') ? $user->token() : null;
 
         if ($token === null) {
-            return false;
+            return self::OAUTH_SKIP;
         }
 
         $baseScope = (string) config('agent.auth.oauth.scope', 'agent');
@@ -121,7 +152,16 @@ final class AuthenticateAgent
             && $this->clientMayElevate($token);
 
         if (! $hasBase && ! $hasAdmin) {
-            return false;
+            return self::OAUTH_SKIP;
+        }
+
+        // Scope grants reach — but the base scope is self-service via the
+        // standard OAuth flow, so the consumer may additionally gate *which
+        // users* are allowed to open a session at all. A resolved user that
+        // fails the gate is authenticated-but-forbidden (403), never demoted
+        // to the bearer path.
+        if (! $this->passesUserGate($user)) {
+            return self::OAUTH_FORBIDDEN;
         }
 
         $tokenId = (string) ($token->id ?? $token->getKey() ?? '');
@@ -134,7 +174,50 @@ final class AuthenticateAgent
             bearerHash: substr(hash('sha256', $tokenId), 0, 12),
         );
 
-        return true;
+        return self::OAUTH_PROCEED;
+    }
+
+    /**
+     * Consumer authorization gate for OAuth user tokens. When
+     * `agent.auth.oauth.user_gate` names a Gate ability, the resolved user must
+     * pass it. Unset (default) means no gate — every scoped token proceeds.
+     *
+     * Fails closed: an undefined ability makes `Gate::allows` return false, so
+     * a misconfigured gate denies rather than opens the surface. The static
+     * bearer never reaches here — it has no user and its own path skips this.
+     */
+    private function passesUserGate(?Authenticatable $user): bool
+    {
+        $ability = config('agent.auth.oauth.user_gate');
+
+        if (! is_string($ability) || $ability === '') {
+            return true;
+        }
+
+        if (! $user instanceof Authenticatable) {
+            return false;
+        }
+
+        try {
+            $allowed = Gate::forUser($user)->allows($ability);
+        } catch (Throwable $e) {
+            // Evaluating the gate threw (a policy touched the DB and failed, a
+            // callback errored). Fail closed — a user we can't vet does not get
+            // a session — but leave a breadcrumb, since this would otherwise be
+            // an opaque 403.
+            $this->logAuthFailure("Evaluating the agent user_gate ability [{$ability}] threw.", $e);
+
+            return false;
+        }
+
+        if (! $allowed) {
+            Log::warning('AuthenticateAgent: OAuth user failed the user_gate.', [
+                'ability' => $ability,
+                'user_id' => $user->getAuthIdentifier(),
+            ]);
+        }
+
+        return $allowed;
     }
 
     private function tokenHasScope(object $token, string $scope, bool $strict = false): bool
@@ -313,5 +396,13 @@ final class AuthenticateAgent
         return response()->json(['error' => 'unauthorized'], 401, [
             'WWW-Authenticate' => $header,
         ]);
+    }
+
+    private function forbidden(): Response
+    {
+        // Authenticated but not authorized: the token was valid and scoped, the
+        // user simply isn't permitted to use the agent surface. No
+        // `WWW-Authenticate` — re-authenticating won't change the outcome.
+        return response()->json(['error' => 'forbidden'], 403);
     }
 }
