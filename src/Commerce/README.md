@@ -21,7 +21,7 @@ Session/token-based shopping cart, designed for guest checkout with optional cus
 
 ### Concerns
 
-- **`InteractsWithCart`** — trait for models implementing `HasCart`. Provides `cartItems(): MorphMany` and default `getCartableLabel()`/`getCartableDescription()` that return the model's `name`/`description` columns.
+- **`InteractsWithCart`** — trait for models implementing `HasCart`. Provides `cartItems(): MorphMany` and default `getCartableLabel()`/`getCartableDescription()` that return the model's `name`/`description` columns. The label default is null-safe: a missing/empty `name` falls back to `slug`, then to `"{morph alias} #{key}"`, so the `string` contract holds even for a cartable with no name translation.
 
 ### Actions
 

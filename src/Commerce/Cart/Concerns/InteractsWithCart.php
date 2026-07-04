@@ -54,9 +54,29 @@ trait InteractsWithCart
         return $this->morphMany($model, 'cartable');
     }
 
+    /**
+     * Default label: the model's `name`, falling back to `slug`, then to
+     * "{morph alias} #{key}". The fallbacks keep the `string` contract honest
+     * for cartables whose name is null or empty — e.g. a translated model
+     * with no name translation in any locale — instead of letting a null
+     * `name` escape as a TypeError that 500s every cart render containing
+     * the item (bianka AUDIT-2026-07-04 BUG-3).
+     */
     public function getCartableLabel(): string
     {
-        return $this->name;
+        $name = $this->name;
+
+        if (is_string($name) && $name !== '') {
+            return $name;
+        }
+
+        $slug = $this->slug;
+
+        if (is_string($slug) && $slug !== '') {
+            return $slug;
+        }
+
+        return $this->getMorphClass().' #'.$this->getKey();
     }
 
     public function getCartableDescription(): ?string
