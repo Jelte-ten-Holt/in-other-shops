@@ -34,9 +34,14 @@ use Throwable;
  *
  *   - `agent.user`     — the authenticated user (OAuth) or null (bearer)
  *   - `agent.scopes`   — the granted scope list
- *   - `agent.is_admin` — true if bearer OR (the token carries the admin scope
- *                        AND its client is confidential + on the admin_client_ids
- *                        allowlist; see {@see self::clientMayElevate()})
+ *   - `agent.is_admin` — true if bearer OR the token elevates via EITHER
+ *                        independent path:
+ *                        (a) client-identity — carries the admin scope AND its
+ *                            client is confidential + on the admin_client_ids
+ *                            allowlist ({@see self::clientMayElevate()}); or
+ *                        (b) user-identity — the resolved OAuth user passes the
+ *                            consumer's admin_gate ability
+ *                            ({@see self::passesAdminGate()}).
  *
  * An OAuth token that passes scope checks is additionally run through the
  * optional consumer authorization gate ({@see self::passesUserGate()}). The
@@ -47,6 +52,15 @@ use Throwable;
  * it gets 403 (authenticated, not authorized) and the request does NOT fall
  * through to the bearer path. The static bearer is the operator credential and
  * is never gated.
+ *
+ * Elevation path (b) exists because the client allowlist is unreachable for
+ * OAuth callers whose client is DCR-registered (no stable id to allowlist) and
+ * whose token can never carry the admin scope (it is never interactively
+ * grantable) — a Co-work session is the motivating case. Such a caller carries
+ * a trustworthy *user* instead: the consumer names an `admin_gate` ability that
+ * keys on the resolved user's own admin flag. Trust rests on user identity, not
+ * client identity, so a self-registered client authenticating as a non-admin
+ * user gains nothing. Unset admin_gate = no user-based elevation.
  *
  * On 401 the response advertises the RFC 9728 protected-resource-metadata
  * URL via `WWW-Authenticate`, so OAuth-capable clients can discover how
@@ -147,11 +161,11 @@ final class AuthenticateAgent
         // fails closed so a self-registered client that somehow obtained the
         // admin scope stays a base-scope caller.
         $hasBase = $this->tokenHasScope($token, $baseScope);
-        $hasAdmin = $adminScope !== null
+        $hasAdminViaClient = $adminScope !== null
             && $this->tokenHasScope($token, $adminScope, strict: true)
             && $this->clientMayElevate($token);
 
-        if (! $hasBase && ! $hasAdmin) {
+        if (! $hasBase && ! $hasAdminViaClient) {
             return self::OAUTH_SKIP;
         }
 
@@ -164,13 +178,21 @@ final class AuthenticateAgent
             return self::OAUTH_FORBIDDEN;
         }
 
+        $resolvedUser = $user instanceof Authenticatable ? $user : null;
+
+        // Two independent elevation paths, OR'd: the trusted-client path
+        // (admin scope + confidential + allowlisted) and the user-identity
+        // admin_gate. A caller whose client can never be allowlisted (Co-work
+        // / DCR) still elevates when its resolved operator user passes the gate.
+        $isAdmin = $hasAdminViaClient || $this->passesAdminGate($resolvedUser);
+
         $tokenId = (string) ($token->id ?? $token->getKey() ?? '');
 
         $this->stamp(
             request: $request,
-            user: $user instanceof Authenticatable ? $user : null,
+            user: $resolvedUser,
             scopes: $this->extractScopes($token),
-            isAdmin: $hasAdmin,
+            isAdmin: $isAdmin,
             bearerHash: substr(hash('sha256', $tokenId), 0, 12),
         );
 
@@ -218,6 +240,47 @@ final class AuthenticateAgent
         }
 
         return $allowed;
+    }
+
+    /**
+     * Consumer admin-elevation gate for OAuth user tokens. Symmetric with
+     * {@see self::passesUserGate()}, but it decides *elevation* rather than
+     * admission: when `agent.auth.oauth.admin_gate` names a Gate ability, a
+     * resolved user that passes it is stamped `agent.is_admin`.
+     *
+     * This is the user-identity elevation path — trust rests on the user's own
+     * admin flag (set out-of-band, never requestable), not on the client. It
+     * unlocks admin for callers the client allowlist can't reach (DCR clients,
+     * tokens that can't carry the admin scope), e.g. an operator's Co-work
+     * session.
+     *
+     * Unset (default) means NO user-based elevation, so a consumer that never
+     * sets it keeps the client-allowlist-only behaviour. Fails closed on an
+     * undefined ability (Gate returns false) or a throwing policy — a user we
+     * can't vet is not elevated.
+     */
+    private function passesAdminGate(?Authenticatable $user): bool
+    {
+        $ability = config('agent.auth.oauth.admin_gate');
+
+        if (! is_string($ability) || $ability === '') {
+            return false;
+        }
+
+        if (! $user instanceof Authenticatable) {
+            return false;
+        }
+
+        try {
+            return Gate::forUser($user)->allows($ability);
+        } catch (Throwable $e) {
+            // Evaluating the gate threw (a policy touched the DB and failed, a
+            // callback errored). Fail closed — no elevation — but leave a
+            // breadcrumb, since this would otherwise silently deny admin.
+            $this->logAuthFailure("Evaluating the agent admin_gate ability [{$ability}] threw.", $e);
+
+            return false;
+        }
     }
 
     private function tokenHasScope(object $token, string $scope, bool $strict = false): bool
