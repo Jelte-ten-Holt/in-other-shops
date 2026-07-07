@@ -501,6 +501,113 @@ final class AuthenticateAgentMiddlewareTest extends TestCase
             ->once();
     }
 
+    // -----------------------------------------------------------------------
+    // Consumer admin-gate — user-identity elevation for OAuth callers whose
+    // client can never be allowlisted (DCR / Co-work) nor carry the admin
+    // scope. `agent.auth.oauth.admin_gate` names a Gate ability; a resolved
+    // user that passes it is stamped is_admin, independent of the client.
+    // See AuthenticateAgent::passesAdminGate().
+    // -----------------------------------------------------------------------
+
+    #[Test]
+    public function an_oauth_user_that_passes_the_admin_gate_is_elevated(): void
+    {
+        Gate::define('elevate-mcp', fn ($user): bool => true);
+        config()->set('agent.auth.oauth.admin_gate', 'elevate-mcp');
+
+        // Base scope only, public non-allowlisted client — the Co-work shape.
+        // Elevation here can ONLY come from the user gate, not the client path.
+        $this->actAsOauthClient(['agent'], $this->fakeClient('dcr-cowork', confidential: true, firstParty: true));
+
+        $body = $this->oauthProbe()->assertOk()->json();
+
+        $this->assertTrue($body['agent.is_admin'], 'A user passing admin_gate must elevate even from a non-allowlisted client.');
+    }
+
+    #[Test]
+    public function an_oauth_user_that_fails_the_admin_gate_stays_base_scope(): void
+    {
+        Gate::define('elevate-mcp', fn ($user): bool => false);
+        config()->set('agent.auth.oauth.admin_gate', 'elevate-mcp');
+
+        $this->actAsOauthClient(['agent'], $this->fakeClient('dcr-cowork', confidential: true, firstParty: true));
+
+        $body = $this->oauthProbe()->assertOk()->json();
+
+        // Not elevated, but still admitted at base scope (the gate strips
+        // elevation, it does not reject the session — that's the user_gate's job).
+        $this->assertFalse($body['agent.is_admin']);
+        $this->assertContains('agent', $body['agent.scopes']);
+    }
+
+    #[Test]
+    public function no_admin_gate_configured_leaves_oauth_users_unelevated(): void
+    {
+        // Back-compat: with admin_gate unset, OAuth users never elevate via the
+        // user path — only the client allowlist can, preserving prior behaviour
+        // for consumers (e.g. bianka) that don't set one.
+        config()->set('agent.auth.oauth.admin_gate', null);
+
+        $this->actAsOauthClient(['agent'], $this->fakeClient('c1', confidential: true, firstParty: true));
+
+        $body = $this->oauthProbe()->assertOk()->json();
+
+        $this->assertFalse($body['agent.is_admin']);
+    }
+
+    #[Test]
+    public function an_undefined_admin_gate_ability_fails_closed_to_unelevated(): void
+    {
+        // Misconfiguration guard: admin_gate names an ability the consumer never
+        // defined. Gate::allows returns false → no elevation. Fails closed, same
+        // as the user gate — a bad config never grants admin.
+        config()->set('agent.auth.oauth.admin_gate', 'ability-that-does-not-exist');
+
+        $this->actAsOauthClient(['agent'], $this->fakeClient('c1', confidential: true, firstParty: true));
+
+        $body = $this->oauthProbe()->assertOk()->json();
+
+        $this->assertFalse($body['agent.is_admin']);
+        $this->assertContains('agent', $body['agent.scopes']);
+    }
+
+    #[Test]
+    public function the_admin_gate_is_independent_of_the_client_allowlist(): void
+    {
+        // The headline case: a Co-work-shaped caller — base scope, no admin
+        // scope, confidential+firstParty DCR client that is NOT allowlisted —
+        // is exactly the shape the client path rejects. The admin_gate is the
+        // only thing that can elevate it, and it does, keyed on the user.
+        config()->set('agent.auth.oauth.admin_client_ids', []);
+        Gate::define('elevate-mcp', fn ($user): bool => true);
+        config()->set('agent.auth.oauth.admin_gate', 'elevate-mcp');
+
+        $this->actAsOauthClient(['agent'], $this->fakeClient('dcr-ownerless', confidential: true, firstParty: true));
+
+        $body = $this->oauthProbe()->assertOk()->json();
+
+        $this->assertTrue($body['agent.is_admin']);
+    }
+
+    #[Test]
+    public function a_throwing_admin_gate_policy_fails_closed_and_is_logged(): void
+    {
+        Gate::define('elevate-mcp', function ($user): bool {
+            throw new RuntimeException('simulated admin_gate policy failure');
+        });
+        config()->set('agent.auth.oauth.admin_gate', 'elevate-mcp');
+        $this->actAsOauthClient(['agent'], $this->fakeClient('c1', confidential: true, firstParty: true));
+        Log::spy();
+
+        $body = $this->oauthProbe()->assertOk()->json();
+
+        $this->assertFalse($body['agent.is_admin'], 'A throwing admin_gate must fail closed — no elevation.');
+        Log::shouldHaveReceived('warning')
+            ->withArgs(fn (string $message, array $context = []): bool => str_contains($message, 'admin_gate')
+                && ($context['exception'] ?? null) === RuntimeException::class)
+            ->once();
+    }
+
     private function oauthProbe(): \Illuminate\Testing\TestResponse
     {
         return $this->getJson(self::PROBE_PATH, ['Authorization' => 'Bearer oauth-access-token']);
