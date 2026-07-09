@@ -63,7 +63,7 @@ Customer records for the shop. A customer can optionally be linked to an authent
 ### Models
 
 - **Customer** — name, email, phone, optional `authenticatable` morph. Uses `InteractsWithAddresses` from Location. Optionally belongs to a `CustomerGroup`.
-- **CustomerGroup** — name, code (unique slug). Groups customers for segmentation (e.g., "Wholesale", "VIP", "Retail"). Referenced by Pricing Rules (future) to resolve group-specific prices/discounts.
+- **CustomerGroup** — name, code (unique slug). Groups customers for segmentation (e.g., "Wholesale", "VIP", "Retail"). Referenced by Pricing Rules (future) to resolve group-specific prices/discounts. **Backend-only for now** (same status as Pricing's price lists): nothing reads the group yet, so `CustomerGroupResource` ships but neither consumer registers it, and `CustomerResource` deliberately omits the group select/column. Re-register + recompose when the pricing-rules middle (group → price list resolution) gets built.
 
 ### Contracts
 

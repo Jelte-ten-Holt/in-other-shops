@@ -9,7 +9,6 @@ use InOtherShops\Commerce\Filament\RelationManagers\CustomerOrdersRelationManage
 use InOtherShops\Commerce\Filament\Resources\CustomerResource\Pages;
 use InOtherShops\Location\Filament\LocationSchema;
 use Filament\Actions;
-use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use InOtherShops\Support\Filament\NavigationGroup;
 use InOtherShops\Support\Filament\PackageResource;
@@ -42,11 +41,6 @@ class CustomerResource extends PackageResource
                         TextInput::make('phone')
                             ->tel()
                             ->maxLength(50),
-                        Select::make('customer_group_id')
-                            ->relationship('group', 'name')
-                            ->searchable()
-                            ->preload()
-                            ->placeholder('No group'),
                     ]),
                 Section::make('Addresses')
                     ->schema([
@@ -67,9 +61,6 @@ class CustomerResource extends PackageResource
                     ->sortable(),
                 Tables\Columns\TextColumn::make('phone')
                     ->searchable(),
-                Tables\Columns\TextColumn::make('group.name')
-                    ->label('Group')
-                    ->sortable(),
                 Tables\Columns\TextColumn::make('orders_count')
                     ->label('Orders')
                     ->counts('orders')

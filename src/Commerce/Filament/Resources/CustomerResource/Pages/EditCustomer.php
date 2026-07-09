@@ -21,7 +21,12 @@ final class EditCustomer extends PackageEditRecord
             name: $data['name'],
             email: $data['email'],
             phone: $data['phone'] ?? null,
-            customerGroupId: isset($data['customer_group_id']) ? (int) $data['customer_group_id'] : null,
+            // The form no longer carries a group select (customer groups are
+            // backend-only until pricing rules exist) — preserve the stored
+            // assignment instead of nulling it on every unrelated edit.
+            customerGroupId: isset($data['customer_group_id'])
+                ? (int) $data['customer_group_id']
+                : ($record->customer_group_id === null ? null : (int) $record->customer_group_id),
         );
 
         return $record;
