@@ -32,6 +32,30 @@ final class VariantsSchemaTest extends TestCase
     }
 
     #[Test]
+    public function the_repeater_price_field_dehydrates_euros_to_integer_cents(): void
+    {
+        // Pins the MoneyFields wiring on the price input: the admin types major
+        // units ("25.00"), the form state dehydrates to integer cents. A bare
+        // ->numeric() input (the pre-0.46.1 shape) has no dehydrate closure and
+        // fails here — that shape made admins enter cents, unlike every other
+        // money field. Closure-level because this package has no panel-booted
+        // render layer (see its_form_components_build_without_error).
+        $price = collect(VariantsSchema::variantsRepeater()->getDefaultChildComponents())
+            ->first(fn ($component): bool => $component instanceof \Filament\Forms\Components\TextInput
+                && $component->getName() === 'price');
+
+        $this->assertNotNull($price, 'variantsRepeater() no longer contains a price TextInput.');
+
+        $property = new \ReflectionProperty($price, 'dehydrateStateUsing');
+        $dehydrate = $property->getValue($price);
+
+        $this->assertInstanceOf(\Closure::class, $dehydrate, 'Price field has no dehydrate transform — admins would be entering cents.');
+        $this->assertSame(2500, $dehydrate('25.00'));
+        $this->assertSame(2500, $dehydrate('25'));
+        $this->assertNull($dehydrate(''), 'Empty price must dehydrate to null (leave the price unchanged), not 0.');
+    }
+
+    #[Test]
     public function fill_loads_declared_axes_and_variant_rows(): void
     {
         $owner = TestVariantable::factory()->create();

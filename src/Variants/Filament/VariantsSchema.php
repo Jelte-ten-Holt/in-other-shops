@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Model;
 use InOtherShops\Currency\Enums\Currency;
 use InOtherShops\Inventory\Actions\AdjustStock;
 use InOtherShops\Inventory\Enums\StockMovementReason;
+use InOtherShops\Support\Filament\MoneyFields;
 use InOtherShops\Variants\Actions\DeleteVariant;
 use InOtherShops\Variants\Contracts\HasVariants;
 use InOtherShops\Variants\Models\Variant;
@@ -54,11 +55,10 @@ final class VariantsSchema
                 Hidden::make('id'),
                 Hidden::make('summary'),
                 TextInput::make('sku')->label('SKU')->maxLength(255),
-                TextInput::make('price')
+                MoneyFields::moneyInput('price', nullable: true)
                     ->label('Price ('.self::editingCurrency()->value.')')
-                    ->numeric()
-                    ->minValue(0)
-                    ->helperText('Smallest currency subunit (cents).'),
+                    ->step(0.01)
+                    ->helperText('Leave blank to keep the current price.'),
                 TextInput::make('stock')->label('Stock')->numeric(),
             ])
             ->columns(3)
