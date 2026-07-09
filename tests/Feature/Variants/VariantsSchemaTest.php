@@ -116,6 +116,26 @@ final class VariantsSchemaTest extends TestCase
     }
 
     #[Test]
+    public function save_accepts_float_price_and_stock_state_from_filament_numeric_inputs(): void
+    {
+        // Filament v5's NumberStateCast dehydrates every ->numeric() input to
+        // ?float — the dehydrated repeater state arrives with float price/stock,
+        // not int. Regression: applyPrice()/applyStock() are typed ?int and
+        // TypeError'd on every real admin save (mayangna 2026-07-09).
+        $owner = TestVariantable::factory()->create();
+        $variant = Variant::factory()->for($owner, 'variantable')->create();
+        StockItem::factory()->for($variant, 'stockable')->withLevel(2)->create();
+
+        VariantsSchema::saveFormData($owner, [
+            '_variant_options' => [],
+            '_variants' => [['id' => $variant->id, 'sku' => null, 'price' => 3300.0, 'stock' => 8.0]],
+        ]);
+
+        $this->assertSame(3300, $variant->priceFor(Currency::EUR)?->amount);
+        $this->assertSame(8, $variant->fresh()->stockLevel());
+    }
+
+    #[Test]
     public function save_deletes_variants_removed_from_the_repeater(): void
     {
         $owner = TestVariantable::factory()->create();

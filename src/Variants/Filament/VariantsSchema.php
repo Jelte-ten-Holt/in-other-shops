@@ -59,7 +59,7 @@ final class VariantsSchema
                     ->label('Price ('.self::editingCurrency()->value.')')
                     ->step(0.01)
                     ->helperText('Leave blank to keep the current price.'),
-                TextInput::make('stock')->label('Stock')->numeric(),
+                TextInput::make('stock')->label('Stock')->integer()->minValue(0),
             ])
             ->columns(3)
             ->defaultItems(0);
@@ -128,8 +128,10 @@ final class VariantsSchema
             }
 
             $variant->update(['sku' => $row['sku'] ?? null, 'position' => $position]);
-            self::applyPrice($variant, $row['price'] ?? null);
-            self::applyStock($variant, $row['stock'] ?? null);
+            // Filament's NumberStateCast dehydrates every ->numeric() input to
+            // ?float — coerce at the boundary before the typed sinks.
+            self::applyPrice($variant, self::intOrNull($row['price'] ?? null));
+            self::applyStock($variant, self::intOrNull($row['stock'] ?? null));
             $keptIds[] = $variant->id;
         }
 
@@ -172,6 +174,11 @@ final class VariantsSchema
         }
 
         app(AdjustStock::class)($variant, $delta, StockMovementReason::Adjusted, 'Admin variant stock edit');
+    }
+
+    private static function intOrNull(mixed $value): ?int
+    {
+        return $value === null || $value === '' ? null : (int) $value;
     }
 
     private static function editingCurrency(): Currency
