@@ -33,7 +33,6 @@ final class PricingSchema
                 self::amountField(),
                 self::compareAtAmountField(),
                 self::compareAtUntilField(),
-                self::priceListSelect(),
                 self::minimumQuantityField(),
             ])
             ->columns(2);
@@ -128,6 +127,15 @@ final class PricingSchema
             ->helperText('When this passes, the strikethrough price becomes the actual price and the strikethrough is cleared. Times are in the shop’s configured timezone ('.config('app.timezone').').');
     }
 
+    /**
+     * Not part of the default schemas (priceRepeater / PricesRelationManager):
+     * price lists have a full backend (PriceList model, ResolvePrice fallback)
+     * but no admin resource to manage them, so exposing the select only offers
+     * a footgun — a price assigned to a non-default list is invisible to the
+     * storefront, which resolves the is_default list with a list-less
+     * fallback. Compose this in deliberately when price lists become a real
+     * admin-managed feature (which also needs a PriceListResource).
+     */
     public static function priceListSelect(): Select
     {
         return Select::make('price_list_id')

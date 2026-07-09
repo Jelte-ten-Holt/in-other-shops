@@ -29,7 +29,6 @@ class PricesRelationManager extends RelationManager
                 PricingSchema::amountField(),
                 PricingSchema::compareAtAmountField(),
                 PricingSchema::compareAtUntilField(),
-                PricingSchema::priceListSelect(),
                 PricingSchema::minimumQuantityField(),
             ]);
     }
@@ -53,8 +52,6 @@ class PricesRelationManager extends RelationManager
                     ->label('Strikethrough ends')
                     ->dateTime()
                     ->placeholder('—'),
-                Tables\Columns\TextColumn::make('priceList.name')
-                    ->placeholder('Default'),
                 Tables\Columns\TextColumn::make('minimum_quantity')
                     ->sortable(),
             ])

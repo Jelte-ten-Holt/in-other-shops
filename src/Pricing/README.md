@@ -33,6 +33,8 @@ Unique constraint on `[priceable_type, priceable_id, price_list_id, currency, mi
 
 Groupings for segmented pricing (wholesale, VIP, seasonal).
 
+**Backend-only for now:** there is no admin resource to manage price lists, and `priceListSelect()` is deliberately excluded from the default schemas (`priceRepeater()` / `PricesRelationManager`) — without a way to create lists, the select only offers assigning a price to a list no storefront resolves, making it silently invisible. Lists are created programmatically (consumer seeders create the `is_default` one). When segmented pricing becomes a real feature, ship a `PriceListResource` and compose the select back in.
+
 **`price_lists` table:**
 
 | column | type | purpose |
@@ -93,7 +95,8 @@ interface HasPrices
 - `currencySelect(name)` — a currency Select that auto-hides when only one currency is enabled
 - `amountField()` / `compareAtAmountField()` — money inputs shown in major units (euros/pounds), dehydrated to integer cents
 - `compareAtUntilField()` — strikethrough end date, visible only while a strikethrough is set
-- `priceListSelect()` / `minimumQuantityField()`
+- `minimumQuantityField()`
+- `priceListSelect()` — **not in the default schemas** (see Price Lists above); compose in deliberately once price lists are admin-managed
 - `compareAtAmountRule(?Model $record)` — Guard B as a standalone, unit-testable closure: blocks a strikethrough on create (no price history) and rejects one above the price already on record. A heuristic, so it lives in the form layer, not on the model.
 
 The `compareAtAmountField()` also carries an Omnibus-Directive warning tooltip.
