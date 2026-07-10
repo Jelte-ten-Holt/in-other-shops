@@ -50,14 +50,14 @@ final class EditOrder extends PackageEditRecord
 
         if ($refunded > 0 && $refunded >= $order->total) {
             Notification::make()
-                ->title('This order is fully refunded')
-                ->body('It is still Confirmed — do not fulfil or ship it without checking.')
+                ->title(__('shops-commerce::orders.notifications.fully_refunded_title'))
+                ->body(__('shops-commerce::orders.notifications.fully_refunded_body'))
                 ->warning()
                 ->persistent()
                 ->send();
         } elseif ($refunded > 0) {
             Notification::make()
-                ->title('This order is partially refunded')
+                ->title(__('shops-commerce::orders.notifications.partially_refunded_title'))
                 ->warning()
                 ->send();
         }
@@ -71,25 +71,25 @@ final class EditOrder extends PackageEditRecord
     public static function partialRefundAction(): Actions\Action
     {
         return Actions\Action::make('partialRefund')
-            ->label('Partial refund')
+            ->label(__('shops-commerce::orders.actions.partial_refund'))
             ->icon('heroicon-o-arrow-uturn-left')
             ->color('warning')
             ->visible(fn (Order $record): bool => static::isRefundable($record))
             ->form(fn (Order $record): array => [
                 TextInput::make('amount')
-                    ->label('Amount to refund (minor units)')
-                    ->helperText('Leave blank for the full remaining balance.')
+                    ->label(__('shops-commerce::orders.fields.refund_amount'))
+                    ->helperText(__('shops-commerce::orders.fields.refund_amount_help'))
                     ->numeric()
                     ->minValue(1)
                     ->maxValue(max(1, $record->total - $record->refundedTotal())),
                 Textarea::make('reason')
-                    ->label('Reason')
+                    ->label(__('shops-commerce::orders.fields.reason'))
                     ->rows(2)
                     ->maxLength(500),
                 CheckboxList::make('restock')
-                    ->label('Restock these items (optional)')
+                    ->label(__('shops-commerce::orders.fields.restock'))
                     ->options(static::reservationOptions($record))
-                    ->helperText('Releases the chosen reservations back to available stock.'),
+                    ->helperText(__('shops-commerce::orders.fields.restock_help')),
             ])
             ->action(function (Order $record, array $data): void {
                 static::runRefund(function () use ($record, $data): void {
@@ -111,20 +111,19 @@ final class EditOrder extends PackageEditRecord
     public static function refundAndCancelAction(): Actions\Action
     {
         return Actions\Action::make('refundAndCancel')
-            ->label('Refund & cancel order')
+            ->label(__('shops-commerce::orders.actions.refund_and_cancel'))
             ->icon('heroicon-o-x-circle')
             ->color('danger')
             ->visible(fn (Order $record): bool => static::isRefundable($record)
                 && $record->status !== OrderStatus::Cancelled)
             ->form(fn (): array => [
                 Textarea::make('reason')
-                    ->label('Reason')
+                    ->label(__('shops-commerce::orders.fields.reason'))
                     ->rows(2)
                     ->maxLength(500),
             ])
             ->requiresConfirmation()
-            ->modalDescription('Refunds the full remaining balance, cancels the order, and releases all '
-                .'its reserved stock.')
+            ->modalDescription(__('shops-commerce::orders.actions.refund_and_cancel_modal'))
             ->action(function (Order $record, array $data): void {
                 static::runRefund(function () use ($record, $data): void {
                     app(RefundOrder::class)(
@@ -181,15 +180,15 @@ final class EditOrder extends PackageEditRecord
         try {
             $refund();
         } catch (DomainException $e) {
-            Notification::make()->title('Refund refused')->body($e->getMessage())->danger()->send();
+            Notification::make()->title(__('shops-commerce::orders.notifications.refund_refused'))->body($e->getMessage())->danger()->send();
 
             return;
         } catch (\RuntimeException|\InvalidArgumentException $e) {
-            Notification::make()->title('Refund failed')->body($e->getMessage())->danger()->send();
+            Notification::make()->title(__('shops-commerce::orders.notifications.refund_failed'))->body($e->getMessage())->danger()->send();
 
             return;
         }
 
-        Notification::make()->title('Refund issued')->success()->send();
+        Notification::make()->title(__('shops-commerce::orders.notifications.refund_issued'))->success()->send();
     }
 }

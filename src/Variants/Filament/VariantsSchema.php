@@ -35,31 +35,31 @@ final class VariantsSchema
     public static function axesField(): Select
     {
         return Select::make('_variant_options')
-            ->label('Varies by')
+            ->label(__('shops-variants::variant.axes.label'))
             ->multiple()
             ->options(fn (): array => Variants::option()::query()->get()
                 ->mapWithKeys(fn (Model $option): array => [$option->id => $option->translated('name') ?? $option->slug])
                 ->all())
-            ->helperText('The attributes this product varies by. Add values to each option in the Options catalog.')
+            ->helperText(__('shops-variants::variant.axes.help'))
             ->preload();
     }
 
     public static function variantsRepeater(): Repeater
     {
         return Repeater::make('_variants')
-            ->label('Variants')
+            ->label(__('shops-variants::variant.repeater.label'))
             ->addable(false)
             ->orderColumn('position')
             ->itemLabel(fn (array $state): ?string => $state['summary'] ?? null)
             ->schema([
                 Hidden::make('id'),
                 Hidden::make('summary'),
-                TextInput::make('sku')->label('SKU')->maxLength(255),
+                TextInput::make('sku')->label(__('shops-common::fields.sku'))->maxLength(255),
                 MoneyFields::moneyInput('price', nullable: true)
-                    ->label('Price ('.self::editingCurrency()->value.')')
+                    ->label(__('shops-variants::variant.repeater.price', ['currency' => self::editingCurrency()->value]))
                     ->step(0.01)
-                    ->helperText('Leave blank to keep the current price.'),
-                TextInput::make('stock')->label('Stock')->integer()->minValue(0),
+                    ->helperText(__('shops-variants::variant.repeater.price_help')),
+                TextInput::make('stock')->label(__('shops-variants::variant.repeater.stock'))->integer()->minValue(0),
             ])
             ->columns(3)
             ->defaultItems(0);

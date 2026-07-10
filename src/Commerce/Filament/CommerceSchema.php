@@ -60,16 +60,18 @@ final class CommerceSchema
         }
 
         $fields[] = TextInput::make('description')
+            ->label(__('shops-common::fields.description'))
             ->required()
             ->maxLength(255);
 
         $fields[] = TextInput::make('sku')
-            ->label('SKU')
+            ->label(__('shops-common::fields.sku'))
             ->maxLength(255);
 
         array_push($fields, ...self::currencyFields($orderableModels, $currencyOptions));
 
         $fields[] = MoneyFields::moneyInput('unit_price')
+            ->label(__('shops-commerce::orders.fields.unit_price'))
             ->required()
             ->live()
             ->afterStateUpdated(function (?string $state, Set $set, Get $get): void {
@@ -77,6 +79,7 @@ final class CommerceSchema
             });
 
         $fields[] = TextInput::make('quantity')
+            ->label(__('shops-common::fields.quantity'))
             ->required()
             ->numeric()
             ->default(1)
@@ -87,6 +90,7 @@ final class CommerceSchema
             });
 
         $fields[] = MoneyFields::moneyInput('line_total')
+            ->label(__('shops-commerce::orders.fields.line_total'))
             ->required();
 
         return $fields;
@@ -141,6 +145,7 @@ final class CommerceSchema
         }
 
         $select = BackedEnumState::normalize(Select::make('currency'))
+            ->label(__('shops-common::fields.currency'))
             ->required()
             ->live()
             ->dehydrated()
@@ -205,7 +210,7 @@ final class CommerceSchema
             Hidden::make('orderable_id'),
 
             Select::make('_orderable')
-                ->label('Item')
+                ->label(__('shops-commerce::orders.fields.item'))
                 ->options(fn (): array => self::buildOrderableOptions($orderableModels))
                 ->searchable()
                 ->preload()

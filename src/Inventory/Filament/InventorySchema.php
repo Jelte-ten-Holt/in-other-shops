@@ -23,28 +23,28 @@ final class InventorySchema
     {
         return [
             TextInput::make('_stock.stock_level')
-                ->label('Current stock')
+                ->label(__('shops-inventory::stock.fields.current_stock'))
                 ->disabled()
                 ->numeric()
                 ->default(0)
                 ->visibleOn('edit'),
             TextInput::make('_stock.low_stock_threshold')
-                ->label('Low stock threshold')
+                ->label(__('shops-inventory::stock.fields.low_stock_threshold'))
                 ->numeric()
                 ->minValue(0)
                 ->nullable(),
-            Section::make('Adjust Stock')
+            Section::make(__('shops-inventory::stock.section.adjust_stock'))
                 ->schema([
                     TextInput::make('_stock.adjustment_quantity')
-                        ->label('Quantity')
-                        ->helperText('Positive to add, negative to subtract')
+                        ->label(__('shops-common::fields.quantity'))
+                        ->helperText(__('shops-inventory::stock.fields.adjustment_quantity_help'))
                         ->numeric()
                         ->integer(),
                     Select::make('_stock.adjustment_reason')
-                        ->label('Reason')
+                        ->label(__('shops-inventory::stock.fields.reason'))
                         ->options(self::adjustmentReasonOptions()),
                     TextInput::make('_stock.adjustment_description')
-                        ->label('Description')
+                        ->label(__('shops-common::fields.description'))
                         ->maxLength(255),
                 ])
                 ->collapsed()
@@ -54,7 +54,7 @@ final class InventorySchema
 
     public static function stockSection(): Section
     {
-        return Section::make('Inventory')
+        return Section::make(__('shops-inventory::stock.section.inventory'))
             ->schema(self::stockFields())
             ->headerActions([
                 self::viewMovementsAction(),
@@ -64,9 +64,9 @@ final class InventorySchema
     private static function viewMovementsAction(): Action
     {
         return Action::make('viewStockMovements')
-            ->label('Movement History')
+            ->label(__('shops-inventory::stock.actions.movement_history'))
             ->icon('heroicon-o-clock')
-            ->modalHeading('Stock Movement History')
+            ->modalHeading(__('shops-inventory::stock.actions.movement_history_heading'))
             ->modalWidth(Width::FourExtraLarge)
             ->modalContent(fn (Model $record) => view('domains.inventory.stock-movements-modal', [
                 'stockableType' => $record->getMorphClass(),

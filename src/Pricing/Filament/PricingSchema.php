@@ -22,8 +22,6 @@ use InOtherShops\Support\Filament\MoneyFields;
  */
 final class PricingSchema
 {
-    private const COMPARE_AT_TOOLTIP = "Only use a price this item was genuinely sold at recently. Inventing a higher 'original' price to fake a discount is illegal under EU pricing rules (Omnibus Directive).";
-
     public static function priceRepeater(string $relationship = 'prices'): Repeater
     {
         return Repeater::make($relationship)
@@ -43,6 +41,7 @@ final class PricingSchema
         $enabled = Currency::enabled();
 
         $select = Select::make($name)
+            ->label(__('shops-common::fields.currency'))
             ->options(Currency::enabledOptions())
             ->required();
 
@@ -61,7 +60,9 @@ final class PricingSchema
      */
     public static function amountField(): TextInput
     {
-        return self::moneyField('amount')->required();
+        return self::moneyField('amount')
+            ->label(__('shops-pricing::price.amount'))
+            ->required();
     }
 
     /**
@@ -71,8 +72,8 @@ final class PricingSchema
     public static function compareAtAmountField(): TextInput
     {
         return self::moneyField('compare_at_amount')
-            ->label('Strikethrough price')
-            ->hintIcon('heroicon-m-exclamation-triangle', tooltip: self::COMPARE_AT_TOOLTIP)
+            ->label(__('shops-pricing::price.compare_at_amount'))
+            ->hintIcon('heroicon-m-exclamation-triangle', tooltip: __('shops-pricing::price.compare_at_tooltip'))
             ->rule(static fn (?Model $record): Closure => self::compareAtAmountRule($record));
     }
 
@@ -91,13 +92,13 @@ final class PricingSchema
             }
 
             if ($record === null) {
-                $fail("A strikethrough can't be set when first creating a price — there's no prior price the item was sold at. Save the price, then add a strikethrough.");
+                $fail(__('shops-pricing::price.compare_at_create_blocked'));
 
                 return;
             }
 
             if ((int) round((float) $value * 100) > (int) $record->amount) {
-                $fail('The strikethrough price cannot be higher than what this item is currently priced at. Use a price it was actually sold at before.');
+                $fail(__('shops-pricing::price.compare_at_too_high'));
             }
         };
     }
@@ -119,12 +120,12 @@ final class PricingSchema
     public static function compareAtUntilField(): DateTimePicker
     {
         return DateTimePicker::make('compare_at_until')
-            ->label('Strikethrough ends')
+            ->label(__('shops-pricing::price.compare_at_until'))
             ->seconds(false)
             ->after('now')
             ->timezone(config('app.timezone'))
             ->visible(fn (Get $get): bool => filled($get('compare_at_amount')))
-            ->helperText('When this passes, the strikethrough price becomes the actual price and the strikethrough is cleared. Times are in the shop’s configured timezone ('.config('app.timezone').').');
+            ->helperText(__('shops-pricing::price.compare_at_until_help', ['timezone' => config('app.timezone')]));
     }
 
     /**
@@ -139,6 +140,7 @@ final class PricingSchema
     public static function priceListSelect(): Select
     {
         return Select::make('price_list_id')
+            ->label(__('shops-pricing::price.price_list'))
             ->relationship('priceList', 'name')
             ->searchable()
             ->preload();
@@ -147,6 +149,7 @@ final class PricingSchema
     public static function minimumQuantityField(): TextInput
     {
         return TextInput::make('minimum_quantity')
+            ->label(__('shops-pricing::price.minimum_quantity'))
             ->numeric()
             ->default(1)
             ->minValue(1);

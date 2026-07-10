@@ -27,20 +27,22 @@ class TagsRelationManager extends RelationManager
             ->schema([
                 TranslationSchema::fields(
                     fields: [
-                        'name' => TextInput::make('name')->required()->maxLength(255),
+                        'name' => TextInput::make('name')->label(__('shops-common::fields.name'))->required()->maxLength(255),
                     ],
                     slugSource: 'name',
                     slugTarget: 'slug',
                 ),
                 TextInput::make('slug')
+                    ->label(__('shops-common::fields.slug'))
                     ->required()
                     ->maxLength(255)
                     ->unique(ignoreRecord: true),
                 TextInput::make('type')
+                    ->label(__('shops-common::fields.type'))
                     ->maxLength(255)
-                    ->placeholder('e.g. color, material, season'),
+                    ->placeholder(__('shops-taxonomy::tag.fields.type_placeholder')),
                 Toggle::make('is_active')
-                    ->label('Active')
+                    ->label(__('shops-common::fields.active'))
                     ->default(true),
             ]);
     }
@@ -50,13 +52,15 @@ class TagsRelationManager extends RelationManager
         return $table
             ->columns([
                 Tables\Columns\TextColumn::make('name')
+                    ->label(__('shops-common::fields.name'))
                     ->searchable(query: fn (Builder $query, string $search) => $query->whereTranslation('name', 'like', "%{$search}%"))
                     ->sortable(query: fn (Builder $query, string $direction) => $query->orderByTranslation('name', $direction)),
                 Tables\Columns\TextColumn::make('type')
+                    ->label(__('shops-common::fields.type'))
                     ->badge()
                     ->placeholder('—'),
                 Tables\Columns\IconColumn::make('is_active')
-                    ->label('Active')
+                    ->label(__('shops-common::fields.active'))
                     ->boolean(),
             ])
             ->headerActions([

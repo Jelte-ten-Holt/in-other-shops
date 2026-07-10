@@ -29,20 +29,23 @@ class CustomerResource extends PackageResource
     {
         return $schema
             ->schema([
-                Section::make('Contact Details')
+                Section::make(__('shops-commerce::customers.sections.contact_details'))
                     ->schema([
                         TextInput::make('name')
+                            ->label(__('shops-common::fields.name'))
                             ->required()
                             ->maxLength(512),
                         TextInput::make('email')
+                            ->label(__('shops-common::fields.email'))
                             ->email()
                             ->required()
                             ->maxLength(255),
                         TextInput::make('phone')
+                            ->label(__('shops-commerce::customers.fields.phone'))
                             ->tel()
                             ->maxLength(50),
                     ]),
-                Section::make('Addresses')
+                Section::make(__('shops-commerce::customers.sections.addresses'))
                     ->schema([
                         LocationSchema::addressRepeater(),
                     ]),
@@ -54,18 +57,22 @@ class CustomerResource extends PackageResource
         return $table
             ->columns([
                 Tables\Columns\TextColumn::make('name')
+                    ->label(__('shops-common::fields.name'))
                     ->searchable()
                     ->sortable(),
                 Tables\Columns\TextColumn::make('email')
+                    ->label(__('shops-common::fields.email'))
                     ->searchable()
                     ->sortable(),
                 Tables\Columns\TextColumn::make('phone')
+                    ->label(__('shops-commerce::customers.fields.phone'))
                     ->searchable(),
                 Tables\Columns\TextColumn::make('orders_count')
-                    ->label('Orders')
+                    ->label(__('shops-commerce::customers.columns.orders'))
                     ->counts('orders')
                     ->sortable(),
                 Tables\Columns\TextColumn::make('created_at')
+                    ->label(__('shops-common::fields.created_at'))
                     ->dateTime()
                     ->sortable(),
             ])

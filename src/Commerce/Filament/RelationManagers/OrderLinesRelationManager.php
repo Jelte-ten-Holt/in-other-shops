@@ -40,15 +40,19 @@ class OrderLinesRelationManager extends RelationManager
         return $table
             ->columns([
                 Tables\Columns\TextColumn::make('description')
+                    ->label(__('shops-common::fields.description'))
                     ->searchable(),
                 Tables\Columns\TextColumn::make('sku')
-                    ->label('SKU'),
+                    ->label(__('shops-common::fields.sku')),
                 Tables\Columns\TextColumn::make('quantity')
+                    ->label(__('shops-common::fields.quantity'))
                     ->sortable(),
                 Tables\Columns\TextColumn::make('unit_price')
+                    ->label(__('shops-commerce::orders.fields.unit_price'))
                     ->formatStateUsing(fn ($record) => $record->currency->format($record->unit_price))
                     ->sortable(),
                 Tables\Columns\TextColumn::make('line_total')
+                    ->label(__('shops-commerce::orders.fields.line_total'))
                     ->formatStateUsing(fn ($record) => $record->currency->format($record->line_total))
                     ->sortable(),
             ])

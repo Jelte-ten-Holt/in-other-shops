@@ -43,21 +43,25 @@ final class StockMovementsTable extends Component implements HasActions, HasForm
             )
             ->columns([
                 TextColumn::make('created_at')
-                    ->label('Date')
+                    ->label(__('shops-inventory::movements.columns.date'))
                     ->dateTime()
                     ->sortable(),
                 TextColumn::make('quantity')
+                    ->label(__('shops-common::fields.quantity'))
                     ->sortable(),
                 TextColumn::make('reason')
+                    ->label(__('shops-inventory::movements.columns.reason'))
                     ->formatStateUsing(fn ($state) => $state->label())
                     ->badge(),
                 TextColumn::make('source')
+                    ->label(__('shops-inventory::movements.columns.source'))
                     ->badge()
                     ->formatStateUsing(fn (?string $state) => $state !== null
                         ? (config("inventory.sources.{$state}") ?? $state)
                         : null)
                     ->placeholder('—'),
                 TextColumn::make('description')
+                    ->label(__('shops-common::fields.description'))
                     ->placeholder('—'),
             ])
             ->defaultSort('created_at', 'desc')

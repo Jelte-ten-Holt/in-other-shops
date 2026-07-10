@@ -30,7 +30,7 @@ final class PurchasingSchema
             ->schema(self::purchaseLineFields())
             ->columns(2)
             ->defaultItems(1)
-            ->addActionLabel('Add line');
+            ->addActionLabel(__('shops-purchasing::purchaseline.add_line'));
     }
 
     /**
@@ -45,25 +45,27 @@ final class PurchasingSchema
             // line with neither a product nor typed text is rejected — by the
             // CreatePurchaseOrder action, which is the real invariant.
             Textarea::make('description')
+                ->label(__('shops-common::fields.description'))
                 ->rows(2)
                 ->maxLength(255)
                 ->columnSpanFull(),
             TextInput::make('sku')
-                ->label('SKU')
+                ->label(__('shops-common::fields.sku'))
                 ->maxLength(255),
             TextInput::make('quantity_ordered')
+                ->label(__('shops-purchasing::purchaseline.quantity_ordered'))
                 ->required()
                 ->numeric()
                 ->integer()
                 ->minValue(1)
                 ->default(1),
             MoneyFields::moneyInput('unit_cost')
-                ->label('Unit cost (net)')
+                ->label(__('shops-purchasing::purchaseline.unit_cost'))
                 ->required(),
             // nullable: input_vat is a nullable column — blank means "not
             // recorded", not zero VAT.
             MoneyFields::moneyInput('input_vat', nullable: true)
-                ->label('Input VAT (reclaimable)')
+                ->label(__('shops-purchasing::purchaseline.input_vat'))
                 ->nullable(),
         ];
     }
@@ -83,7 +85,7 @@ final class PurchasingSchema
             Hidden::make('purchasable_type'),
             Hidden::make('purchasable_id'),
             Select::make('_purchasable')
-                ->label('Product')
+                ->label(__('shops-purchasing::purchaseline.product'))
                 ->options(fn (): array => self::buildPurchasableOptions($models))
                 ->searchable()
                 ->preload()

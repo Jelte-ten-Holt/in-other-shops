@@ -42,52 +42,54 @@ final class CategoryResource extends PackageResource
     {
         return $schema
             ->schema([
-                Section::make('Category Details')
+                Section::make(__('shops-taxonomy::category.section.details'))
                     ->schema([
                         TranslationSchema::fields(
                             fields: [
-                                'name' => TextInput::make('name')->required()->maxLength(255),
-                                'description' => Textarea::make('description'),
+                                'name' => TextInput::make('name')->label(__('shops-common::fields.name'))->required()->maxLength(255),
+                                'description' => Textarea::make('description')->label(__('shops-common::fields.description')),
                             ],
                             slugSource: 'name',
                             slugTarget: 'slug',
                         ),
                         TextInput::make('slug')
+                            ->label(__('shops-common::fields.slug'))
                             ->required()
                             ->maxLength(255)
                             ->unique(ignoreRecord: true),
                         Select::make('parent_id')
-                            ->label('Parent Category')
+                            ->label(__('shops-taxonomy::category.fields.parent'))
                             ->relationship('parent')
                             ->getOptionLabelFromRecordUsing(fn ($record) => $record->translated('name') ?? $record->slug)
                             ->searchable()
                             ->preload()
-                            ->placeholder('None (root category)'),
+                            ->placeholder(__('shops-taxonomy::category.fields.parent_placeholder')),
                         TextInput::make('position')
+                            ->label(__('shops-common::fields.position'))
                             ->numeric()
                             ->default(0)
                             ->minValue(0),
                         Toggle::make('is_active')
-                            ->label('Active')
+                            ->label(__('shops-common::fields.active'))
                             ->default(true),
                         Select::make('tags')
-                            ->label('Tags')
+                            ->label(__('shops-taxonomy::category.fields.tags'))
                             ->relationship('tags')
                             ->getOptionLabelFromRecordUsing(fn ($record) => $record->translated('name') ?? $record->slug)
                             ->multiple()
                             ->searchable()
                             ->preload()
-                            ->helperText('Flags for this category — e.g. a "featured" tag to surface it on the storefront home page.'),
+                            ->helperText(__('shops-taxonomy::category.fields.tags_help')),
                     ]),
-                Section::make('Cover Image')
+                Section::make(__('shops-taxonomy::category.section.cover_image'))
                     ->schema([
                         MediaSchema::mediaRepeater('images')
-                            ->label('Cover image')
-                            ->helperText('Shown on category teasers and listings.')
+                            ->label(__('shops-taxonomy::category.fields.cover_image'))
+                            ->helperText(__('shops-taxonomy::category.fields.cover_image_help'))
                             ->maxItems(1),
                     ]),
-                Section::make('Assigned items')
-                    ->description('Products, bundles and content currently in this category, grouped by type.')
+                Section::make(__('shops-taxonomy::category.section.assigned_items'))
+                    ->description(__('shops-taxonomy::category.section.assigned_items_description'))
                     ->hiddenOn('create')
                     ->schema([
                         Placeholder::make('assigned_items')
@@ -102,18 +104,21 @@ final class CategoryResource extends PackageResource
         return $table
             ->columns([
                 Tables\Columns\TextColumn::make('name')
+                    ->label(__('shops-common::fields.name'))
                     ->searchable(query: fn (Builder $query, string $search) => $query->whereTranslation('name', 'like', "%{$search}%"))
                     ->sortable(query: fn (Builder $query, string $direction) => $query->orderByTranslation('name', $direction)),
                 Tables\Columns\TextColumn::make('parent.name')
-                    ->label('Parent')
+                    ->label(__('shops-taxonomy::category.columns.parent'))
                     ->placeholder('—')
                     ->sortable(),
                 Tables\Columns\TextColumn::make('position')
+                    ->label(__('shops-common::fields.position'))
                     ->sortable(),
                 Tables\Columns\IconColumn::make('is_active')
-                    ->label('Active')
+                    ->label(__('shops-common::fields.active'))
                     ->boolean(),
                 Tables\Columns\TextColumn::make('created_at')
+                    ->label(__('shops-common::fields.created_at'))
                     ->dateTime()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
@@ -157,7 +162,7 @@ final class CategoryResource extends PackageResource
         $grouped = (new ListCategoryAttachments)($record);
 
         if ($grouped === []) {
-            return 'No products, bundles or content are assigned to this category or its sub-categories yet.';
+            return __('shops-taxonomy::category.assigned.empty');
         }
 
         $sections = '';
@@ -232,7 +237,7 @@ final class CategoryResource extends PackageResource
             ->count();
 
         if ($attached === 0) {
-            return 'Are you sure you want to delete this category? This action cannot be undone.';
+            return __('shops-taxonomy::category.delete.confirm');
         }
 
         $noun = $attached === 1 ? 'item is' : 'items are';

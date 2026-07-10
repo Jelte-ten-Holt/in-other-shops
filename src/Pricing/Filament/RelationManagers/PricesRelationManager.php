@@ -38,21 +38,24 @@ class PricesRelationManager extends RelationManager
         return $table
             ->columns([
                 Tables\Columns\TextColumn::make('currency')
+                    ->label(__('shops-common::fields.currency'))
                     ->badge(),
                 Tables\Columns\TextColumn::make('amount')
+                    ->label(__('shops-pricing::price.amount'))
                     ->formatStateUsing(fn ($record) => $record->formattedAmount())
                     ->sortable(),
                 Tables\Columns\TextColumn::make('compare_at_amount')
-                    ->label('Strikethrough')
+                    ->label(__('shops-pricing::price.strikethrough'))
                     ->formatStateUsing(fn ($record) => $record->compare_at_amount
                         ? $record->currency->format($record->compare_at_amount)
                         : '—'
                     ),
                 Tables\Columns\TextColumn::make('compare_at_until')
-                    ->label('Strikethrough ends')
+                    ->label(__('shops-pricing::price.compare_at_until'))
                     ->dateTime()
                     ->placeholder('—'),
                 Tables\Columns\TextColumn::make('minimum_quantity')
+                    ->label(__('shops-pricing::price.minimum_quantity'))
                     ->sortable(),
             ])
             ->headerActions([

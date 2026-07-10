@@ -45,23 +45,25 @@ final class OptionResource extends PackageResource
     {
         return $schema
             ->schema([
-                Section::make('Option')
+                Section::make(__('shops-variants::option.section.option'))
                     ->schema([
                         TranslationSchema::fields(
-                            fields: ['name' => TextInput::make('name')->required()->maxLength(255)],
+                            fields: ['name' => TextInput::make('name')->label(__('shops-common::fields.name'))->required()->maxLength(255)],
                             slugSource: 'name',
                             slugTarget: 'slug',
                         ),
                         TextInput::make('slug')
+                            ->label(__('shops-common::fields.slug'))
                             ->required()
                             ->maxLength(255)
                             ->unique(ignoreRecord: true),
                         TextInput::make('position')
+                            ->label(__('shops-common::fields.position'))
                             ->numeric()
                             ->default(0)
                             ->minValue(0),
                     ]),
-                Section::make('Values')
+                Section::make(__('shops-variants::option.section.values'))
                     ->schema([self::valuesRepeater()]),
             ]);
     }
@@ -69,22 +71,22 @@ final class OptionResource extends PackageResource
     public static function valuesRepeater(): Repeater
     {
         return Repeater::make('_values')
-            ->label('Values')
+            ->label(__('shops-variants::option.repeater.values_label'))
             ->orderColumn('position')
             ->schema([
                 ...self::labelInputs(),
                 TextInput::make('value')
-                    ->label('Code')
+                    ->label(__('shops-common::fields.code'))
                     ->required()
                     ->maxLength(255)
-                    ->helperText('Stable identifier, unique within this option (e.g. "silver", "size-7").'),
+                    ->helperText(__('shops-variants::option.value.code_help')),
                 FileUpload::make('swatch')
-                    ->label('Swatch image')
+                    ->label(__('shops-variants::option.value.swatch_label'))
                     ->image()
                     ->disk(config('media.disk'))
                     ->directory(config('media.directory'))
                     ->visibility('public')
-                    ->helperText('Optional. Shown in the storefront variant picker.'),
+                    ->helperText(__('shops-variants::option.value.swatch_help')),
             ])
             ->columns(2)
             ->defaultItems(0);
@@ -97,7 +99,7 @@ final class OptionResource extends PackageResource
 
         return array_map(
             fn (string $locale): TextInput => TextInput::make("labels.{$locale}")
-                ->label('Label ('.strtoupper($locale).')')
+                ->label(__('shops-variants::option.value.label', ['locale' => strtoupper($locale)]))
                 ->required($locale === $default)
                 ->maxLength(255),
             config('translation.locales', ['en']),
@@ -109,14 +111,17 @@ final class OptionResource extends PackageResource
         return $table
             ->columns([
                 Tables\Columns\TextColumn::make('name')
+                    ->label(__('shops-common::fields.name'))
                     ->searchable(query: fn (Builder $query, string $search) => $query->whereTranslation('name', 'like', "%{$search}%"))
                     ->sortable(query: fn (Builder $query, string $direction) => $query->orderByTranslation('name', $direction)),
                 Tables\Columns\TextColumn::make('slug')
+                    ->label(__('shops-common::fields.slug'))
                     ->searchable(),
                 Tables\Columns\TextColumn::make('values_count')
-                    ->label('Values')
+                    ->label(__('shops-variants::option.column.values'))
                     ->counts('values'),
                 Tables\Columns\TextColumn::make('position')
+                    ->label(__('shops-common::fields.position'))
                     ->sortable(),
             ])
             ->defaultSort('position')
