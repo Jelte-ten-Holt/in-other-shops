@@ -7,6 +7,8 @@ declare(strict_types=1);
  * en/price.php exactly.
  */
 return [
+    'title' => 'Precios',
+
     'amount' => 'Monto',
     'minimum_quantity' => 'Cantidad mínima',
     'price_list' => 'Lista de precios',

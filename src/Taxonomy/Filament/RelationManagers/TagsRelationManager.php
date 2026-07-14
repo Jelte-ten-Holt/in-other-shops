@@ -21,6 +21,11 @@ class TagsRelationManager extends RelationManager
 {
     protected static string $relationship = 'tags';
 
+    public static function getTitle(\Illuminate\Database\Eloquent\Model $ownerRecord, string $pageClass): string
+    {
+        return __('shops-taxonomy::tag.relation_title');
+    }
+
     public function form(Schema $schema): Schema
     {
         return $schema

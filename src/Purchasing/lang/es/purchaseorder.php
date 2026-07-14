@@ -7,6 +7,10 @@ declare(strict_types=1);
  * en/purchaseorder.php exactly.
  */
 return [
+    'model' => 'orden de compra',
+    'model_plural' => 'órdenes de compra',
+    'nav' => 'Órdenes de compra',
+
     'section' => [
         'details' => 'Detalles',
         'lines' => 'Líneas',

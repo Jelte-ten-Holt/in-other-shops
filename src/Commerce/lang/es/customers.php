@@ -7,6 +7,10 @@ declare(strict_types=1);
  * en/customers.php exactly.
  */
 return [
+    'model' => 'cliente',
+    'model_plural' => 'clientes',
+    'nav' => 'Clientes',
+
     'sections' => [
         'contact_details' => 'Datos de contacto',
         'addresses' => 'Direcciones',

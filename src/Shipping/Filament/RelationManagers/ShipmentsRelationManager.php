@@ -24,6 +24,11 @@ class ShipmentsRelationManager extends RelationManager
 {
     protected static string $relationship = 'shipments';
 
+    public static function getTitle(\Illuminate\Database\Eloquent\Model $ownerRecord, string $pageClass): string
+    {
+        return __('shops-shipping::shipment.title');
+    }
+
     public function table(Table $table): Table
     {
         return $table

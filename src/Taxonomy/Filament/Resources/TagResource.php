@@ -26,6 +26,11 @@ final class TagResource extends PackageResource
 
     protected static string|\UnitEnum|null $navigationGroup = NavigationGroup::Taxonomy;
 
+    protected static function labelKey(): string
+    {
+        return 'shops-taxonomy::tag';
+    }
+
     public static function form(Schema $schema): Schema
     {
         return $schema

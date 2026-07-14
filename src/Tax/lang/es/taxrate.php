@@ -7,6 +7,10 @@ declare(strict_types=1);
  * en/taxrate.php exactly.
  */
 return [
+    'model' => 'tasa de impuesto',
+    'model_plural' => 'tasas de impuesto',
+    'nav' => 'Tasas de impuesto',
+
     'section' => [
         'tax_rate' => 'Tasa de impuesto',
     ],

@@ -8,6 +8,10 @@ declare(strict_types=1);
  * `shops-common::fields.*`.
  */
 return [
+    'model' => 'purchase order',
+    'model_plural' => 'purchase orders',
+    'nav' => 'Purchase Orders',
+
     'section' => [
         'details' => 'Details',
         'lines' => 'Lines',

@@ -15,6 +15,11 @@ class OrderLinesRelationManager extends RelationManager
 {
     protected static string $relationship = 'lines';
 
+    public static function getTitle(\Illuminate\Database\Eloquent\Model $ownerRecord, string $pageClass): string
+    {
+        return __('shops-commerce::orders.lines_title');
+    }
+
     /**
      * Override in your project to provide currency options.
      *

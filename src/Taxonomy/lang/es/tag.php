@@ -7,6 +7,11 @@ declare(strict_types=1);
  * en/tag.php exactly.
  */
 return [
+    'model' => 'etiqueta',
+    'model_plural' => 'etiquetas',
+    'nav' => 'Etiquetas',
+    'relation_title' => 'Etiquetas',
+
     'section' => [
         'details' => 'Detalles de la etiqueta',
     ],

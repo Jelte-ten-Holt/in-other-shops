@@ -13,6 +13,11 @@ class CustomerOrdersRelationManager extends RelationManager
 {
     protected static string $relationship = 'orders';
 
+    public static function getTitle(\Illuminate\Database\Eloquent\Model $ownerRecord, string $pageClass): string
+    {
+        return __('shops-commerce::orders.relation_title');
+    }
+
     public function table(Table $table): Table
     {
         return $table

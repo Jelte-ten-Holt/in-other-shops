@@ -31,4 +31,54 @@ use Filament\Resources\Resource;
 abstract class PackageResource extends Resource
 {
     protected static bool $shouldCheckPolicyExistence = false;
+
+    /**
+     * Translation key prefix for this resource's own labels, e.g.
+     * `shops-tax::taxrate`. The base reads `{prefix}.model`, `{prefix}.model_plural`
+     * and `{prefix}.nav` from it. Return null to keep Filament's class-name
+     * derivation (the pre-i18n behaviour).
+     *
+     * Without this, Filament derives every sidebar entry and model label from the
+     * class name — always English — which is why an otherwise-Spanish panel still
+     * read "Tax Rates" and "Crear tax rate".
+     */
+    protected static function labelKey(): ?string
+    {
+        return null;
+    }
+
+    public static function getModelLabel(): string
+    {
+        $key = static::labelKey();
+
+        return $key === null ? parent::getModelLabel() : __($key.'.model');
+    }
+
+    public static function getPluralModelLabel(): string
+    {
+        $key = static::labelKey();
+
+        // Never fall through to Filament's Str::plural() for a translated label —
+        // it pluralizes by English rules and would mangle e.g. "tasa de impuesto".
+        return $key === null ? parent::getPluralModelLabel() : __($key.'.model_plural');
+    }
+
+    public static function getNavigationLabel(): string
+    {
+        $key = static::labelKey();
+
+        return $key === null ? parent::getNavigationLabel() : __($key.'.nav');
+    }
+
+    /**
+     * Title Case is an English typographic convention. Filament applies
+     * `Str::ucwords()` to model labels for headings, which turns a correct Spanish
+     * label ("tasa de impuesto") into "Tasa De Impuesto". Keep the title-casing for
+     * English — so English panels render byte-identically to before — and trust the
+     * translated label's own casing in every other locale.
+     */
+    public static function hasTitleCaseModelLabel(): bool
+    {
+        return str_starts_with(app()->getLocale(), 'en');
+    }
 }

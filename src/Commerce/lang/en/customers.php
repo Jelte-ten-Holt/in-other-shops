@@ -7,6 +7,10 @@ declare(strict_types=1);
  * recurring field labels (Name, Email, …) come from `shops-common::fields.*`.
  */
 return [
+    'model' => 'customer',
+    'model_plural' => 'customers',
+    'nav' => 'Customers',
+
     'sections' => [
         'contact_details' => 'Contact Details',
         'addresses' => 'Addresses',

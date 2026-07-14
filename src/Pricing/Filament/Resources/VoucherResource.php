@@ -31,6 +31,11 @@ final class VoucherResource extends PackageResource
 
     protected static string|\UnitEnum|null $navigationGroup = NavigationGroup::Pricing;
 
+    protected static function labelKey(): string
+    {
+        return 'shops-pricing::voucher';
+    }
+
     public static function form(Schema $schema): Schema
     {
         return $schema

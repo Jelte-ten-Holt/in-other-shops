@@ -7,6 +7,10 @@ declare(strict_types=1);
  * recurring field labels (Name, Country) come from `shops-common::fields.*`.
  */
 return [
+    'model' => 'tax rate',
+    'model_plural' => 'tax rates',
+    'nav' => 'Tax Rates',
+
     'section' => [
         'tax_rate' => 'Tax Rate',
     ],

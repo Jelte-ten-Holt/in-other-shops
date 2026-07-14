@@ -7,6 +7,8 @@ declare(strict_types=1);
  * en/payment.php exactly.
  */
 return [
+    'title' => 'Pagos',
+
     'columns' => [
         'gateway' => 'Pasarela',
         'amount' => 'Monto',

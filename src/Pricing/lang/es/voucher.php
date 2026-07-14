@@ -7,6 +7,10 @@ declare(strict_types=1);
  * en/voucher.php exactly.
  */
 return [
+    'model' => 'cupón',
+    'model_plural' => 'cupones',
+    'nav' => 'Cupones',
+
     'section' => [
         'details' => 'Detalles del cupón',
         'restrictions' => 'Restricciones',

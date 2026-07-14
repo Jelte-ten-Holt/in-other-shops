@@ -7,6 +7,8 @@ declare(strict_types=1);
  * recurring field labels (Reference, Status) come from `shops-common::fields.*`.
  */
 return [
+    'title' => 'Payments',
+
     'columns' => [
         'gateway' => 'Gateway',
         'amount' => 'Amount',

@@ -7,6 +7,10 @@ declare(strict_types=1);
  * recurring field labels (Code, Type, Active) come from `shops-common::fields.*`.
  */
 return [
+    'model' => 'voucher',
+    'model_plural' => 'vouchers',
+    'nav' => 'Vouchers',
+
     'section' => [
         'details' => 'Voucher Details',
         'restrictions' => 'Restrictions',

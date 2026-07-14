@@ -7,6 +7,8 @@ declare(strict_types=1);
  * en/shipment.php exactly.
  */
 return [
+    'title' => 'Envíos',
+
     'columns' => [
         'method' => 'Método',
         'carrier' => 'Transportista',

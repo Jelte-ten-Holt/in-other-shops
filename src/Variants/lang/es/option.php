@@ -7,6 +7,10 @@ declare(strict_types=1);
  * en/option.php exactly.
  */
 return [
+    'model' => 'opción',
+    'model_plural' => 'opciones',
+    'nav' => 'Opciones',
+
     'section' => [
         'option' => 'Opción',
         'values' => 'Valores',

@@ -7,6 +7,13 @@ declare(strict_types=1);
  * en/orders.php exactly.
  */
 return [
+    'model' => 'pedido',
+    'model_plural' => 'pedidos',
+    'nav' => 'Pedidos',
+    'relation_title' => 'Pedidos',
+    'addresses_title' => 'Direcciones',
+    'lines_title' => 'Líneas',
+
     'tabs' => [
         'details' => 'Detalles',
         'order_lines' => 'Líneas del pedido',

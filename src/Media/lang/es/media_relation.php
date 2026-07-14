@@ -7,6 +7,8 @@ declare(strict_types=1);
  * Keys mirror en/media_relation.php exactly.
  */
 return [
+    'title' => 'Multimedia',
+
     'fields' => [
         'path' => 'Ruta',
         'collection' => 'Colección',

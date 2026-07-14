@@ -33,6 +33,11 @@ class PurchaseOrderResource extends PackageResource
 
     protected static string|\UnitEnum|null $navigationGroup = NavigationGroup::Purchasing;
 
+    protected static function labelKey(): string
+    {
+        return 'shops-purchasing::purchaseorder';
+    }
+
     public static function form(Schema $schema): Schema
     {
         return $schema

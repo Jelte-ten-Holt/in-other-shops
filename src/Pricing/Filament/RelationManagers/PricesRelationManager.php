@@ -21,6 +21,11 @@ class PricesRelationManager extends RelationManager
 {
     protected static string $relationship = 'prices';
 
+    public static function getTitle(\Illuminate\Database\Eloquent\Model $ownerRecord, string $pageClass): string
+    {
+        return __('shops-pricing::price.title');
+    }
+
     public function form(Schema $schema): Schema
     {
         return $schema

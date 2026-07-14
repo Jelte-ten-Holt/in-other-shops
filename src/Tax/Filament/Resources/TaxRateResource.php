@@ -27,6 +27,11 @@ final class TaxRateResource extends PackageResource
 
     protected static string|\UnitEnum|null $navigationGroup = NavigationGroup::Tax;
 
+    protected static function labelKey(): string
+    {
+        return 'shops-tax::taxrate';
+    }
+
     public static function form(Schema $schema): Schema
     {
         return $schema

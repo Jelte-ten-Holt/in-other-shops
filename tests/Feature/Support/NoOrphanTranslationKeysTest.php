@@ -43,6 +43,15 @@ final class NoOrphanTranslationKeysTest extends TestCase
 
                 $literal = trim($token[1], "'\"");
 
+                // A literal ending in '.' is a PREFIX being concatenated at
+                // runtime (NavigationGroup's `'shops-common::nav.'.$case`,
+                // HasLabel's enum key), not a complete key — it can never
+                // resolve on its own. Those composed keys are covered by the
+                // parity test (their lang files) and AdminNavigationLabelsTest.
+                if (str_ends_with($literal, '.')) {
+                    continue;
+                }
+
                 if (preg_match('/^shops-[a-z]+::[A-Za-z0-9_.]+$/', $literal)) {
                     $keys[$literal] = true;
                 }

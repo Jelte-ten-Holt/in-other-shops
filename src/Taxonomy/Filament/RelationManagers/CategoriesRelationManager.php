@@ -24,6 +24,11 @@ class CategoriesRelationManager extends RelationManager
 {
     protected static string $relationship = 'categories';
 
+    public static function getTitle(\Illuminate\Database\Eloquent\Model $ownerRecord, string $pageClass): string
+    {
+        return __('shops-taxonomy::category.relation_title');
+    }
+
     public function form(Schema $schema): Schema
     {
         return $schema

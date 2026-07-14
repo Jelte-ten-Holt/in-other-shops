@@ -25,6 +25,11 @@ class CustomerResource extends PackageResource
 
     protected static string|\UnitEnum|null $navigationGroup = NavigationGroup::Commerce;
 
+    protected static function labelKey(): string
+    {
+        return 'shops-commerce::customers';
+    }
+
     public static function form(Schema $schema): Schema
     {
         return $schema

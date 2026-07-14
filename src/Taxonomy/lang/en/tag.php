@@ -8,6 +8,11 @@ declare(strict_types=1);
  * `shops-common::fields.*`.
  */
 return [
+    'model' => 'tag',
+    'model_plural' => 'tags',
+    'nav' => 'Tags',
+    'relation_title' => 'Tags',
+
     'section' => [
         'details' => 'Tag Details',
     ],

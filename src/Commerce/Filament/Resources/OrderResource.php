@@ -39,6 +39,11 @@ class OrderResource extends PackageResource
 
     protected static string|\UnitEnum|null $navigationGroup = NavigationGroup::Commerce;
 
+    protected static function labelKey(): string
+    {
+        return 'shops-commerce::orders';
+    }
+
     public static function form(Schema $schema): Schema
     {
         return $schema

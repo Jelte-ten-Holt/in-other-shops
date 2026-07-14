@@ -7,6 +7,10 @@ declare(strict_types=1);
  * en/supplier.php exactly.
  */
 return [
+    'model' => 'proveedor',
+    'model_plural' => 'proveedores',
+    'nav' => 'Proveedores',
+
     'section' => [
         'supplier' => 'Proveedor',
     ],

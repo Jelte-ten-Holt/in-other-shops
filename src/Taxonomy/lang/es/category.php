@@ -7,6 +7,11 @@ declare(strict_types=1);
  * en/category.php exactly.
  */
 return [
+    'model' => 'categoría',
+    'model_plural' => 'categorías',
+    'nav' => 'Categorías',
+    'relation_title' => 'Categorías',
+
     'section' => [
         'details' => 'Detalles de la categoría',
         'cover_image' => 'Imagen de portada',

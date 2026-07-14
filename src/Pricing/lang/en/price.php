@@ -7,6 +7,8 @@ declare(strict_types=1);
  * recurring field labels (Currency) come from `shops-common::fields.*`.
  */
 return [
+    'title' => 'Prices',
+
     'amount' => 'Amount',
     'minimum_quantity' => 'Minimum quantity',
     'price_list' => 'Price list',

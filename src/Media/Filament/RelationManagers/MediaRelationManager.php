@@ -22,6 +22,11 @@ class MediaRelationManager extends RelationManager
 {
     protected static string $relationship = 'media';
 
+    public static function getTitle(\Illuminate\Database\Eloquent\Model $ownerRecord, string $pageClass): string
+    {
+        return __('shops-media::media_relation.title');
+    }
+
     public function form(Schema $schema): Schema
     {
         $disk = config('media.disk');

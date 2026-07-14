@@ -17,6 +17,11 @@ class OrderAddressesRelationManager extends RelationManager
 {
     protected static string $relationship = 'addresses';
 
+    public static function getTitle(\Illuminate\Database\Eloquent\Model $ownerRecord, string $pageClass): string
+    {
+        return __('shops-commerce::orders.addresses_title');
+    }
+
     public function form(Schema $schema): Schema
     {
         return $schema

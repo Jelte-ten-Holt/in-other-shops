@@ -7,6 +7,8 @@ declare(strict_types=1);
  * strings only; recurring field labels come from `shops-common::fields.*`.
  */
 return [
+    'title' => 'Media',
+
     'fields' => [
         'path' => 'Path',
         'collection' => 'Collection',

@@ -41,6 +41,11 @@ final class OptionResource extends PackageResource
 
     protected static string|\UnitEnum|null $navigationGroup = NavigationGroup::Variants;
 
+    protected static function labelKey(): string
+    {
+        return 'shops-variants::option';
+    }
+
     public static function form(Schema $schema): Schema
     {
         return $schema

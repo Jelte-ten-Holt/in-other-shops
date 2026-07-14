@@ -38,6 +38,11 @@ final class CategoryResource extends PackageResource
 
     protected static string|\UnitEnum|null $navigationGroup = NavigationGroup::Taxonomy;
 
+    protected static function labelKey(): string
+    {
+        return 'shops-taxonomy::category';
+    }
+
     public static function form(Schema $schema): Schema
     {
         return $schema
