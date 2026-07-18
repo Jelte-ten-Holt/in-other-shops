@@ -65,6 +65,28 @@ final class ExpireAbandonedOrdersTest extends TestCase
     }
 
     #[Test]
+    public function it_voids_the_intent_of_an_order_abandoned_after_a_declined_attempt(): void
+    {
+        // A card decline moves the payment row to Failed but leaves the gateway
+        // intent in requires_payment_method — live and retryable from the
+        // shopper's still-open payment page. If expiry cancelled the order
+        // without voiding that intent, a late retry would capture money against
+        // a Cancelled order. The Failed payment must be swept like a Pending one.
+        $order = $this->pendingOrder(ageMinutes: 120);
+        $reservation = $this->reservationFor($order, 1);
+        $payment = $this->pendingPaymentFor($order, 'fake_pi_declined');
+        $payment->update(['status' => PaymentStatus::Failed]);
+
+        $count = ($this->expire)();
+
+        $this->assertSame(1, $count);
+        $this->assertSame(OrderStatus::Cancelled, $order->fresh()->status);
+        $this->assertSame(ReservationStatus::Released, $reservation->fresh()->status);
+        $this->assertSame(['fake_pi_declined'], $this->gateway->recordedCancellations(),
+            'A declined attempt leaves a retryable intent — expiry must void it.');
+    }
+
+    #[Test]
     public function it_leaves_a_fresh_order_within_the_window_alone(): void
     {
         $order = $this->pendingOrder(ageMinutes: 5);

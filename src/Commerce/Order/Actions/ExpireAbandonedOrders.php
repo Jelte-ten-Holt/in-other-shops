@@ -124,10 +124,20 @@ final class ExpireAbandonedOrders
         return $order->payments()->where('status', PaymentStatus::Succeeded->value)->exists();
     }
 
+    /**
+     * Failed is included alongside Pending because a failed ATTEMPT is not a
+     * terminal intent state: after a card decline the gateway parks the intent
+     * in requires_payment_method, still live and still completable from the
+     * shopper's open payment page. An order abandoned after a decline therefore
+     * carries a Failed payment with a retryable intent — skipping it here would
+     * cancel the order while leaving the intent chargeable, and a late retry
+     * would capture money against a Cancelled order (the exact decoupling this
+     * action exists to prevent).
+     */
     private function cancelGatewaySessions(Order $order): void
     {
         $payments = $order->payments()
-            ->where('status', PaymentStatus::Pending->value)
+            ->whereIn('status', [PaymentStatus::Pending->value, PaymentStatus::Failed->value])
             ->whereNotNull('gateway_reference')
             ->get();
 

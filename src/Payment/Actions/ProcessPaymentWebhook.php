@@ -41,13 +41,23 @@ final class ProcessPaymentWebhook
         $payload = $gateway->parseWebhook($request);
 
         return DB::transaction(function () use ($gatewayName, $payload): ?Payment {
-            if (! $this->recordIdempotency($gatewayName, $payload)) {
-                return null;
-            }
-
+            // Resolve the payment BEFORE recording idempotency. An event whose
+            // gateway_reference matches no payment yet (delivered before the
+            // pay page wrote the reference, or the process died between the
+            // gateway call and the write) must leave NO ledger row — otherwise
+            // the gateway's retries are all swallowed as duplicates and the
+            // event is permanently lost: order stuck Pending, customer charged.
+            // Dropping it unrecorded means a later redelivery can still land
+            // once the reference exists. The payment row lock also serialises
+            // concurrent deliveries of the same event, so the ledger insert
+            // below stays race-free despite running second.
             $payment = $this->findPayment($gatewayName, $payload);
 
             if ($payment === null) {
+                return null;
+            }
+
+            if (! $this->recordIdempotency($gatewayName, $payload)) {
                 return null;
             }
 

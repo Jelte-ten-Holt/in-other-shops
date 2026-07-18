@@ -128,8 +128,16 @@ final class ProcessPaymentWebhookTest extends TestCase
     }
 
     #[Test]
-    public function a_webhook_for_an_unknown_payment_reference_returns_null_and_dispatches_no_event(): void
+    public function a_webhook_for_an_unknown_payment_reference_is_dropped_without_recording_idempotency(): void
     {
+        // This inverts an earlier pin that recorded the idempotency row on a
+        // miss ("re-deliveries shouldn't re-search the DB"). That was the bug:
+        // under persist-then-pay the gateway_reference is written by the pay
+        // page, so a webhook can legitimately arrive BEFORE the reference
+        // exists — and recording the row made every subsequent retry dedupe
+        // against a delivery that did nothing. Order stuck Pending, customer
+        // charged, permanently. A miss must leave no trace so a retry can land
+        // once the reference is there (asserted by the next test).
         Event::fake([PaymentSucceeded::class]);
 
         // Build a payment so simulateWebhook works, but DON'T persist it via
@@ -148,10 +156,62 @@ final class ProcessPaymentWebhookTest extends TestCase
 
         $this->assertNull($returned);
         Event::assertNotDispatched(PaymentSucceeded::class);
-        // Idempotency row IS recorded — re-deliveries of the orphan event
-        // shouldn't re-search the DB. Pin this so a future "lazy" change
-        // that skips the idempotency write on miss doesn't regress.
+        $this->assertSame(0, WebhookEvent::query()->count(),
+            'A miss must not record idempotency — it would swallow every retry.');
+    }
+
+    #[Test]
+    public function a_retry_after_the_payment_reference_lands_processes_successfully(): void
+    {
+        // The recovery path the previous test exists to protect: delivery 1
+        // arrives before the pay page wrote the gateway_reference (dropped,
+        // no trace); the reference then lands; the gateway's retry of the SAME
+        // event id must go through in full.
+        Event::fake([PaymentSucceeded::class]);
+
+        $orphan = Payment::factory()->make([
+            'gateway' => 'fake',
+            'gateway_reference' => 'fake_pi_early',
+            'status' => PaymentStatus::Pending,
+            'amount' => 2500,
+            'currency' => Currency::EUR,
+        ]);
+
+        $early = $this->gateway->simulateWebhook($orphan, PaymentStatus::Succeeded, 'evt_early');
+        $this->assertNull(($this->process)('fake', $early));
+
+        // The pay page opens the intent and writes the reference.
+        $payment = $this->paymentWithReference('fake_pi_early', PaymentStatus::Pending);
+
+        $retry = $this->gateway->simulateWebhook($payment, PaymentStatus::Succeeded, 'evt_early');
+        $returned = ($this->process)('fake', $retry);
+
+        $this->assertNotNull($returned, 'The retry must not be treated as a duplicate.');
+        $this->assertSame(PaymentStatus::Succeeded, $payment->fresh()->status);
+        Event::assertDispatched(PaymentSucceeded::class);
         $this->assertSame(1, WebhookEvent::query()->count());
+    }
+
+    #[Test]
+    public function a_declined_then_retried_payment_moves_failed_to_succeeded_and_dispatches(): void
+    {
+        // Stripe's payment_failed is attempt-level: the intent stays retryable
+        // and a second attempt on it can succeed. The payment row must follow —
+        // Failed is not terminal. Consumers rely on this transition to confirm
+        // an order whose first attempt declined (see PaymentFailed's docblock).
+        Event::fake([PaymentSucceeded::class, PaymentFailed::class]);
+
+        $payment = $this->paymentWithReference('fake_pi_retry', PaymentStatus::Pending);
+
+        ($this->process)('fake', $this->gateway->simulateWebhook($payment, PaymentStatus::Failed, 'evt_attempt_1'));
+        $this->assertSame(PaymentStatus::Failed, $payment->fresh()->status);
+
+        ($this->process)('fake', $this->gateway->simulateWebhook($payment, PaymentStatus::Succeeded, 'evt_attempt_2'));
+
+        $this->assertSame(PaymentStatus::Succeeded, $payment->fresh()->status,
+            'A failed ATTEMPT must not block the eventual success.');
+        Event::assertDispatched(PaymentFailed::class);
+        Event::assertDispatched(PaymentSucceeded::class);
     }
 
     #[Test]
