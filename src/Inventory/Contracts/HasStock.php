@@ -35,8 +35,16 @@ interface HasStock
 
     /**
      * Whether the consuming project allows this stockable to be sold past
-     * its current stock level. The Cart and Reservation actions consult
-     * this to decide whether to reject an oversell. Default: false.
+     * its current stock level. Default: false.
+     *
+     * Consulted by the CART gate only (`EnsureCartableInStock`), NOT by the
+     * reservation actions: `ReserveStock` reads its own `$rejectOversell`
+     * parameter and never calls this method. A consumer whose checkout must
+     * honour backorders passes the pairing itself from its ReserveItems step —
+     * `rejectOversell: ! $cartable->allowsBackorder()` — or a backorderable
+     * item adds to the cart and is then refused at reservation. The pairing
+     * stays consumer-side deliberately: wiring it into `ReserveStock` would
+     * silently change the oversell behaviour of existing consumers.
      */
     public function allowsBackorder(): bool;
 }
