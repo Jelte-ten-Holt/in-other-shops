@@ -19,6 +19,7 @@ use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
 use PHPUnit\Framework\Attributes\Test;
 use RuntimeException;
 use Stripe\Customer;
+use Stripe\Exception\InvalidRequestException;
 use Stripe\PaymentIntent;
 use Stripe\Refund;
 use Stripe\Service\CustomerService;
@@ -207,6 +208,33 @@ final class StripePaymentGatewayTest extends TestCase
             ->once()
             ->with('pi_cancelable')
             ->andReturn(PaymentIntent::constructFrom(['id' => 'pi_cancelable', 'status' => 'canceled']));
+
+        $this->gateway->cancelSession($payment);
+    }
+
+    #[Test]
+    public function cancel_session_maps_a_race_to_succeeded_into_not_cancelable(): void
+    {
+        // M11: the intent read as cancelable, but succeeded between the retrieve
+        // and the cancel. Stripe rejects the cancel with an InvalidRequestException;
+        // it must surface as PaymentNotCancelableException (the "money may yet
+        // move" signal) rather than a raw Stripe error escaping to a 500.
+        $payment = $this->paymentFor(1000, Currency::EUR);
+        $payment->gateway_reference = 'pi_raced';
+
+        $this->paymentIntents
+            ->shouldReceive('retrieve')
+            ->once()
+            ->with('pi_raced')
+            ->andReturn(PaymentIntent::constructFrom(['id' => 'pi_raced', 'status' => 'requires_payment_method']));
+
+        $this->paymentIntents
+            ->shouldReceive('cancel')
+            ->once()
+            ->with('pi_raced')
+            ->andThrow(new InvalidRequestException('You cannot cancel this PaymentIntent because it has a status of succeeded.'));
+
+        $this->expectException(PaymentNotCancelableException::class);
 
         $this->gateway->cancelSession($payment);
     }

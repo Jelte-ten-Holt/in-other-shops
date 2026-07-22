@@ -15,6 +15,7 @@ use InOtherShops\Payment\Models\Payment;
 use Illuminate\Http\Request;
 use RuntimeException;
 use Stripe\Event;
+use Stripe\Exception\InvalidRequestException;
 use Stripe\Exception\SignatureVerificationException;
 use Stripe\PaymentIntent;
 use Stripe\Refund;
@@ -93,7 +94,17 @@ final class StripePaymentGateway implements ManagesCustomers, PaymentGateway
             throw PaymentNotCancelableException::inFlight($payment, "intent status: {$intent->status}");
         }
 
-        $this->client->paymentIntents->cancel($payment->gateway_reference);
+        try {
+            $this->client->paymentIntents->cancel($payment->gateway_reference);
+        } catch (InvalidRequestException $e) {
+            // The intent raced to a non-cancelable state (typically succeeded)
+            // between the retrieve above and this cancel. Stripe rejects the
+            // cancel with an InvalidRequestException; surface it as the same
+            // "money may yet move" signal the status check raises, so the caller
+            // (order-expiry / cancel-and-replace) leaves the order for the
+            // confirm path rather than 500-ing on a raw Stripe error (M11).
+            throw PaymentNotCancelableException::inFlight($payment, $e->getMessage());
+        }
     }
 
     public function retrieveSession(Payment $payment): PaymentSession

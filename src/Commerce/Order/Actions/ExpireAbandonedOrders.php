@@ -12,6 +12,8 @@ use InOtherShops\Payment\Exceptions\PaymentNotCancelableException;
 use InOtherShops\Payment\PaymentGatewayManager;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Throwable;
 
 /**
  * Cancel Pending orders that were never paid within their hold window — the
@@ -58,8 +60,19 @@ final class ExpireAbandonedOrders
         $cancelled = 0;
 
         foreach ($this->candidateIds($cutoff) as $orderId) {
-            if ($this->expireOne((int) $orderId)) {
-                $cancelled++;
+            // One order that throws — a gateway outage, an unexpected driver
+            // error — must not starve the sweep and leave every later order
+            // stranded. Log it and move on; the next run retries it.
+            try {
+                if ($this->expireOne((int) $orderId)) {
+                    $cancelled++;
+                }
+            } catch (Throwable $e) {
+                Log::error('expire-orders: skipping an order that threw during expiry.', [
+                    'order_id' => $orderId,
+                    'exception' => $e::class,
+                    'message' => $e->getMessage(),
+                ]);
             }
         }
 
@@ -94,8 +107,21 @@ final class ExpireAbandonedOrders
 
         try {
             $this->cancelGatewaySessions($order);
-        } catch (PaymentNotCancelableException) {
-            return false; // intent is live — leave the order for the confirm path
+        } catch (PaymentNotCancelableException $e) {
+            // Intent is live — leave the order for the confirm path. Warn with
+            // the order id + reference(s): a paid-but-still-Pending order that
+            // keeps failing to expire is an operator signal, not silent.
+            Log::warning('expire-orders: order left Pending — its gateway intent is live.', [
+                'order_id' => $order->id,
+                'order_number' => $order->order_number,
+                'references' => $order->payments()
+                    ->whereIn('status', [PaymentStatus::Pending->value, PaymentStatus::Failed->value])
+                    ->whereNotNull('gateway_reference')
+                    ->pluck('gateway_reference')->all(),
+                'reason' => $e->getMessage(),
+            ]);
+
+            return false;
         }
 
         // Phase 2 — short locked transaction: re-check and transition. The
