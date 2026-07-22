@@ -130,12 +130,11 @@ class OrderResource extends PackageResource
             ->actions([
                 static::updateStatusAction(),
                 Actions\EditAction::make(),
-            ])
-            ->bulkActions([
-                Actions\BulkActionGroup::make([
-                    Actions\DeleteBulkAction::make(),
-                ]),
             ]);
+        // No bulk delete (D4/M3): a bulk action can't tell a fresh, payment-less
+        // Pending order from a paid one, and deleting a paid order destroys the
+        // record of money that moved. Per-order deletion of a genuinely-deletable
+        // order stays available on the edit page, gated by Order::isDeletable().
     }
 
     public static function getRelations(): array

@@ -65,7 +65,7 @@ final class CartDeletionGuardTest extends TestCase
 
     private function referenceFromCart(TestCartable $cartable, ?\DateTimeInterface $expiresAt): void
     {
-        $cart = Cart::factory()->create(['expires_at' => $expiresAt]);
+        $cart = Cart::factory()->create();
 
         $cartable->cartItems()->create([
             'cart_id' => $cart->id,
@@ -73,5 +73,10 @@ final class CartDeletionGuardTest extends TestCase
             'unit_price' => 1000,
             'currency' => 'EUR',
         ]);
+
+        // Set the cart's expiry AFTER the item exists, via a raw update: creating
+        // an item slides the guest-cart TTL forward (D7), which would otherwise
+        // clobber the value this helper is trying to pin.
+        Cart::query()->whereKey($cart->id)->update(['expires_at' => $expiresAt]);
     }
 }

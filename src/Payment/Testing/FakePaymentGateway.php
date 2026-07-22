@@ -51,8 +51,11 @@ final class FakePaymentGateway implements ManagesCustomers, PaymentGateway
     /** @var list<string> gateway references cancelled via cancelSession() */
     private array $cancellations = [];
 
-    /** @var list<string> gateway references forced "live" so cancelSession() throws */
+    /** @var list<string> gateway references forced "live" so cancelSession() throws PaymentNotCancelableException */
     private array $liveReferences = [];
+
+    /** @var list<string> gateway references whose cancelSession() throws a generic gateway error */
+    private array $erroringReferences = [];
 
     private int $sessionCounter = 0;
 
@@ -96,6 +99,12 @@ final class FakePaymentGateway implements ManagesCustomers, PaymentGateway
 
         if (in_array($payment->gateway_reference, $this->liveReferences, true)) {
             throw PaymentNotCancelableException::inFlight($payment, 'fake: marked live');
+        }
+
+        if (in_array($payment->gateway_reference, $this->erroringReferences, true)) {
+            // A generic gateway fault (outage, driver bug) — NOT the "live intent"
+            // signal. Lets callers exercise their unexpected-error handling.
+            throw new RuntimeException('fake: gateway unavailable');
         }
 
         if (! in_array($payment->gateway_reference, $this->cancellations, true)) {
@@ -269,6 +278,17 @@ final class FakePaymentGateway implements ManagesCustomers, PaymentGateway
     public function markSessionLive(string $gatewayReference): void
     {
         $this->liveReferences[] = $gatewayReference;
+    }
+
+    /**
+     * Force a reference to throw a GENERIC error from cancelSession() — a stand-
+     * in for a gateway outage or driver fault (distinct from the "live intent"
+     * PaymentNotCancelableException). Lets callers exercise unexpected-error
+     * handling, e.g. that order-expiry survives one bad order and continues.
+     */
+    public function markSessionErroring(string $gatewayReference): void
+    {
+        $this->erroringReferences[] = $gatewayReference;
     }
 
     private function nextReference(): string

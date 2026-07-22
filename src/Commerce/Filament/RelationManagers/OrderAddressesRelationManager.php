@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace InOtherShops\Commerce\Filament\RelationManagers;
 
+use InOtherShops\Commerce\Order\Models\Order;
 use InOtherShops\Location\Enums\AddressType;
 use Filament\Actions;
 use Filament\Forms\Components\Select;
@@ -93,12 +94,24 @@ class OrderAddressesRelationManager extends RelationManager
             ])
             ->actions([
                 Actions\EditAction::make(),
-                Actions\DeleteAction::make(),
+                // D4/M16: you can't strip the address off an order you can't
+                // delete — a paid or past-Pending order must keep its shipping
+                // record. Gated on the owner order, not the address row.
+                Actions\DeleteAction::make()
+                    ->hidden(fn (): bool => ! $this->ownerOrderIsDeletable()),
             ])
             ->bulkActions([
                 Actions\BulkActionGroup::make([
-                    Actions\DeleteBulkAction::make(),
+                    Actions\DeleteBulkAction::make()
+                        ->hidden(fn (): bool => ! $this->ownerOrderIsDeletable()),
                 ]),
             ]);
+    }
+
+    private function ownerOrderIsDeletable(): bool
+    {
+        $owner = $this->getOwnerRecord();
+
+        return $owner instanceof Order && $owner->isDeletable();
     }
 }

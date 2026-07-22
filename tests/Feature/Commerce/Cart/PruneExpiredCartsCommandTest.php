@@ -46,13 +46,12 @@ final class PruneExpiredCartsCommandTest extends TestCase
     #[Test]
     public function it_keeps_a_guest_cart_with_no_expires_at_set(): void
     {
-        // expires_at is nullable; carts that haven't been time-boxed must
-        // never be pruned by this command — guest carts can be long-lived
-        // until a TTL is explicitly stamped on them.
-        $unbounded = Cart::factory()->create([
-            'owner_id' => null,
-            'expires_at' => null,
-        ]);
+        // expires_at is nullable; a cart with none must never be pruned. Guest
+        // carts are now stamped at creation (D7), so force null via a raw update
+        // (bypassing the model hook) to still pin the whereNotNull contract for
+        // any legacy/raw-inserted cart.
+        $unbounded = Cart::factory()->create(['owner_id' => null]);
+        Cart::query()->whereKey($unbounded->id)->update(['expires_at' => null]);
 
         $this->artisan('commerce:prune-carts')->assertExitCode(0);
 

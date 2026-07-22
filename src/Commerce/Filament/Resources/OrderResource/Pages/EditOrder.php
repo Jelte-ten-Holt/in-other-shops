@@ -29,7 +29,10 @@ final class EditOrder extends PackageEditRecord
         return [
             static::partialRefundAction(),
             static::refundAndCancelAction(),
-            Actions\DeleteAction::make(),
+            // D4/M3: only a fresh Pending, payment-less order is deletable —
+            // deleting a paid order destroys the record of money that moved.
+            Actions\DeleteAction::make()
+                ->hidden(fn (Order $record): bool => ! $record->isDeletable()),
         ];
     }
 

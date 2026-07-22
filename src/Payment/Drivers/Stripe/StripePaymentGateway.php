@@ -15,6 +15,7 @@ use InOtherShops\Payment\Models\Payment;
 use Illuminate\Http\Request;
 use RuntimeException;
 use Stripe\Event;
+use Stripe\Exception\InvalidRequestException;
 use Stripe\Exception\SignatureVerificationException;
 use Stripe\PaymentIntent;
 use Stripe\Refund;
@@ -93,7 +94,17 @@ final class StripePaymentGateway implements ManagesCustomers, PaymentGateway
             throw PaymentNotCancelableException::inFlight($payment, "intent status: {$intent->status}");
         }
 
-        $this->client->paymentIntents->cancel($payment->gateway_reference);
+        try {
+            $this->client->paymentIntents->cancel($payment->gateway_reference);
+        } catch (InvalidRequestException $e) {
+            // The intent raced to a non-cancelable state (typically succeeded)
+            // between the retrieve above and this cancel. Stripe rejects the
+            // cancel with an InvalidRequestException; surface it as the same
+            // "money may yet move" signal the status check raises, so the caller
+            // (order-expiry / cancel-and-replace) leaves the order for the
+            // confirm path rather than 500-ing on a raw Stripe error (M11).
+            throw PaymentNotCancelableException::inFlight($payment, $e->getMessage());
+        }
     }
 
     public function retrieveSession(Payment $payment): PaymentSession
@@ -159,6 +170,11 @@ final class StripePaymentGateway implements ManagesCustomers, PaymentGateway
                 'event_type' => $event->type,
                 'intent_status' => $intent->status,
             ],
+            // Limitation: this is intent.amount (the amount authorized), NOT
+            // amount_received (the amount actually captured). They match for the
+            // standard full-capture flow this shop uses; a partial capture would
+            // differ, and guardAmountMatches would then compare against the
+            // authorized figure. A received-amount guard is deferred (audit M/D10).
             amount: isset($intent->amount) && is_int($intent->amount) ? $intent->amount : null,
             currency: isset($intent->currency) && is_string($intent->currency) ? strtolower($intent->currency) : null,
         );

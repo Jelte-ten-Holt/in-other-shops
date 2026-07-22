@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace InOtherShops\Tests\Feature\Commerce\Order;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Log;
 use InOtherShops\Commerce\Order\Actions\ExpireAbandonedOrders;
 use InOtherShops\Commerce\Order\Enums\OrderStatus;
 use InOtherShops\Commerce\Order\Models\Order;
@@ -135,6 +136,47 @@ final class ExpireAbandonedOrdersTest extends TestCase
         $this->assertSame(OrderStatus::Pending, $order->fresh()->status);
         $this->assertSame(ReservationStatus::Pending, $reservation->fresh()->status,
             'An order we could not cancel must keep its stock held.');
+    }
+
+    #[Test]
+    public function the_sweep_survives_a_cancel_that_throws_and_still_expires_the_next_order(): void
+    {
+        // M5 cheap half: one order whose gateway cancel throws an UNEXPECTED
+        // error (outage, driver fault) must not starve the sweep. It is logged
+        // and skipped; the next abandoned order still gets expired.
+        $bad = $this->pendingOrder(ageMinutes: 120);
+        $this->pendingPaymentFor($bad, 'fake_pi_bad');
+        $this->gateway->markSessionErroring('fake_pi_bad');
+
+        $good = $this->pendingOrder(ageMinutes: 120);
+        $this->pendingPaymentFor($good, 'fake_pi_good');
+
+        $count = ($this->expire)();
+
+        $this->assertSame(1, $count, 'The healthy order is still expired.');
+        $this->assertSame(OrderStatus::Pending, $bad->fresh()->status,
+            'The throwing order is left for the next run, not cancelled.');
+        $this->assertSame(OrderStatus::Cancelled, $good->fresh()->status,
+            'The sweep continued past the failure to the next order.');
+        $this->assertSame(['fake_pi_good'], $this->gateway->recordedCancellations());
+    }
+
+    #[Test]
+    public function it_logs_a_warning_naming_the_order_and_reference_when_the_intent_is_live(): void
+    {
+        Log::spy();
+
+        $order = $this->pendingOrder(ageMinutes: 120);
+        $this->pendingPaymentFor($order, 'fake_pi_livewarn');
+        $this->gateway->markSessionLive('fake_pi_livewarn');
+
+        ($this->expire)();
+
+        Log::shouldHaveReceived('warning')->once()->withArgs(
+            fn (string $message, array $context): bool => str_contains($message, 'left Pending')
+                && $context['order_id'] === $order->id
+                && in_array('fake_pi_livewarn', $context['references'], true),
+        );
     }
 
     private function pendingOrder(int $ageMinutes): Order
