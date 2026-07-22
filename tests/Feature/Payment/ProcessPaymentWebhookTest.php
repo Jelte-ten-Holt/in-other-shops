@@ -215,6 +215,30 @@ final class ProcessPaymentWebhookTest extends TestCase
     }
 
     #[Test]
+    public function a_succeeded_payment_never_regresses_to_failed_on_a_late_failed_event(): void
+    {
+        // M6: out-of-order delivery. A `succeeded` settles the payment; a later
+        // `failed` (a stale earlier-attempt event delivered late) must NOT flip a
+        // settled, refundable payment back to Failed — that would strand real
+        // money as unrefundable and mislead every downstream reader.
+        Event::fake([PaymentSucceeded::class, PaymentFailed::class]);
+
+        $payment = $this->paymentWithReference('fake_pi_terminal', PaymentStatus::Pending);
+
+        ($this->process)('fake', $this->gateway->simulateWebhook($payment, PaymentStatus::Succeeded, 'evt_1'));
+        $this->assertSame(PaymentStatus::Succeeded, $payment->fresh()->status);
+
+        ($this->process)('fake', $this->gateway->simulateWebhook($payment, PaymentStatus::Failed, 'evt_2'));
+
+        $payment->refresh();
+        $this->assertSame(PaymentStatus::Succeeded, $payment->status,
+            'A settled Succeeded payment must not regress to Failed.');
+        $this->assertSame(0, $payment->amount_refunded,
+            'It stays refundable — a Failed payment is not.');
+        Event::assertNotDispatched(PaymentFailed::class);
+    }
+
+    #[Test]
     public function a_payload_already_at_the_target_status_does_not_dispatch_a_duplicate_event(): void
     {
         Event::fake([PaymentSucceeded::class]);
