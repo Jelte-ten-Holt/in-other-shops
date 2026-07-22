@@ -30,6 +30,18 @@ class CartItem extends Model
         ];
     }
 
+    protected static function booted(): void
+    {
+        // Any cart write (add / update quantity / remove) slides the parent
+        // guest cart's TTL forward, so an actively-used cart never expires under
+        // the shopper (D7). No-op for owner carts. This is the single "cart
+        // write" seam, covering all three mutation actions at once.
+        $slide = static fn (CartItem $item): mixed => $item->cart?->slideExpiry();
+
+        static::saved($slide);
+        static::deleted($slide);
+    }
+
     public function cart(): BelongsTo
     {
         return $this->belongsTo(Commerce::cart());
