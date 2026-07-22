@@ -170,6 +170,11 @@ final class StripePaymentGateway implements ManagesCustomers, PaymentGateway
                 'event_type' => $event->type,
                 'intent_status' => $intent->status,
             ],
+            // Limitation: this is intent.amount (the amount authorized), NOT
+            // amount_received (the amount actually captured). They match for the
+            // standard full-capture flow this shop uses; a partial capture would
+            // differ, and guardAmountMatches would then compare against the
+            // authorized figure. A received-amount guard is deferred (audit M/D10).
             amount: isset($intent->amount) && is_int($intent->amount) ? $intent->amount : null,
             currency: isset($intent->currency) && is_string($intent->currency) ? strtolower($intent->currency) : null,
         );
