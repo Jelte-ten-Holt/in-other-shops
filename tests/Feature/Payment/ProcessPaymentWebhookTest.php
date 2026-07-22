@@ -12,6 +12,7 @@ use InOtherShops\Payment\Enums\PaymentStatus;
 use InOtherShops\Payment\Events\PaymentFailed;
 use InOtherShops\Payment\Events\PaymentSucceeded;
 use InOtherShops\Payment\Exceptions\PaymentAmountMismatchException;
+use InOtherShops\Payment\Exceptions\UnmatchedWebhookPaymentException;
 use InOtherShops\Payment\Models\Payment;
 use InOtherShops\Payment\Models\WebhookEvent;
 use InOtherShops\Payment\PaymentGatewayManager;
@@ -128,16 +129,15 @@ final class ProcessPaymentWebhookTest extends TestCase
     }
 
     #[Test]
-    public function a_webhook_for_an_unknown_payment_reference_is_dropped_without_recording_idempotency(): void
+    public function a_settled_webhook_for_an_unknown_reference_throws_and_records_no_idempotency(): void
     {
-        // This inverts an earlier pin that recorded the idempotency row on a
-        // miss ("re-deliveries shouldn't re-search the DB"). That was the bug:
-        // under persist-then-pay the gateway_reference is written by the pay
-        // page, so a webhook can legitimately arrive BEFORE the reference
-        // exists — and recording the row made every subsequent retry dedupe
-        // against a delivery that did nothing. Order stuck Pending, customer
-        // charged, permanently. A miss must leave no trace so a retry can land
-        // once the reference is there (asserted by the next test).
+        // M10/D8. Under persist-then-pay the gateway_reference is written by the
+        // pay page, so a settled event can legitimately arrive BEFORE it exists.
+        // Answering 2xx would make the gateway treat the delivery as handled and
+        // never retry — the event lost, order stuck Pending, customer charged. So
+        // a miss on a settled event THROWS (=> non-2xx => retry) and records NO
+        // idempotency row, so the retry can land once the reference exists (next
+        // test). Previously this returned null → 204, the M10 bug.
         Event::fake([PaymentSucceeded::class]);
 
         // Build a payment so simulateWebhook works, but DON'T persist it via
@@ -152,21 +152,43 @@ final class ProcessPaymentWebhookTest extends TestCase
 
         $request = $this->gateway->simulateWebhook($orphan, PaymentStatus::Succeeded, 'evt_orphan');
 
-        $returned = ($this->process)('fake', $request);
+        try {
+            ($this->process)('fake', $request);
+            $this->fail('Expected UnmatchedWebhookPaymentException.');
+        } catch (UnmatchedWebhookPaymentException) {
+            // expected
+        }
 
-        $this->assertNull($returned);
         Event::assertNotDispatched(PaymentSucceeded::class);
         $this->assertSame(0, WebhookEvent::query()->count(),
             'A miss must not record idempotency — it would swallow every retry.');
     }
 
     #[Test]
+    public function a_failed_webhook_for_an_unknown_reference_also_throws(): void
+    {
+        // D8 covers both settled events. A failed attempt on a not-yet-written
+        // reference must retry too, not vanish.
+        $orphan = Payment::factory()->make([
+            'gateway' => 'fake',
+            'gateway_reference' => 'fake_pi_failorphan',
+            'status' => PaymentStatus::Pending,
+            'amount' => 1000,
+            'currency' => Currency::EUR,
+        ]);
+
+        $this->expectException(UnmatchedWebhookPaymentException::class);
+
+        ($this->process)('fake', $this->gateway->simulateWebhook($orphan, PaymentStatus::Failed, 'evt_failorphan'));
+    }
+
+    #[Test]
     public function a_retry_after_the_payment_reference_lands_processes_successfully(): void
     {
         // The recovery path the previous test exists to protect: delivery 1
-        // arrives before the pay page wrote the gateway_reference (dropped,
-        // no trace); the reference then lands; the gateway's retry of the SAME
-        // event id must go through in full.
+        // arrives before the pay page wrote the gateway_reference (throws,
+        // no trace, non-2xx retry); the reference then lands; the gateway's
+        // retry of the SAME event id must go through in full.
         Event::fake([PaymentSucceeded::class]);
 
         $orphan = Payment::factory()->make([
@@ -178,7 +200,12 @@ final class ProcessPaymentWebhookTest extends TestCase
         ]);
 
         $early = $this->gateway->simulateWebhook($orphan, PaymentStatus::Succeeded, 'evt_early');
-        $this->assertNull(($this->process)('fake', $early));
+        try {
+            ($this->process)('fake', $early);
+            $this->fail('Expected the early delivery to throw.');
+        } catch (UnmatchedWebhookPaymentException) {
+            // expected — non-2xx, no idempotency trace
+        }
 
         // The pay page opens the intent and writes the reference.
         $payment = $this->paymentWithReference('fake_pi_early', PaymentStatus::Pending);
