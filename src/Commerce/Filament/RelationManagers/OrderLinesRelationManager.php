@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace InOtherShops\Commerce\Filament\RelationManagers;
 
 use InOtherShops\Commerce\Filament\CommerceSchema;
+use InOtherShops\Commerce\Order\Models\Order;
 use Filament\Actions;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Schemas\Schema;
@@ -66,12 +67,24 @@ class OrderLinesRelationManager extends RelationManager
             ])
             ->actions([
                 Actions\EditAction::make(),
-                Actions\DeleteAction::make(),
+                // D4/M3 class: the lines of an order you can't delete are the
+                // durable record of what was sold — they must survive the same
+                // way the order and its addresses do. Gated on the owner order.
+                Actions\DeleteAction::make()
+                    ->hidden(fn (): bool => ! $this->ownerOrderIsDeletable()),
             ])
             ->bulkActions([
                 Actions\BulkActionGroup::make([
-                    Actions\DeleteBulkAction::make(),
+                    Actions\DeleteBulkAction::make()
+                        ->hidden(fn (): bool => ! $this->ownerOrderIsDeletable()),
                 ]),
             ]);
+    }
+
+    private function ownerOrderIsDeletable(): bool
+    {
+        $owner = $this->getOwnerRecord();
+
+        return $owner instanceof Order && $owner->isDeletable();
     }
 }
