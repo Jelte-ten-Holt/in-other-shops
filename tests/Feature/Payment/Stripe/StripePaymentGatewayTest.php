@@ -232,9 +232,51 @@ final class StripePaymentGatewayTest extends TestCase
             ->shouldReceive('cancel')
             ->once()
             ->with('pi_raced')
-            ->andThrow(new InvalidRequestException('You cannot cancel this PaymentIntent because it has a status of succeeded.'));
+            ->andThrow(InvalidRequestException::factory(
+                'You cannot cancel this PaymentIntent because it has a status of succeeded.',
+                400,
+                null,
+                null,
+                null,
+                'payment_intent_unexpected_state',
+            ));
 
         $this->expectException(PaymentNotCancelableException::class);
+
+        $this->gateway->cancelSession($payment);
+    }
+
+    #[Test]
+    public function cancel_session_rethrows_an_invalid_request_that_is_not_a_state_race(): void
+    {
+        // The SDK maps every 400/404 to InvalidRequestException. Only the
+        // `payment_intent_unexpected_state` code is the "money may yet move"
+        // race; anything else (a resource_missing 404, a malformed id) must
+        // escape as the real error, not masquerade as "intent live" and be
+        // warn-logged forever by the expiry sweep.
+        $payment = $this->paymentFor(1000, Currency::EUR);
+        $payment->gateway_reference = 'pi_gone';
+
+        $this->paymentIntents
+            ->shouldReceive('retrieve')
+            ->once()
+            ->with('pi_gone')
+            ->andReturn(PaymentIntent::constructFrom(['id' => 'pi_gone', 'status' => 'requires_payment_method']));
+
+        $this->paymentIntents
+            ->shouldReceive('cancel')
+            ->once()
+            ->with('pi_gone')
+            ->andThrow(InvalidRequestException::factory(
+                'No such payment_intent: pi_gone',
+                404,
+                null,
+                null,
+                null,
+                'resource_missing',
+            ));
+
+        $this->expectException(InvalidRequestException::class);
 
         $this->gateway->cancelSession($payment);
     }
