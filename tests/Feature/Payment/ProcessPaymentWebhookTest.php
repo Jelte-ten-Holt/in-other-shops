@@ -266,6 +266,54 @@ final class ProcessPaymentWebhookTest extends TestCase
     }
 
     #[Test]
+    public function a_refunded_payment_never_regresses_to_succeeded_on_a_late_succeeded_event(): void
+    {
+        // Ordering gap closed in v0.52.1: a success delivery delayed past a
+        // dashboard refund (charge.refunded lands first) must NOT un-refund the
+        // payment — flipping Refunded back to Succeeded would fire
+        // PaymentSucceeded and confirm + ship a refunded sale.
+        Event::fake([PaymentSucceeded::class]);
+
+        $payment = $this->paymentWithReference('fake_pi_refund_race', PaymentStatus::Pending);
+
+        ($this->process)('fake', $this->gateway->simulateWebhook(
+            $payment, PaymentStatus::Refunded, 'evt_refund',
+            amountRefunded: $payment->amount, gatewayRefundId: 're_1',
+        ));
+        $this->assertSame(PaymentStatus::Refunded, $payment->fresh()->status);
+
+        ($this->process)('fake', $this->gateway->simulateWebhook($payment, PaymentStatus::Succeeded, 'evt_late_success'));
+
+        $payment->refresh();
+        $this->assertSame(PaymentStatus::Refunded, $payment->status,
+            'A refunded payment must not be un-refunded by a late succeeded delivery.');
+        $this->assertSame($payment->amount, $payment->amount_refunded,
+            'The refund total must survive the stale event.');
+        Event::assertNotDispatched(PaymentSucceeded::class);
+    }
+
+    #[Test]
+    public function a_partially_refunded_payment_also_refuses_a_late_succeeded_event(): void
+    {
+        Event::fake([PaymentSucceeded::class]);
+
+        $payment = $this->paymentWithReference('fake_pi_partial_race', PaymentStatus::Pending);
+
+        ($this->process)('fake', $this->gateway->simulateWebhook(
+            $payment, PaymentStatus::PartiallyRefunded, 'evt_partial',
+            amountRefunded: 100, gatewayRefundId: 're_2',
+        ));
+        $this->assertSame(PaymentStatus::PartiallyRefunded, $payment->fresh()->status);
+
+        ($this->process)('fake', $this->gateway->simulateWebhook($payment, PaymentStatus::Succeeded, 'evt_late_success_2'));
+
+        $payment->refresh();
+        $this->assertSame(PaymentStatus::PartiallyRefunded, $payment->status);
+        $this->assertSame(100, $payment->amount_refunded);
+        Event::assertNotDispatched(PaymentSucceeded::class);
+    }
+
+    #[Test]
     public function a_payload_already_at_the_target_status_does_not_dispatch_a_duplicate_event(): void
     {
         Event::fake([PaymentSucceeded::class]);
