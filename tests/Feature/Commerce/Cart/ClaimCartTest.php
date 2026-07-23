@@ -128,6 +128,30 @@ final class ClaimCartTest extends TestCase
     }
 
     #[Test]
+    public function claiming_clears_the_guest_ttl_so_the_owner_cart_never_reads_as_dead(): void
+    {
+        // v0.52 stamps every guest cart with expires_at, and nothing slides it
+        // for owner carts. Without clearing on claim, the stamp fossilises and
+        // 30 idle days later the cartable-deletion guard treats the customer's
+        // cart as expired — making a product in a real cart deletable.
+        $guestCart = Cart::factory()->create(['session_token' => 'guest-ttl']);
+        $this->assertNotNull($guestCart->expires_at, 'Precondition: guest carts are stamped.');
+
+        $cartable = TestCartable::factory()->create();
+        ($this->addToCart)($guestCart, $cartable);
+
+        $owner = TestStockable::factory()->create();
+        $claimed = ($this->claimCart)($guestCart, $owner);
+
+        $this->assertNull($claimed->expires_at, 'Claiming must clear the guest-era TTL.');
+
+        $this->travel(31)->days();
+
+        $this->expectException(\InOtherShops\Commerce\Exceptions\CartReferencesCartableException::class);
+        $cartable->delete();
+    }
+
+    #[Test]
     public function it_dispatches_cart_claimed(): void
     {
         Event::fake([CartClaimed::class]);

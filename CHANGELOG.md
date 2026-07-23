@@ -8,6 +8,34 @@ The format is loosely [Keep a Changelog](https://keepachangelog.com/); the
 package is pre-1.0, so minor versions may carry breaking changes (all consumers
 are pre-launch — single-release-window policy, no deprecation bridges).
 
+## v0.52.1 — 2026-07-23
+
+Fast-follows from the v0.52.0 supervisor acceptance (recorded in the bianka
+money-path brief). No breaking changes.
+
+### Fixed
+- **Order lines join the delete-gating (M3 class).** `OrderLinesRelationManager`
+  delete + bulk-delete are now hidden unless the owner order `isDeletable()` —
+  the lines of a paid order are the durable record of what was sold and must
+  survive the same way the order and its addresses do.
+- **A late success can no longer un-refund a payment.** The
+  `ProcessPaymentWebhook` regression guard now also refuses
+  `Refunded`/`PartiallyRefunded` → `Succeeded` (a success delivery delayed past
+  a dashboard refund would have flipped the status back and fired
+  `PaymentSucceeded` — confirm + ship — for a refunded sale). Refused
+  transitions are now `Log::info`'d (payment id, reference, both statuses,
+  event id) so out-of-order deliveries are observable.
+- **Claiming a guest cart clears its TTL.** v0.52.0 stamps every guest cart's
+  `expires_at`; nothing slides it for owner carts, so a claimed cart read as
+  dead after 30 idle days — making products in a customer's cart deletable.
+  `ClaimCart` now nulls the stamp on claim.
+- **`cancelSession` only maps the real state-race.** The
+  `InvalidRequestException` → `PaymentNotCancelableException` mapping now
+  requires Stripe code `payment_intent_unexpected_state`; any other invalid
+  request (`resource_missing`, malformed id — the SDK maps every 400/404 to the
+  same class) is rethrown as the real error instead of masquerading as
+  "intent live" and being warn-logged forever by the expiry sweep.
+
 ## v0.52.0 — 2026-07-22
 
 Money-path hardening (from bianka-shop-one AUDIT-2026-07-22). Breaking where noted.

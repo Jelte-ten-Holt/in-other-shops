@@ -99,11 +99,20 @@ final class StripePaymentGateway implements ManagesCustomers, PaymentGateway
         } catch (InvalidRequestException $e) {
             // The intent raced to a non-cancelable state (typically succeeded)
             // between the retrieve above and this cancel. Stripe rejects the
-            // cancel with an InvalidRequestException; surface it as the same
-            // "money may yet move" signal the status check raises, so the caller
+            // cancel with an InvalidRequestException carrying the code
+            // `payment_intent_unexpected_state`; surface THAT as the "money may
+            // yet move" signal the status check raises, so the caller
             // (order-expiry / cancel-and-replace) leaves the order for the
             // confirm path rather than 500-ing on a raw Stripe error (M11).
-            throw PaymentNotCancelableException::inFlight($payment, $e->getMessage());
+            //
+            // Only that code: the SDK maps every 400/404 to this class, and a
+            // masquerading resource_missing or malformed-id error must NOT read
+            // as "intent live" (it would warn forever instead of error-logging).
+            if ($e->getStripeCode() === 'payment_intent_unexpected_state') {
+                throw PaymentNotCancelableException::inFlight($payment, $e->getMessage());
+            }
+
+            throw $e;
         }
     }
 

@@ -7,6 +7,7 @@ namespace InOtherShops\Payment\Actions;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use InOtherShops\Payment\DTOs\WebhookPayload;
 use InOtherShops\Payment\Enums\PaymentStatus;
 use InOtherShops\Payment\Events\PaymentFailed;
@@ -216,6 +217,18 @@ final class ProcessPaymentWebhook
         }
 
         if ($this->wouldRegressSettledPayment($payment->status, $payload->status)) {
+            // Deliberately still 204s (the idempotency row is already recorded)
+            // so the gateway stops redelivering a stale event — but leave a
+            // trace: a refused transition is exactly the out-of-order delivery
+            // an operator investigating a payment mismatch needs to see.
+            Log::info('Webhook status regression refused', [
+                'payment_id' => $payment->getKey(),
+                'gateway_reference' => $payment->gateway_reference,
+                'current' => $payment->status->value,
+                'incoming' => $payload->status->value,
+                'event_id' => $payload->eventId,
+            ]);
+
             return false;
         }
 
@@ -228,19 +241,32 @@ final class ProcessPaymentWebhook
     }
 
     /**
-     * A settled payment (Succeeded, or already Refunded/PartiallyRefunded) must
-     * never be dragged back to Failed or Pending by an out-of-order delivery — a
-     * stale earlier-attempt event arriving after the money settled (M6). That
-     * would strand real money as unrefundable and lie to every downstream
-     * reader. Forward refund transitions are not handled here (they go through
-     * applyRefund), so this only ever blocks a backwards move.
+     * A settled payment must never move backwards on an out-of-order delivery.
+     * Two shapes (both real: gateways do not guarantee event ordering):
+     *
+     * - Succeeded/Refunded/PartiallyRefunded dragged back to Failed or Pending
+     *   by a stale earlier-attempt event (M6) — strands real money as
+     *   unrefundable and lies to every downstream reader.
+     * - Refunded/PartiallyRefunded dragged "forward" to Succeeded by a delayed
+     *   success delivery arriving AFTER a refund was applied — would un-refund
+     *   the payment and fire PaymentSucceeded (confirm + ship) for a refunded
+     *   sale.
+     *
+     * Genuine refund transitions never pass through here — they go through
+     * applyRefund — so refusing Succeeded onto a refunded payment loses nothing.
      */
     private function wouldRegressSettledPayment(PaymentStatus $current, PaymentStatus $incoming): bool
     {
         $settled = [PaymentStatus::Succeeded, PaymentStatus::Refunded, PaymentStatus::PartiallyRefunded];
         $backwards = [PaymentStatus::Failed, PaymentStatus::Pending];
 
-        return in_array($current, $settled, true) && in_array($incoming, $backwards, true);
+        if (in_array($current, $settled, true) && in_array($incoming, $backwards, true)) {
+            return true;
+        }
+
+        $refunded = [PaymentStatus::Refunded, PaymentStatus::PartiallyRefunded];
+
+        return in_array($current, $refunded, true) && $incoming === PaymentStatus::Succeeded;
     }
 
     private function dispatchEvent(Payment $payment): void
