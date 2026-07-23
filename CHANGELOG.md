@@ -36,6 +36,24 @@ money-path brief). No breaking changes.
   same class) is rethrown as the real error instead of masquerading as
   "intent live" and being warn-logged forever by the expiry sweep.
 
+### Also shipped in this release — bianka AUDIT-2026-07-04 package wave (PR #8)
+
+Written 2026-07-04, merged into this release window. All additive.
+
+- **SCALE-4** — `coverImage()`/`firstMedia()` resolve from the eager-loaded
+  `media` relation when present (0 extra queries; parity with the query path
+  pinned incl. pivot-position ordering and collection filters). Kills ~1–2
+  queries per card on every storefront render in both consumers.
+- **BUG-3** — default `getCartableLabel()` is null-safe: name → slug →
+  `"{morph alias} #{key}"`. A name-less cartable no longer 500s cart renders.
+- **BUG-7** — `FindOrCreateCartItemStep` absorbs the two-tab double-add race
+  via `createOrFirst` + increment-on-lost-race (savepoint-wrapped; the
+  surrounding FlowChain transaction survives on all drivers).
+- **DRY-1** — new `Pricing::defaultPriceList()` / `forgetDefaultPriceList()`
+  request-scoped resolver (Octane/queue-safe, null memoized). Consumers should
+  delete their hand-rolled copies on bump (11 across the two apps, tracked in
+  the consumers' TODOs).
+
 ## v0.52.0 — 2026-07-22
 
 Money-path hardening (from bianka-shop-one AUDIT-2026-07-22). Breaking where noted.

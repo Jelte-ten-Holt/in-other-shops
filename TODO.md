@@ -10,7 +10,13 @@ Package-level work, typically surfaced by consuming projects. Completed items ha
 
 ## Recently shipped, awaiting release
 
-_(none — v0.29.0 tagged 2026-06-02, bianka bumped.)_
+- **bianka AUDIT-2026-07-04 package fixes** (branch `fix/audit-bianka-2026-07-04`, 2026-07-04) — four decision-free fixes surfaced by the bianka consumer audit:
+  - **SCALE-4** — `Media\Concerns\InteractsWithMedia`: `coverImage()`/`firstMedia()` resolve from the eager-loaded `media` relation when present (mirrors `hasVariants()` / the ResolvePrice SCALE-2 fix); kills 1–2 wasted queries per catalog card + one per option-value swatch. Read-path only.
+  - **BUG-3 (package part)** — `Commerce\Cart\Concerns\InteractsWithCart::getCartableLabel()` default is null-safe: name → slug → `"{morph alias} #{key}"`, still `string`. A name-less cartable (admin-created bundle with zero translations) no longer TypeErrors every cart response. Consumer half (finish BundleForm, gate storefront visibility) stays in bianka.
+  - **BUG-7** — `FindOrCreateCartItemStep` create path uses `createOrFirst`: the two-tab double-add unique violation on `(cart_id, cartable_type, cartable_id)` converts to the increment path (savepoint-wrapped, so the FlowChain transaction survives on Postgres too) instead of escaping as a raw `QueryException` 500. Payload contract unchanged.
+  - **DRY-1** — new `Pricing::defaultPriceList(): ?PriceList` + `forgetDefaultPriceList()` backed by a `scoped()`-bound `Pricing\Support\DefaultPriceListResolver` (once per request/scope, null memoized, Octane/queue-safe). On release-and-bump, delete the 11 hand-rolled copies across both consumers (bianka ×6, IOW ×5 incl. `Support/DefaultPriceList.php`).
+
+_(previous: v0.29.0 tagged 2026-06-02, bianka bumped.)_
 
 ### Shipped history
 

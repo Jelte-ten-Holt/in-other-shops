@@ -47,6 +47,8 @@ Groupings for segmented pricing (wholesale, VIP, seasonal).
 | `priority` | integer | resolution order |
 | `timestamps` | | |
 
+**Default price list resolution:** `Pricing::defaultPriceList(): ?PriceList` returns the list flagged `is_default`, resolved **at most once per request/container scope** (a `scoped()` container binding — Octane and queue workers re-resolve per request/job, never serving a stale default across boundaries; a null result is memoized too). `Pricing::forgetDefaultPriceList()` clears the memo within the current scope, e.g. after toggling `is_default`. Consumers should call this instead of hand-rolling `where('is_default', true)->first()` + per-request memoization.
+
 ### Vouchers
 
 Discount codes with fixed or percentage amounts.

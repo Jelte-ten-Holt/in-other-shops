@@ -7,10 +7,21 @@ namespace InOtherShops\Pricing;
 use Illuminate\Console\Scheduling\Schedule;
 use InOtherShops\Pricing\Commands\ExpireCompareAtPricesCommand;
 use InOtherShops\Pricing\Listeners\PricingLogSubscriber;
+use InOtherShops\Pricing\Support\DefaultPriceListResolver;
 use InOtherShops\Support\DomainServiceProvider;
 
 final class PricingServiceProvider extends DomainServiceProvider
 {
+    public function register(): void
+    {
+        parent::register();
+
+        // Scoped, not singleton: the default-price-list memo must reset per
+        // request/job so Octane workers and long-lived queue processes never
+        // serve a stale default across boundaries.
+        $this->app->scoped(DefaultPriceListResolver::class);
+    }
+
     protected function domainDir(): string
     {
         return __DIR__;

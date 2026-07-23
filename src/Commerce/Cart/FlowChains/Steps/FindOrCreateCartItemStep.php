@@ -17,6 +17,14 @@ use InOtherShops\FlowChain\Contracts\FlowPayload;
  * existing row. Otherwise creates a new CartItem with a price + currency
  * snapshot. Writes the resulting CartItem back to the payload.
  *
+ * The create path is race-safe (BUG-7): when a concurrent request inserts the
+ * same (cart, cartable) line between this chain's pre-read and the insert —
+ * the two-tab double-add — the `cart_items` unique key rejects the second
+ * insert. `createOrFirst()` converts that unique violation into a fetch of
+ * the winner's row (savepoint-wrapped, so the surrounding FlowChain
+ * transaction survives on every driver), and the loser takes the increment
+ * path instead of escaping as a raw QueryException 500.
+ *
  * @reads cart, cartable, quantity, existingCartItem
  * @writes cartItem
  */
@@ -27,21 +35,37 @@ final class FindOrCreateCartItemStep extends AbstractFlowStep
         assert($payload instanceof AddToCartPayload);
 
         if ($payload->existingCartItem !== null) {
-            $payload->existingCartItem->increment('quantity', $payload->quantity);
-            $payload->cartItem = $payload->existingCartItem->refresh();
+            $payload->cartItem = $this->incrementQuantity($payload->existingCartItem, $payload->quantity);
 
             return;
         }
 
         $currency = $payload->cart->effectiveCurrency();
 
-        $payload->cartItem = $payload->cart->items()->create([
+        $cartItem = $payload->cart->items()->createOrFirst([
             'cartable_type' => $payload->cartable->getMorphClass(),
             'cartable_id' => $payload->cartable->getKey(),
+        ], [
             'quantity' => $payload->quantity,
             'unit_price' => $payload->cartable->getCartableUnitPrice($currency),
             'currency' => $currency,
         ]);
+
+        // createOrFirst returned a pre-existing row: we lost the double-add
+        // race. Fold this request's quantity into the winner's line (its
+        // price snapshot stands, same as the ordinary increment path).
+        if (! $cartItem->wasRecentlyCreated) {
+            $cartItem = $this->incrementQuantity($cartItem, $payload->quantity);
+        }
+
+        $payload->cartItem = $cartItem;
+    }
+
+    private function incrementQuantity(CartItem $cartItem, int $quantity): CartItem
+    {
+        $cartItem->increment('quantity', $quantity);
+
+        return $cartItem->refresh();
     }
 
     public static function expectedInputs(): array
