@@ -69,6 +69,14 @@ return [
         ],
 
         /*
+        | How long an untouched GUEST cart lives before `commerce:prune-carts`
+        | deletes it (days). Stamped on guest-cart creation and slid forward on
+        | every cart write, so an actively-used cart never expires under the
+        | shopper. Owner (logged-in) carts are not stamped and are never pruned.
+        */
+        'ttl_days' => (int) env('CART_TTL_DAYS', 30),
+
+        /*
         | Block deleting any cart-able model (Product, Bundle, Variant, …) while
         | a live cart still references it, preventing stranded cart lines. Set
         | to false to allow deletion regardless (order lines snapshot, so order

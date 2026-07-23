@@ -12,6 +12,8 @@ use InOtherShops\Payment\Exceptions\PaymentNotCancelableException;
 use InOtherShops\Payment\PaymentGatewayManager;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Throwable;
 
 /**
  * Cancel Pending orders that were never paid within their hold window — the
@@ -58,8 +60,19 @@ final class ExpireAbandonedOrders
         $cancelled = 0;
 
         foreach ($this->candidateIds($cutoff) as $orderId) {
-            if ($this->expireOne((int) $orderId)) {
-                $cancelled++;
+            // One order that throws — a gateway outage, an unexpected driver
+            // error — must not starve the sweep and leave every later order
+            // stranded. Log it and move on; the next run retries it.
+            try {
+                if ($this->expireOne((int) $orderId)) {
+                    $cancelled++;
+                }
+            } catch (Throwable $e) {
+                Log::error('expire-orders: skipping an order that threw during expiry.', [
+                    'order_id' => $orderId,
+                    'exception' => $e::class,
+                    'message' => $e->getMessage(),
+                ]);
             }
         }
 
@@ -94,8 +107,21 @@ final class ExpireAbandonedOrders
 
         try {
             $this->cancelGatewaySessions($order);
-        } catch (PaymentNotCancelableException) {
-            return false; // intent is live — leave the order for the confirm path
+        } catch (PaymentNotCancelableException $e) {
+            // Intent is live — leave the order for the confirm path. Warn with
+            // the order id + reference(s): a paid-but-still-Pending order that
+            // keeps failing to expire is an operator signal, not silent.
+            Log::warning('expire-orders: order left Pending — its gateway intent is live.', [
+                'order_id' => $order->id,
+                'order_number' => $order->order_number,
+                'references' => $order->payments()
+                    ->whereIn('status', [PaymentStatus::Pending->value, PaymentStatus::Failed->value])
+                    ->whereNotNull('gateway_reference')
+                    ->pluck('gateway_reference')->all(),
+                'reason' => $e->getMessage(),
+            ]);
+
+            return false;
         }
 
         // Phase 2 — short locked transaction: re-check and transition. The
@@ -124,10 +150,20 @@ final class ExpireAbandonedOrders
         return $order->payments()->where('status', PaymentStatus::Succeeded->value)->exists();
     }
 
+    /**
+     * Failed is included alongside Pending because a failed ATTEMPT is not a
+     * terminal intent state: after a card decline the gateway parks the intent
+     * in requires_payment_method, still live and still completable from the
+     * shopper's open payment page. An order abandoned after a decline therefore
+     * carries a Failed payment with a retryable intent — skipping it here would
+     * cancel the order while leaving the intent chargeable, and a late retry
+     * would capture money against a Cancelled order (the exact decoupling this
+     * action exists to prevent).
+     */
     private function cancelGatewaySessions(Order $order): void
     {
         $payments = $order->payments()
-            ->where('status', PaymentStatus::Pending->value)
+            ->whereIn('status', [PaymentStatus::Pending->value, PaymentStatus::Failed->value])
             ->whereNotNull('gateway_reference')
             ->get();
 

@@ -159,6 +159,27 @@ return [
             // locks the surface rather than opening it.
             'user_gate' => env('AGENT_OAUTH_USER_GATE'),
 
+            // Optional consumer admin-*elevation* gate for OAuth user tokens.
+            // The twin of `user_gate`, but it decides `agent.is_admin` rather
+            // than admission: when this names a Gate ability, an OAuth session
+            // whose resolved user passes it is stamped admin — unlocking the
+            // same gated tools the static bearer reaches.
+            //
+            // This is the user-identity elevation path, distinct from the
+            // client allowlist above. It exists for callers that carry a
+            // trustworthy authenticated user but a client that can never be
+            // allowlisted (DCR-registered) nor carry the admin scope (never
+            // interactively grantable) — e.g. a Co-work session logged into an
+            // operator account. Trust rests on the user's own admin flag, set
+            // out-of-band and never requestable, so a self-registered client
+            // authenticating as a non-admin user gains nothing.
+            //
+            // Null (the default) means NO user-based elevation — only the
+            // client-allowlist path elevates, preserving prior behaviour.
+            // Fails closed: an undefined/throwing ability denies elevation
+            // rather than granting it.
+            'admin_gate' => env('AGENT_OAUTH_ADMIN_GATE'),
+
             // Reject OAuth requests that omit the RFC 8707 `resource`
             // parameter. Off by default to preserve the "single-resource
             // AS" shortcut; turn on in production once every known client

@@ -9,7 +9,6 @@ use InOtherShops\Commerce\Filament\RelationManagers\CustomerOrdersRelationManage
 use InOtherShops\Commerce\Filament\Resources\CustomerResource\Pages;
 use InOtherShops\Location\Filament\LocationSchema;
 use Filament\Actions;
-use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use InOtherShops\Support\Filament\NavigationGroup;
 use InOtherShops\Support\Filament\PackageResource;
@@ -26,29 +25,32 @@ class CustomerResource extends PackageResource
 
     protected static string|\UnitEnum|null $navigationGroup = NavigationGroup::Commerce;
 
+    protected static function labelKey(): string
+    {
+        return 'shops-commerce::customers';
+    }
+
     public static function form(Schema $schema): Schema
     {
         return $schema
             ->schema([
-                Section::make('Contact Details')
+                Section::make(__('shops-commerce::customers.sections.contact_details'))
                     ->schema([
                         TextInput::make('name')
+                            ->label(__('shops-common::fields.name'))
                             ->required()
                             ->maxLength(512),
                         TextInput::make('email')
+                            ->label(__('shops-common::fields.email'))
                             ->email()
                             ->required()
                             ->maxLength(255),
                         TextInput::make('phone')
+                            ->label(__('shops-commerce::customers.fields.phone'))
                             ->tel()
                             ->maxLength(50),
-                        Select::make('customer_group_id')
-                            ->relationship('group', 'name')
-                            ->searchable()
-                            ->preload()
-                            ->placeholder('No group'),
                     ]),
-                Section::make('Addresses')
+                Section::make(__('shops-commerce::customers.sections.addresses'))
                     ->schema([
                         LocationSchema::addressRepeater(),
                     ]),
@@ -60,21 +62,22 @@ class CustomerResource extends PackageResource
         return $table
             ->columns([
                 Tables\Columns\TextColumn::make('name')
+                    ->label(__('shops-common::fields.name'))
                     ->searchable()
                     ->sortable(),
                 Tables\Columns\TextColumn::make('email')
+                    ->label(__('shops-common::fields.email'))
                     ->searchable()
                     ->sortable(),
                 Tables\Columns\TextColumn::make('phone')
+                    ->label(__('shops-commerce::customers.fields.phone'))
                     ->searchable(),
-                Tables\Columns\TextColumn::make('group.name')
-                    ->label('Group')
-                    ->sortable(),
                 Tables\Columns\TextColumn::make('orders_count')
-                    ->label('Orders')
+                    ->label(__('shops-commerce::customers.columns.orders'))
                     ->counts('orders')
                     ->sortable(),
                 Tables\Columns\TextColumn::make('created_at')
+                    ->label(__('shops-common::fields.created_at'))
                     ->dateTime()
                     ->sortable(),
             ])

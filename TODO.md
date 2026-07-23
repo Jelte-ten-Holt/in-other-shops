@@ -6,7 +6,7 @@ Package-level work, typically surfaced by consuming projects. Completed items ha
 
 ## Open
 
-_(none — see Deferred / Watch)_
+- **D2 — default-locale-only-required translations in `TranslationSchema`** (surfaced by bianka-shop-one verification 2026-07-21, Bug 9). `Translation/Filament/TranslationSchema.php` (~:140-151) clones each field into every locale tab and carries the field's `->required()` into every clone, so there's no way to express "required on the default locale only" — a consumer can't let a non-default translation (e.g. an English `name`) be cleared and fall back to the default-locale value, even though fallback-to-default is designed behavior. The schema already receives `$isDefault`; grow a mechanism that applies `required` only to the default-locale clone (e.g. a `->requiredOnDefaultLocaleOnly()` marker on the field, or a schema-level option), leaving non-default clones optional. Ship a Testbench test (clearing a non-default value saves; the missing-translation admin indicator still shows) + release + bump bianka, where `ProductForm.php:37` opts in and a bianka feature test asserts clearing the EN name saves and `/en` falls back to the ES name. Single release window, no deprecation bridge (all consumers pre-launch). Parked pending Jelte's go-ahead on the exact opt-in shape.
 
 ## Recently shipped, awaiting release
 

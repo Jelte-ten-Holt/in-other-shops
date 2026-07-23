@@ -22,14 +22,21 @@ class CustomerGroupResource extends PackageResource
 
     protected static string|\UnitEnum|null $navigationGroup = NavigationGroup::Commerce;
 
+    protected static function labelKey(): string
+    {
+        return 'shops-commerce::customergroups';
+    }
+
     public static function form(Schema $schema): Schema
     {
         return $schema
             ->schema([
                 TextInput::make('name')
+                    ->label(__('shops-common::fields.name'))
                     ->required()
                     ->maxLength(255),
                 TextInput::make('code')
+                    ->label(__('shops-common::fields.code'))
                     ->required()
                     ->unique(ignoreRecord: true)
                     ->maxLength(255),
@@ -41,16 +48,19 @@ class CustomerGroupResource extends PackageResource
         return $table
             ->columns([
                 Tables\Columns\TextColumn::make('name')
+                    ->label(__('shops-common::fields.name'))
                     ->searchable()
                     ->sortable(),
                 Tables\Columns\TextColumn::make('code')
+                    ->label(__('shops-common::fields.code'))
                     ->searchable()
                     ->sortable(),
                 Tables\Columns\TextColumn::make('customers_count')
-                    ->label('Customers')
+                    ->label(__('shops-commerce::customergroups.columns.customers'))
                     ->counts('customers')
                     ->sortable(),
                 Tables\Columns\TextColumn::make('created_at')
+                    ->label(__('shops-common::fields.created_at'))
                     ->dateTime()
                     ->sortable(),
             ])

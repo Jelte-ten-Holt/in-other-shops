@@ -83,9 +83,23 @@ abstract class DomainServiceProvider extends ServiceProvider
         );
     }
 
+    /**
+     * Translation namespace for the domain's admin strings: `shops-{key}`
+     * (e.g. `shops-commerce`). Per-domain rather than a shared `shops` because
+     * Laravel's file loader keeps one path per namespace — a shared namespace
+     * across 11 domain lang dirs would clobber. Keys read
+     * `__('shops-commerce::orders.status')`.
+     */
+    protected function translationNamespace(): string
+    {
+        return 'shops-'.$this->configKey();
+    }
+
     public function boot(): void
     {
         $this->loadMigrationsFrom($this->domainDir().'/Database/Migrations');
+
+        $this->loadTranslationsFrom($this->domainDir().'/lang', $this->translationNamespace());
 
         $aliases = $this->morphAliases();
 

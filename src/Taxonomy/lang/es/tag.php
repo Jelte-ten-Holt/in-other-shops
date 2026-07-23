@@ -1,0 +1,21 @@
+<?php
+
+declare(strict_types=1);
+
+/**
+ * Tag admin strings — Spanish (draft — needs-es-review). Keys mirror
+ * en/tag.php exactly.
+ */
+return [
+    'model' => 'etiqueta',
+    'model_plural' => 'etiquetas',
+    'nav' => 'Etiquetas',
+    'relation_title' => 'Etiquetas',
+
+    'section' => [
+        'details' => 'Detalles de la etiqueta',
+    ],
+    'fields' => [
+        'type_placeholder' => 'p. ej. color, material, temporada',
+    ],
+];

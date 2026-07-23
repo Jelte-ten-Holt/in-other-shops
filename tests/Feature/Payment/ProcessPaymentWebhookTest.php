@@ -12,6 +12,7 @@ use InOtherShops\Payment\Enums\PaymentStatus;
 use InOtherShops\Payment\Events\PaymentFailed;
 use InOtherShops\Payment\Events\PaymentSucceeded;
 use InOtherShops\Payment\Exceptions\PaymentAmountMismatchException;
+use InOtherShops\Payment\Exceptions\UnmatchedWebhookPaymentException;
 use InOtherShops\Payment\Models\Payment;
 use InOtherShops\Payment\Models\WebhookEvent;
 use InOtherShops\Payment\PaymentGatewayManager;
@@ -128,8 +129,15 @@ final class ProcessPaymentWebhookTest extends TestCase
     }
 
     #[Test]
-    public function a_webhook_for_an_unknown_payment_reference_returns_null_and_dispatches_no_event(): void
+    public function a_settled_webhook_for_an_unknown_reference_throws_and_records_no_idempotency(): void
     {
+        // M10/D8. Under persist-then-pay the gateway_reference is written by the
+        // pay page, so a settled event can legitimately arrive BEFORE it exists.
+        // Answering 2xx would make the gateway treat the delivery as handled and
+        // never retry — the event lost, order stuck Pending, customer charged. So
+        // a miss on a settled event THROWS (=> non-2xx => retry) and records NO
+        // idempotency row, so the retry can land once the reference exists (next
+        // test). Previously this returned null → 204, the M10 bug.
         Event::fake([PaymentSucceeded::class]);
 
         // Build a payment so simulateWebhook works, but DON'T persist it via
@@ -144,14 +152,165 @@ final class ProcessPaymentWebhookTest extends TestCase
 
         $request = $this->gateway->simulateWebhook($orphan, PaymentStatus::Succeeded, 'evt_orphan');
 
-        $returned = ($this->process)('fake', $request);
+        try {
+            ($this->process)('fake', $request);
+            $this->fail('Expected UnmatchedWebhookPaymentException.');
+        } catch (UnmatchedWebhookPaymentException) {
+            // expected
+        }
 
-        $this->assertNull($returned);
         Event::assertNotDispatched(PaymentSucceeded::class);
-        // Idempotency row IS recorded — re-deliveries of the orphan event
-        // shouldn't re-search the DB. Pin this so a future "lazy" change
-        // that skips the idempotency write on miss doesn't regress.
+        $this->assertSame(0, WebhookEvent::query()->count(),
+            'A miss must not record idempotency — it would swallow every retry.');
+    }
+
+    #[Test]
+    public function a_failed_webhook_for_an_unknown_reference_also_throws(): void
+    {
+        // D8 covers both settled events. A failed attempt on a not-yet-written
+        // reference must retry too, not vanish.
+        $orphan = Payment::factory()->make([
+            'gateway' => 'fake',
+            'gateway_reference' => 'fake_pi_failorphan',
+            'status' => PaymentStatus::Pending,
+            'amount' => 1000,
+            'currency' => Currency::EUR,
+        ]);
+
+        $this->expectException(UnmatchedWebhookPaymentException::class);
+
+        ($this->process)('fake', $this->gateway->simulateWebhook($orphan, PaymentStatus::Failed, 'evt_failorphan'));
+    }
+
+    #[Test]
+    public function a_retry_after_the_payment_reference_lands_processes_successfully(): void
+    {
+        // The recovery path the previous test exists to protect: delivery 1
+        // arrives before the pay page wrote the gateway_reference (throws,
+        // no trace, non-2xx retry); the reference then lands; the gateway's
+        // retry of the SAME event id must go through in full.
+        Event::fake([PaymentSucceeded::class]);
+
+        $orphan = Payment::factory()->make([
+            'gateway' => 'fake',
+            'gateway_reference' => 'fake_pi_early',
+            'status' => PaymentStatus::Pending,
+            'amount' => 2500,
+            'currency' => Currency::EUR,
+        ]);
+
+        $early = $this->gateway->simulateWebhook($orphan, PaymentStatus::Succeeded, 'evt_early');
+        try {
+            ($this->process)('fake', $early);
+            $this->fail('Expected the early delivery to throw.');
+        } catch (UnmatchedWebhookPaymentException) {
+            // expected — non-2xx, no idempotency trace
+        }
+
+        // The pay page opens the intent and writes the reference.
+        $payment = $this->paymentWithReference('fake_pi_early', PaymentStatus::Pending);
+
+        $retry = $this->gateway->simulateWebhook($payment, PaymentStatus::Succeeded, 'evt_early');
+        $returned = ($this->process)('fake', $retry);
+
+        $this->assertNotNull($returned, 'The retry must not be treated as a duplicate.');
+        $this->assertSame(PaymentStatus::Succeeded, $payment->fresh()->status);
+        Event::assertDispatched(PaymentSucceeded::class);
         $this->assertSame(1, WebhookEvent::query()->count());
+    }
+
+    #[Test]
+    public function a_declined_then_retried_payment_moves_failed_to_succeeded_and_dispatches(): void
+    {
+        // Stripe's payment_failed is attempt-level: the intent stays retryable
+        // and a second attempt on it can succeed. The payment row must follow —
+        // Failed is not terminal. Consumers rely on this transition to confirm
+        // an order whose first attempt declined (see PaymentFailed's docblock).
+        Event::fake([PaymentSucceeded::class, PaymentFailed::class]);
+
+        $payment = $this->paymentWithReference('fake_pi_retry', PaymentStatus::Pending);
+
+        ($this->process)('fake', $this->gateway->simulateWebhook($payment, PaymentStatus::Failed, 'evt_attempt_1'));
+        $this->assertSame(PaymentStatus::Failed, $payment->fresh()->status);
+
+        ($this->process)('fake', $this->gateway->simulateWebhook($payment, PaymentStatus::Succeeded, 'evt_attempt_2'));
+
+        $this->assertSame(PaymentStatus::Succeeded, $payment->fresh()->status,
+            'A failed ATTEMPT must not block the eventual success.');
+        Event::assertDispatched(PaymentFailed::class);
+        Event::assertDispatched(PaymentSucceeded::class);
+    }
+
+    #[Test]
+    public function a_succeeded_payment_never_regresses_to_failed_on_a_late_failed_event(): void
+    {
+        // M6: out-of-order delivery. A `succeeded` settles the payment; a later
+        // `failed` (a stale earlier-attempt event delivered late) must NOT flip a
+        // settled, refundable payment back to Failed — that would strand real
+        // money as unrefundable and mislead every downstream reader.
+        Event::fake([PaymentSucceeded::class, PaymentFailed::class]);
+
+        $payment = $this->paymentWithReference('fake_pi_terminal', PaymentStatus::Pending);
+
+        ($this->process)('fake', $this->gateway->simulateWebhook($payment, PaymentStatus::Succeeded, 'evt_1'));
+        $this->assertSame(PaymentStatus::Succeeded, $payment->fresh()->status);
+
+        ($this->process)('fake', $this->gateway->simulateWebhook($payment, PaymentStatus::Failed, 'evt_2'));
+
+        $payment->refresh();
+        $this->assertSame(PaymentStatus::Succeeded, $payment->status,
+            'A settled Succeeded payment must not regress to Failed.');
+        $this->assertSame(0, $payment->amount_refunded,
+            'It stays refundable — a Failed payment is not.');
+        Event::assertNotDispatched(PaymentFailed::class);
+    }
+
+    #[Test]
+    public function a_refunded_payment_never_regresses_to_succeeded_on_a_late_succeeded_event(): void
+    {
+        // Ordering gap closed in v0.52.1: a success delivery delayed past a
+        // dashboard refund (charge.refunded lands first) must NOT un-refund the
+        // payment — flipping Refunded back to Succeeded would fire
+        // PaymentSucceeded and confirm + ship a refunded sale.
+        Event::fake([PaymentSucceeded::class]);
+
+        $payment = $this->paymentWithReference('fake_pi_refund_race', PaymentStatus::Pending);
+
+        ($this->process)('fake', $this->gateway->simulateWebhook(
+            $payment, PaymentStatus::Refunded, 'evt_refund',
+            amountRefunded: $payment->amount, gatewayRefundId: 're_1',
+        ));
+        $this->assertSame(PaymentStatus::Refunded, $payment->fresh()->status);
+
+        ($this->process)('fake', $this->gateway->simulateWebhook($payment, PaymentStatus::Succeeded, 'evt_late_success'));
+
+        $payment->refresh();
+        $this->assertSame(PaymentStatus::Refunded, $payment->status,
+            'A refunded payment must not be un-refunded by a late succeeded delivery.');
+        $this->assertSame($payment->amount, $payment->amount_refunded,
+            'The refund total must survive the stale event.');
+        Event::assertNotDispatched(PaymentSucceeded::class);
+    }
+
+    #[Test]
+    public function a_partially_refunded_payment_also_refuses_a_late_succeeded_event(): void
+    {
+        Event::fake([PaymentSucceeded::class]);
+
+        $payment = $this->paymentWithReference('fake_pi_partial_race', PaymentStatus::Pending);
+
+        ($this->process)('fake', $this->gateway->simulateWebhook(
+            $payment, PaymentStatus::PartiallyRefunded, 'evt_partial',
+            amountRefunded: 100, gatewayRefundId: 're_2',
+        ));
+        $this->assertSame(PaymentStatus::PartiallyRefunded, $payment->fresh()->status);
+
+        ($this->process)('fake', $this->gateway->simulateWebhook($payment, PaymentStatus::Succeeded, 'evt_late_success_2'));
+
+        $payment->refresh();
+        $this->assertSame(PaymentStatus::PartiallyRefunded, $payment->status);
+        $this->assertSame(100, $payment->amount_refunded);
+        Event::assertNotDispatched(PaymentSucceeded::class);
     }
 
     #[Test]

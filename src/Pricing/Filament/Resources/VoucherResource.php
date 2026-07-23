@@ -31,32 +31,40 @@ final class VoucherResource extends PackageResource
 
     protected static string|\UnitEnum|null $navigationGroup = NavigationGroup::Pricing;
 
+    protected static function labelKey(): string
+    {
+        return 'shops-pricing::voucher';
+    }
+
     public static function form(Schema $schema): Schema
     {
         return $schema
             ->schema([
-                Section::make('Voucher Details')
+                Section::make(__('shops-pricing::voucher.section.details'))
                     ->schema([
                         TextInput::make('code')
+                            ->label(__('shops-common::fields.code'))
                             ->required()
                             ->unique(ignoreRecord: true)
                             ->maxLength(255)
-                            ->helperText(fn (string $operation) => $operation === 'create' ? 'A random 4-letter suffix will be appended (e.g. SUMMER → SUMMER-KXPQ).' : null),
+                            ->helperText(fn (string $operation) => $operation === 'create' ? __('shops-pricing::voucher.code_help') : null),
                         Select::make('type')
+                            ->label(__('shops-common::fields.type'))
                             ->options([
-                                VoucherType::Fixed->value => 'Fixed amount',
-                                VoucherType::Percentage->value => 'Percentage',
+                                VoucherType::Fixed->value => __('shops-pricing::voucher.type_options.fixed'),
+                                VoucherType::Percentage->value => __('shops-pricing::voucher.type_options.percentage'),
                             ])
                             ->required()
                             ->live(),
                         TextInput::make('amount')
+                            ->label(__('shops-pricing::voucher.amount'))
                             ->required()
                             ->numeric()
                             ->minValue(0)
                             ->suffix(fn (Get $get) => $get('type') === VoucherType::Percentage->value ? '%' : null)
                             ->helperText(fn (Get $get) => $get('type') === VoucherType::Percentage->value
-                                ? 'Admin-friendly percentage (e.g. 10 = 10%). Stored internally as basis points.'
-                                : 'Amount in the smallest currency subunit (cents for EUR).')
+                                ? __('shops-pricing::voucher.amount_help_percentage')
+                                : __('shops-pricing::voucher.amount_help_fixed'))
                             ->formatStateUsing(fn (?int $state, Get $get) => $state !== null && $get('type') === VoucherType::Percentage->value
                                 ? $state / 100
                                 : $state)
@@ -69,22 +77,27 @@ final class VoucherResource extends PackageResource
                     ])
                     ->columns(2),
 
-                Section::make('Restrictions')
+                Section::make(__('shops-pricing::voucher.section.restrictions'))
                     ->schema([
                         TextInput::make('minimum_order_amount')
+                            ->label(__('shops-pricing::voucher.minimum_order_amount'))
                             ->numeric()
                             ->minValue(0)
                             ->default(0)
-                            ->helperText('Minimum order subtotal in cents (0 = no minimum)'),
+                            ->helperText(__('shops-pricing::voucher.minimum_order_amount_help')),
                         TextInput::make('max_uses')
+                            ->label(__('shops-pricing::voucher.max_uses'))
                             ->numeric()
                             ->minValue(1)
-                            ->placeholder('Unlimited'),
+                            ->placeholder(__('shops-pricing::voucher.max_uses_placeholder')),
                         DateTimePicker::make('valid_from')
-                            ->placeholder('No start date'),
+                            ->label(__('shops-pricing::voucher.valid_from'))
+                            ->placeholder(__('shops-pricing::voucher.valid_from_placeholder')),
                         DateTimePicker::make('valid_until')
-                            ->placeholder('No expiry'),
+                            ->label(__('shops-pricing::voucher.valid_until'))
+                            ->placeholder(__('shops-pricing::voucher.valid_until_placeholder')),
                         Toggle::make('is_active')
+                            ->label(__('shops-common::fields.active'))
                             ->default(true)
                             ->columnSpanFull(),
                     ])
@@ -97,11 +110,14 @@ final class VoucherResource extends PackageResource
         return $table
             ->columns([
                 Tables\Columns\TextColumn::make('code')
+                    ->label(__('shops-common::fields.code'))
                     ->searchable()
                     ->sortable(),
                 Tables\Columns\TextColumn::make('type')
+                    ->label(__('shops-common::fields.type'))
                     ->badge(),
                 Tables\Columns\TextColumn::make('amount')
+                    ->label(__('shops-pricing::voucher.amount'))
                     ->formatStateUsing(fn (Voucher $record) => $record->type === VoucherType::Percentage
                         ? MoneyFields::percentLabel($record->amount)
                         : ($record->currency instanceof Currency
@@ -109,21 +125,23 @@ final class VoucherResource extends PackageResource
                             : $record->amount)
                     ),
                 Tables\Columns\TextColumn::make('times_used')
-                    ->label('Uses')
+                    ->label(__('shops-pricing::voucher.uses'))
                     ->formatStateUsing(fn (Voucher $record) => $record->max_uses !== null
                         ? "{$record->times_used} / {$record->max_uses}"
                         : (string) $record->times_used
                     ),
                 Tables\Columns\TextColumn::make('valid_until')
+                    ->label(__('shops-pricing::voucher.valid_until'))
                     ->dateTime()
-                    ->placeholder('No expiry')
+                    ->placeholder(__('shops-pricing::voucher.valid_until_placeholder'))
                     ->sortable(),
                 Tables\Columns\IconColumn::make('is_active')
+                    ->label(__('shops-common::fields.active'))
                     ->boolean()
                     ->sortable(),
             ])
             ->filters([
-                Tables\Filters\TernaryFilter::make('is_active')->label('Active'),
+                Tables\Filters\TernaryFilter::make('is_active')->label(__('shops-common::fields.active')),
             ])
             ->actions([
                 Actions\EditAction::make(),

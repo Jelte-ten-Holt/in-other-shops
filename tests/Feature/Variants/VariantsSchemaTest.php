@@ -32,6 +32,30 @@ final class VariantsSchemaTest extends TestCase
     }
 
     #[Test]
+    public function the_repeater_price_field_dehydrates_euros_to_integer_cents(): void
+    {
+        // Pins the MoneyFields wiring on the price input: the admin types major
+        // units ("25.00"), the form state dehydrates to integer cents. A bare
+        // ->numeric() input (the pre-0.46.1 shape) has no dehydrate closure and
+        // fails here — that shape made admins enter cents, unlike every other
+        // money field. Closure-level because this package has no panel-booted
+        // render layer (see its_form_components_build_without_error).
+        $price = collect(VariantsSchema::variantsRepeater()->getDefaultChildComponents())
+            ->first(fn ($component): bool => $component instanceof \Filament\Forms\Components\TextInput
+                && $component->getName() === 'price');
+
+        $this->assertNotNull($price, 'variantsRepeater() no longer contains a price TextInput.');
+
+        $property = new \ReflectionProperty($price, 'dehydrateStateUsing');
+        $dehydrate = $property->getValue($price);
+
+        $this->assertInstanceOf(\Closure::class, $dehydrate, 'Price field has no dehydrate transform — admins would be entering cents.');
+        $this->assertSame(2500, $dehydrate('25.00'));
+        $this->assertSame(2500, $dehydrate('25'));
+        $this->assertNull($dehydrate(''), 'Empty price must dehydrate to null (leave the price unchanged), not 0.');
+    }
+
+    #[Test]
     public function fill_loads_declared_axes_and_variant_rows(): void
     {
         $owner = TestVariantable::factory()->create();
@@ -89,6 +113,26 @@ final class VariantsSchemaTest extends TestCase
 
         $this->assertSame(8, $variant->fresh()->stockLevel());
         $this->assertSame(1, $variant->stockMovements()->count());
+    }
+
+    #[Test]
+    public function save_accepts_float_price_and_stock_state_from_filament_numeric_inputs(): void
+    {
+        // Filament v5's NumberStateCast dehydrates every ->numeric() input to
+        // ?float — the dehydrated repeater state arrives with float price/stock,
+        // not int. Regression: applyPrice()/applyStock() are typed ?int and
+        // TypeError'd on every real admin save (mayangna 2026-07-09).
+        $owner = TestVariantable::factory()->create();
+        $variant = Variant::factory()->for($owner, 'variantable')->create();
+        StockItem::factory()->for($variant, 'stockable')->withLevel(2)->create();
+
+        VariantsSchema::saveFormData($owner, [
+            '_variant_options' => [],
+            '_variants' => [['id' => $variant->id, 'sku' => null, 'price' => 3300.0, 'stock' => 8.0]],
+        ]);
+
+        $this->assertSame(3300, $variant->priceFor(Currency::EUR)?->amount);
+        $this->assertSame(8, $variant->fresh()->stockLevel());
     }
 
     #[Test]

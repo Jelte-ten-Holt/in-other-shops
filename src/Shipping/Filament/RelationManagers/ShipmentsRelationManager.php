@@ -24,31 +24,39 @@ class ShipmentsRelationManager extends RelationManager
 {
     protected static string $relationship = 'shipments';
 
+    public static function getTitle(\Illuminate\Database\Eloquent\Model $ownerRecord, string $pageClass): string
+    {
+        return __('shops-shipping::shipment.title');
+    }
+
     public function table(Table $table): Table
     {
         return $table
             ->columns([
                 Tables\Columns\TextColumn::make('status')
+                    ->label(__('shops-common::fields.status'))
                     ->badge()
                     ->color(fn (ShipmentStatus $state): string => $state->color())
                     ->formatStateUsing(fn (ShipmentStatus $state): string => $state->label()),
-                Tables\Columns\TextColumn::make('method'),
+                Tables\Columns\TextColumn::make('method')
+                    ->label(__('shops-shipping::shipment.columns.method')),
                 Tables\Columns\TextColumn::make('carrier')
+                    ->label(__('shops-shipping::shipment.columns.carrier'))
                     ->placeholder('—'),
                 Tables\Columns\TextColumn::make('tracking_number')
-                    ->label('Tracking')
+                    ->label(__('shops-shipping::shipment.columns.tracking'))
                     ->placeholder('—')
                     ->url(fn (Shipment $record): ?string => $record->tracking_url, shouldOpenInNewTab: true),
                 Tables\Columns\TextColumn::make('shipped_at')
-                    ->label('Shipped')
+                    ->label(__('shops-shipping::shipment.columns.shipped'))
                     ->dateTime()
                     ->placeholder('—'),
                 Tables\Columns\TextColumn::make('delivered_at')
-                    ->label('Delivered')
+                    ->label(__('shops-shipping::shipment.columns.delivered'))
                     ->dateTime()
                     ->placeholder('—'),
                 Tables\Columns\TextColumn::make('created_at')
-                    ->label('Created')
+                    ->label(__('shops-shipping::shipment.columns.created'))
                     ->dateTime()
                     ->sortable(),
             ])
@@ -65,7 +73,7 @@ class ShipmentsRelationManager extends RelationManager
     private static function markReadyAction(): Actions\Action
     {
         return Actions\Action::make('markReady')
-            ->label('Mark ready')
+            ->label(__('shops-shipping::shipment.actions.mark_ready'))
             ->icon('heroicon-o-archive-box')
             ->color('info')
             ->visible(fn (Shipment $record): bool => $record->status->canTransitionTo(ShipmentStatus::Ready))
@@ -74,7 +82,7 @@ class ShipmentsRelationManager extends RelationManager
                 app(MarkShipmentReady::class)($record);
 
                 Notification::make()
-                    ->title('Shipment marked ready')
+                    ->title(__('shops-shipping::shipment.notifications.marked_ready'))
                     ->success()
                     ->send();
             });
@@ -83,7 +91,7 @@ class ShipmentsRelationManager extends RelationManager
     private static function dispatchAction(): Actions\Action
     {
         return Actions\Action::make('dispatch')
-            ->label('Dispatch')
+            ->label(__('shops-shipping::shipment.actions.dispatch'))
             ->icon('heroicon-o-truck')
             ->color('primary')
             ->visible(fn (Shipment $record): bool => $record->status->canTransitionTo(ShipmentStatus::InTransit)
@@ -91,18 +99,20 @@ class ShipmentsRelationManager extends RelationManager
             ->form([
                 static::carrierField(),
                 TextInput::make('tracking_number')
+                    ->label(__('shops-shipping::shipment.form.tracking_number'))
                     ->required()
                     ->maxLength(128),
                 TextInput::make('tracking_url')
+                    ->label(__('shops-shipping::shipment.form.tracking_url'))
                     ->url()
                     ->maxLength(1024)
-                    ->helperText('Leave blank to derive from the carrier template (config/shipping.carriers).'),
+                    ->helperText(__('shops-shipping::shipment.form.tracking_url_help')),
             ])
             ->action(function (Shipment $record, array $data): void {
                 if (! $record->shippableIsPaid()) {
                     Notification::make()
-                        ->title('Shipment cannot be dispatched')
-                        ->body('The associated payable is not paid in full.')
+                        ->title(__('shops-shipping::shipment.notifications.cannot_dispatch'))
+                        ->body(__('shops-shipping::shipment.notifications.cannot_dispatch_body'))
                         ->danger()
                         ->send();
 
@@ -117,7 +127,7 @@ class ShipmentsRelationManager extends RelationManager
                 );
 
                 Notification::make()
-                    ->title('Shipment dispatched')
+                    ->title(__('shops-shipping::shipment.notifications.dispatched'))
                     ->success()
                     ->send();
             });
@@ -126,7 +136,7 @@ class ShipmentsRelationManager extends RelationManager
     private static function markDeliveredAction(): Actions\Action
     {
         return Actions\Action::make('markDelivered')
-            ->label('Mark delivered')
+            ->label(__('shops-shipping::shipment.actions.mark_delivered'))
             ->icon('heroicon-o-check-circle')
             ->color('success')
             ->visible(fn (Shipment $record): bool => $record->status->canTransitionTo(ShipmentStatus::Delivered))
@@ -135,7 +145,7 @@ class ShipmentsRelationManager extends RelationManager
                 app(MarkShipmentDelivered::class)($record);
 
                 Notification::make()
-                    ->title('Shipment marked delivered')
+                    ->title(__('shops-shipping::shipment.notifications.marked_delivered'))
                     ->success()
                     ->send();
             });
@@ -144,12 +154,13 @@ class ShipmentsRelationManager extends RelationManager
     private static function markReturnedToSenderAction(): Actions\Action
     {
         return Actions\Action::make('markReturnedToSender')
-            ->label('Mark returned to sender')
+            ->label(__('shops-shipping::shipment.actions.mark_returned_to_sender'))
             ->icon('heroicon-o-arrow-uturn-left')
             ->color('warning')
             ->visible(fn (Shipment $record): bool => $record->status->canTransitionTo(ShipmentStatus::ReturnedToSender))
             ->form([
                 Textarea::make('reason')
+                    ->label(__('shops-shipping::shipment.form.reason'))
                     ->required()
                     ->rows(3),
             ])
@@ -157,7 +168,7 @@ class ShipmentsRelationManager extends RelationManager
                 app(MarkShipmentReturnedToSender::class)($record, $data['reason']);
 
                 Notification::make()
-                    ->title('Shipment marked returned to sender')
+                    ->title(__('shops-shipping::shipment.notifications.marked_returned_to_sender'))
                     ->success()
                     ->send();
             });
@@ -176,6 +187,7 @@ class ShipmentsRelationManager extends RelationManager
 
         if (! is_array($carriers) || $carriers === []) {
             return TextInput::make('carrier')
+                ->label(__('shops-shipping::shipment.form.carrier'))
                 ->required()
                 ->maxLength(64);
         }
@@ -188,6 +200,7 @@ class ShipmentsRelationManager extends RelationManager
         }
 
         return Select::make('carrier')
+            ->label(__('shops-shipping::shipment.form.carrier'))
             ->options($options)
             ->required()
             ->searchable();
@@ -196,12 +209,13 @@ class ShipmentsRelationManager extends RelationManager
     private static function markLostAction(): Actions\Action
     {
         return Actions\Action::make('markLost')
-            ->label('Mark lost')
+            ->label(__('shops-shipping::shipment.actions.mark_lost'))
             ->icon('heroicon-o-x-circle')
             ->color('danger')
             ->visible(fn (Shipment $record): bool => $record->status->canTransitionTo(ShipmentStatus::Lost))
             ->form([
                 Textarea::make('reason')
+                    ->label(__('shops-shipping::shipment.form.reason'))
                     ->required()
                     ->rows(3),
             ])
@@ -209,7 +223,7 @@ class ShipmentsRelationManager extends RelationManager
                 app(MarkShipmentLost::class)($record, $data['reason']);
 
                 Notification::make()
-                    ->title('Shipment marked lost')
+                    ->title(__('shops-shipping::shipment.notifications.marked_lost'))
                     ->success()
                     ->send();
             });

@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Model;
 use InOtherShops\Currency\Enums\Currency;
 use InOtherShops\Inventory\Actions\AdjustStock;
 use InOtherShops\Inventory\Enums\StockMovementReason;
+use InOtherShops\Support\Filament\MoneyFields;
 use InOtherShops\Variants\Actions\DeleteVariant;
 use InOtherShops\Variants\Contracts\HasVariants;
 use InOtherShops\Variants\Models\Variant;
@@ -34,32 +35,31 @@ final class VariantsSchema
     public static function axesField(): Select
     {
         return Select::make('_variant_options')
-            ->label('Varies by')
+            ->label(__('shops-variants::variant.axes.label'))
             ->multiple()
             ->options(fn (): array => Variants::option()::query()->get()
                 ->mapWithKeys(fn (Model $option): array => [$option->id => $option->translated('name') ?? $option->slug])
                 ->all())
-            ->helperText('The attributes this product varies by. Add values to each option in the Options catalog.')
+            ->helperText(__('shops-variants::variant.axes.help'))
             ->preload();
     }
 
     public static function variantsRepeater(): Repeater
     {
         return Repeater::make('_variants')
-            ->label('Variants')
+            ->label(__('shops-variants::variant.repeater.label'))
             ->addable(false)
             ->orderColumn('position')
             ->itemLabel(fn (array $state): ?string => $state['summary'] ?? null)
             ->schema([
                 Hidden::make('id'),
                 Hidden::make('summary'),
-                TextInput::make('sku')->label('SKU')->maxLength(255),
-                TextInput::make('price')
-                    ->label('Price ('.self::editingCurrency()->value.')')
-                    ->numeric()
-                    ->minValue(0)
-                    ->helperText('Smallest currency subunit (cents).'),
-                TextInput::make('stock')->label('Stock')->numeric(),
+                TextInput::make('sku')->label(__('shops-common::fields.sku'))->maxLength(255),
+                MoneyFields::moneyInput('price', nullable: true)
+                    ->label(__('shops-variants::variant.repeater.price', ['currency' => self::editingCurrency()->value]))
+                    ->step(0.01)
+                    ->helperText(__('shops-variants::variant.repeater.price_help')),
+                TextInput::make('stock')->label(__('shops-variants::variant.repeater.stock'))->integer()->minValue(0),
             ])
             ->columns(3)
             ->defaultItems(0);
@@ -128,8 +128,10 @@ final class VariantsSchema
             }
 
             $variant->update(['sku' => $row['sku'] ?? null, 'position' => $position]);
-            self::applyPrice($variant, $row['price'] ?? null);
-            self::applyStock($variant, $row['stock'] ?? null);
+            // Filament's NumberStateCast dehydrates every ->numeric() input to
+            // ?float — coerce at the boundary before the typed sinks.
+            self::applyPrice($variant, self::intOrNull($row['price'] ?? null));
+            self::applyStock($variant, self::intOrNull($row['stock'] ?? null));
             $keptIds[] = $variant->id;
         }
 
@@ -172,6 +174,11 @@ final class VariantsSchema
         }
 
         app(AdjustStock::class)($variant, $delta, StockMovementReason::Adjusted, 'Admin variant stock edit');
+    }
+
+    private static function intOrNull(mixed $value): ?int
+    {
+        return $value === null || $value === '' ? null : (int) $value;
     }
 
     private static function editingCurrency(): Currency

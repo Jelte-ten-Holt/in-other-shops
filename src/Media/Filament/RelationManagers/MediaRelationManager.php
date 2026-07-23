@@ -22,6 +22,11 @@ class MediaRelationManager extends RelationManager
 {
     protected static string $relationship = 'media';
 
+    public static function getTitle(\Illuminate\Database\Eloquent\Model $ownerRecord, string $pageClass): string
+    {
+        return __('shops-media::media_relation.title');
+    }
+
     public function form(Schema $schema): Schema
     {
         $disk = config('media.disk');
@@ -35,6 +40,7 @@ class MediaRelationManager extends RelationManager
         return $schema
             ->schema([
                 FileUpload::make('path')
+                    ->label(__('shops-media::media_relation.fields.path'))
                     ->required()
                     ->disk($disk)
                     ->directory($directory)
@@ -43,9 +49,11 @@ class MediaRelationManager extends RelationManager
                     ->maxSize(10240)
                     ->columnSpanFull(),
                 Select::make('collection')
+                    ->label(__('shops-media::media_relation.fields.collection'))
                     ->options($collectionOptions)
                     ->required(),
                 TextInput::make('alt')
+                    ->label(__('shops-media::media_relation.fields.alt'))
                     ->maxLength(255),
             ]);
     }
@@ -55,20 +63,23 @@ class MediaRelationManager extends RelationManager
         return $table
             ->columns([
                 Tables\Columns\ImageColumn::make('path')
-                    ->label('Thumbnail')
+                    ->label(__('shops-media::media_relation.columns.thumbnail'))
                     ->disk(fn ($record) => $record->disk)
                     ->square()
                     ->size(40),
                 Tables\Columns\TextColumn::make('filename')
+                    ->label(__('shops-media::media_relation.columns.filename'))
                     ->searchable(),
                 Tables\Columns\TextColumn::make('pivot.collection')
-                    ->label('Collection')
+                    ->label(__('shops-media::media_relation.columns.collection'))
                     ->badge()
                     ->placeholder('—'),
                 Tables\Columns\TextColumn::make('size')
+                    ->label(__('shops-media::media_relation.columns.size'))
                     ->formatStateUsing(fn (int $state) => Number::fileSize($state))
                     ->sortable(),
                 Tables\Columns\TextColumn::make('alt')
+                    ->label(__('shops-media::media_relation.columns.alt'))
                     ->placeholder('—'),
             ])
             ->defaultSort('mediables.position')

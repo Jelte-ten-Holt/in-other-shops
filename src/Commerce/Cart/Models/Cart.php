@@ -29,6 +29,36 @@ class Cart extends Model
         ];
     }
 
+    protected static function booted(): void
+    {
+        // Stamp the guest-cart TTL at creation (D7). Owner (logged-in) carts are
+        // not stamped — they are never pruned. Skip if a caller already set one.
+        static::creating(function (Cart $cart): void {
+            if ($cart->owner_id === null && $cart->expires_at === null) {
+                $cart->expires_at = now()->addDays(self::ttlDays());
+            }
+        });
+    }
+
+    /**
+     * Slide the guest-cart TTL forward — called on every cart write (see
+     * CartItem's model events), so an actively-used cart never expires under the
+     * shopper. No-op for owner carts, which don't expire.
+     */
+    public function slideExpiry(): void
+    {
+        if ($this->owner_id !== null) {
+            return;
+        }
+
+        $this->forceFill(['expires_at' => now()->addDays(self::ttlDays())])->save();
+    }
+
+    private static function ttlDays(): int
+    {
+        return (int) config('commerce.cart.ttl_days', 30);
+    }
+
     /**
      * The API default cart currency. The home for the
      * `commerce.cart.api.default_currency` literal on the cart path — with

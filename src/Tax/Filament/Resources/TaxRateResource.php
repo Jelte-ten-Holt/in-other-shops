@@ -27,37 +27,43 @@ final class TaxRateResource extends PackageResource
 
     protected static string|\UnitEnum|null $navigationGroup = NavigationGroup::Tax;
 
+    protected static function labelKey(): string
+    {
+        return 'shops-tax::taxrate';
+    }
+
     public static function form(Schema $schema): Schema
     {
         return $schema
             ->schema([
-                Section::make('Tax Rate')
+                Section::make(__('shops-tax::taxrate.section.tax_rate'))
                     ->schema([
                         TextInput::make('name')
+                            ->label(__('shops-common::fields.name'))
                             ->required()
                             ->maxLength(255)
-                            ->placeholder('e.g. Netherlands VAT 21%'),
+                            ->placeholder(__('shops-tax::taxrate.fields.name_placeholder')),
                         TextInput::make('country_code')
-                            ->label('Country code (ISO-3166-1 alpha-2)')
+                            ->label(__('shops-tax::taxrate.fields.country_code'))
                             ->required()
                             ->minLength(2)
                             ->maxLength(2)
-                            ->helperText('Two-letter uppercase code, e.g. NL, DE, FR.'),
+                            ->helperText(__('shops-tax::taxrate.fields.country_code_help')),
                         Select::make('tax_category')
-                            ->label('Tax category')
+                            ->label(__('shops-tax::taxrate.fields.tax_category'))
                             ->options(collect(TaxCategory::cases())->mapWithKeys(fn (TaxCategory $c) => [$c->value => $c->value])->all())
-                            ->placeholder('General — applies to any category')
-                            ->helperText('Leave blank for the country\'s general rate. Pick a category to override that rate for specific product types.'),
+                            ->placeholder(__('shops-tax::taxrate.fields.tax_category_placeholder'))
+                            ->helperText(__('shops-tax::taxrate.fields.tax_category_help')),
                         TextInput::make('rate_bps')
-                            ->label('Rate (basis points)')
+                            ->label(__('shops-tax::taxrate.fields.rate_bps'))
                             ->numeric()
                             ->required()
                             ->minValue(0)
                             ->maxValue(10000)
-                            ->helperText('2100 = 21%. 900 = 9%. 0 = zero-rated.'),
+                            ->helperText(__('shops-tax::taxrate.fields.rate_bps_help')),
                         Toggle::make('is_default')
-                            ->label('Default fallback')
-                            ->helperText('Used when no country match is found. Only one rate should be marked as default.'),
+                            ->label(__('shops-tax::taxrate.fields.is_default'))
+                            ->helperText(__('shops-tax::taxrate.fields.is_default_help')),
                     ]),
             ]);
     }
@@ -66,20 +72,21 @@ final class TaxRateResource extends PackageResource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('name')->searchable()->sortable(),
-                Tables\Columns\TextColumn::make('country_code')->label('Country')->sortable(),
+                Tables\Columns\TextColumn::make('name')->label(__('shops-common::fields.name'))->searchable()->sortable(),
+                Tables\Columns\TextColumn::make('country_code')->label(__('shops-common::fields.country'))->sortable(),
                 Tables\Columns\TextColumn::make('tax_category')
-                    ->label('Category')
-                    ->placeholder('General')
+                    ->label(__('shops-tax::taxrate.columns.category'))
+                    ->placeholder(__('shops-tax::taxrate.columns.category_placeholder'))
                     ->sortable(),
                 Tables\Columns\TextColumn::make('rate_bps')
-                    ->label('Rate')
+                    ->label(__('shops-tax::taxrate.columns.rate'))
                     // D2 (package-tightening): was '21.00%'; now matches the
                     // voucher column's stripped format ('21%', '7.5%').
                     ->formatStateUsing(fn (int $state): string => MoneyFields::percentLabel($state))
                     ->sortable(),
-                Tables\Columns\IconColumn::make('is_default')->label('Default')->boolean(),
+                Tables\Columns\IconColumn::make('is_default')->label(__('shops-tax::taxrate.columns.is_default'))->boolean(),
                 Tables\Columns\TextColumn::make('updated_at')
+                    ->label(__('shops-common::fields.updated_at'))
                     ->dateTime()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),

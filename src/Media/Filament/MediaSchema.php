@@ -33,16 +33,18 @@ final class MediaSchema
         $schema = [
             Hidden::make('media_id'),
             Select::make('type')
+                ->label(__('shops-common::fields.type'))
                 ->options([
-                    MediaType::Upload->value => 'Upload',
-                    MediaType::External->value => 'External URL',
-                    MediaType::Embed->value => 'Embed',
+                    MediaType::Upload->value => __('shops-media::media.type_options.upload'),
+                    MediaType::External->value => __('shops-media::media.type_options.external'),
+                    MediaType::Embed->value => __('shops-media::media.type_options.embed'),
                 ])
                 ->default(MediaType::Upload->value)
                 ->required()
                 ->live()
                 ->columnSpanFull(),
             FileUpload::make('path')
+                ->label(__('shops-media::media.fields.path'))
                 ->required()
                 ->disk($disk)
                 ->directory($directory)
@@ -55,7 +57,7 @@ final class MediaSchema
                 ->columnSpanFull()
                 ->visible(fn ($get) => $get('type') === MediaType::Upload->value),
             TextInput::make('url')
-                ->label('URL')
+                ->label(__('shops-media::media.fields.url'))
                 ->required()
                 ->url()
                 ->live(onBlur: true)
@@ -70,6 +72,7 @@ final class MediaSchema
                 ->visible(fn ($get) => $get('type') === MediaType::Embed->value && filled($get('url')))
                 ->columnSpanFull(),
             TextInput::make('alt')
+                ->label(__('shops-media::media.fields.alt'))
                 ->maxLength(255),
         ];
 
@@ -80,8 +83,8 @@ final class MediaSchema
         // in its `media.collections` config entry.
         if (self::collectionAllowsCover($collection)) {
             $schema[] = Toggle::make('is_cover')
-                ->label('Use as cover image')
-                ->helperText('The cover image is used in listings and social previews. Only one row across all media collections is kept as the cover.')
+                ->label(__('shops-media::media.fields.is_cover'))
+                ->helperText(__('shops-media::media.fields.is_cover_help'))
                 ->default(false);
         }
 
@@ -332,7 +335,7 @@ final class MediaSchema
         $embedUrl = self::toEmbedUrl($url);
 
         if ($embedUrl === null) {
-            return new HtmlString('<p style="color: #6b7280; font-size: 0.875rem;">Paste a YouTube or Vimeo URL above.</p>');
+            return new HtmlString('<p style="color: #6b7280; font-size: 0.875rem;">'.e(__('shops-media::media.embed.prompt')).'</p>');
         }
 
         return new HtmlString(

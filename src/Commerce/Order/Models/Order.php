@@ -87,6 +87,20 @@ class Order extends Model implements HasAddresses, HasPayments, HasShipment
     }
 
     /**
+     * Whether this order may be deleted (audit M3 / D4). Only a fresh Pending
+     * order carrying no payment row — an abandoned checkout that never reached
+     * the gateway — is deletable. Any payment row, or any status past Pending,
+     * makes deletion destroy the record of money that moved. The Filament
+     * delete/bulk-delete and address-delete actions gate on this; consumers may
+     * also enforce it at the policy layer.
+     */
+    public function isDeletable(): bool
+    {
+        return $this->status === OrderStatus::Pending
+            && $this->payments()->doesntExist();
+    }
+
+    /**
      * The order is complete when it has been confirmed, has at least one
      * Shipment, every Shipment is Delivered, and the order is paid in
      * full. Computed from the three independent state machines (Order,

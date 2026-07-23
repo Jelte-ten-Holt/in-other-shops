@@ -7,12 +7,14 @@ namespace InOtherShops\Payment\Actions;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use InOtherShops\Payment\DTOs\WebhookPayload;
 use InOtherShops\Payment\Enums\PaymentStatus;
 use InOtherShops\Payment\Events\PaymentFailed;
 use InOtherShops\Payment\Events\PaymentRefunded;
 use InOtherShops\Payment\Events\PaymentSucceeded;
 use InOtherShops\Payment\Exceptions\PaymentAmountMismatchException;
+use InOtherShops\Payment\Exceptions\UnmatchedWebhookPaymentException;
 use InOtherShops\Payment\Models\Payment;
 use InOtherShops\Payment\Models\WebhookEvent;
 use InOtherShops\Payment\PaymentGatewayManager;
@@ -41,13 +43,34 @@ final class ProcessPaymentWebhook
         $payload = $gateway->parseWebhook($request);
 
         return DB::transaction(function () use ($gatewayName, $payload): ?Payment {
-            if (! $this->recordIdempotency($gatewayName, $payload)) {
-                return null;
-            }
-
+            // Resolve the payment BEFORE recording idempotency. An event whose
+            // gateway_reference matches no payment yet (delivered before the pay
+            // page wrote the reference, or the process died between the gateway
+            // call and the write) must leave NO ledger row.
+            //
+            // For a SETTLED event (succeeded/failed) a miss THROWS
+            // (UnmatchedWebhookPaymentException, M10/D8): the resulting non-2xx
+            // is what makes the gateway retry — answering 2xx would have it treat
+            // the delivery as handled and never resend, losing a real payment
+            // event (order stuck Pending, customer charged). The throw rolls back
+            // this transaction, so no idempotency row is written and the retry
+            // lands once the reference exists. A non-settled miss (e.g. a bare
+            // pending/processing ping) is dropped as before — nothing to recover.
+            //
+            // The payment row lock also serialises concurrent deliveries of the
+            // same event, so the ledger insert below stays race-free despite
+            // running second.
             $payment = $this->findPayment($gatewayName, $payload);
 
             if ($payment === null) {
+                if ($this->isActionableMiss($payload)) {
+                    throw UnmatchedWebhookPaymentException::forReference($gatewayName, $payload->gatewayReference);
+                }
+
+                return null;
+            }
+
+            if (! $this->recordIdempotency($gatewayName, $payload)) {
                 return null;
             }
 
@@ -93,6 +116,16 @@ final class ProcessPaymentWebhook
             ->where('gateway_reference', $payload->gatewayReference)
             ->lockForUpdate()
             ->first();
+    }
+
+    /**
+     * A settled event — succeeded or failed — is one whose loss actually matters
+     * (the money moved or an attempt resolved). A miss on one of these must
+     * trigger a gateway retry rather than be silently dropped (M10/D8).
+     */
+    private function isActionableMiss(WebhookPayload $payload): bool
+    {
+        return in_array($payload->status, [PaymentStatus::Succeeded, PaymentStatus::Failed], true);
     }
 
     private function isRefundEvent(WebhookPayload $payload): bool
@@ -183,12 +216,57 @@ final class ProcessPaymentWebhook
             return false;
         }
 
+        if ($this->wouldRegressSettledPayment($payment->status, $payload->status)) {
+            // Deliberately still 204s (the idempotency row is already recorded)
+            // so the gateway stops redelivering a stale event — but leave a
+            // trace: a refused transition is exactly the out-of-order delivery
+            // an operator investigating a payment mismatch needs to see.
+            Log::info('Webhook status regression refused', [
+                'payment_id' => $payment->getKey(),
+                'gateway_reference' => $payment->gateway_reference,
+                'current' => $payment->status->value,
+                'incoming' => $payload->status->value,
+                'event_id' => $payload->eventId,
+            ]);
+
+            return false;
+        }
+
         $payment->update([
             'status' => $payload->status,
             'gateway_data' => array_merge($payment->gateway_data ?? [], $payload->gatewayData),
         ]);
 
         return true;
+    }
+
+    /**
+     * A settled payment must never move backwards on an out-of-order delivery.
+     * Two shapes (both real: gateways do not guarantee event ordering):
+     *
+     * - Succeeded/Refunded/PartiallyRefunded dragged back to Failed or Pending
+     *   by a stale earlier-attempt event (M6) — strands real money as
+     *   unrefundable and lies to every downstream reader.
+     * - Refunded/PartiallyRefunded dragged "forward" to Succeeded by a delayed
+     *   success delivery arriving AFTER a refund was applied — would un-refund
+     *   the payment and fire PaymentSucceeded (confirm + ship) for a refunded
+     *   sale.
+     *
+     * Genuine refund transitions never pass through here — they go through
+     * applyRefund — so refusing Succeeded onto a refunded payment loses nothing.
+     */
+    private function wouldRegressSettledPayment(PaymentStatus $current, PaymentStatus $incoming): bool
+    {
+        $settled = [PaymentStatus::Succeeded, PaymentStatus::Refunded, PaymentStatus::PartiallyRefunded];
+        $backwards = [PaymentStatus::Failed, PaymentStatus::Pending];
+
+        if (in_array($current, $settled, true) && in_array($incoming, $backwards, true)) {
+            return true;
+        }
+
+        $refunded = [PaymentStatus::Refunded, PaymentStatus::PartiallyRefunded];
+
+        return in_array($current, $refunded, true) && $incoming === PaymentStatus::Succeeded;
     }
 
     private function dispatchEvent(Payment $payment): void

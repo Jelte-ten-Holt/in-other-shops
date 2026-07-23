@@ -39,6 +39,11 @@ class OrderResource extends PackageResource
 
     protected static string|\UnitEnum|null $navigationGroup = NavigationGroup::Commerce;
 
+    protected static function labelKey(): string
+    {
+        return 'shops-commerce::orders';
+    }
+
     public static function form(Schema $schema): Schema
     {
         return $schema
@@ -46,9 +51,9 @@ class OrderResource extends PackageResource
                 Tabs::make('order')
                     ->columnSpanFull()
                     ->tabs([
-                        Tab::make('Details')
+                        Tab::make(__('shops-commerce::orders.tabs.details'))
                             ->schema(static::orderDetailFields()),
-                        Tab::make('Order Lines')
+                        Tab::make(__('shops-commerce::orders.tabs.order_lines'))
                             ->schema([
                                 CommerceSchema::orderLinesRepeater(
                                     currencyOptions: static::currencyOptions(),
@@ -58,7 +63,7 @@ class OrderResource extends PackageResource
                                         static::recalculateOrderTotals($set, $get);
                                     }),
                             ]),
-                        Tab::make('Addresses')
+                        Tab::make(__('shops-commerce::orders.tabs.addresses'))
                             ->schema([
                                 LocationSchema::addressRepeater(),
                             ]),
@@ -71,18 +76,20 @@ class OrderResource extends PackageResource
         return $table
             ->columns([
                 Tables\Columns\TextColumn::make('order_number')
+                    ->label(__('shops-commerce::orders.fields.order_number'))
                     ->searchable()
                     ->sortable(),
                 Tables\Columns\TextColumn::make('customer.name')
-                    ->label('Customer')
-                    ->placeholder('Guest')
+                    ->label(__('shops-commerce::orders.fields.customer'))
+                    ->placeholder(__('shops-commerce::orders.placeholders.guest'))
                     ->searchable()
                     ->sortable(),
                 Tables\Columns\TextColumn::make('status')
+                    ->label(__('shops-common::fields.status'))
                     ->badge()
                     ->color(fn (OrderStatus $state): string => $state->color()),
                 Tables\Columns\TextColumn::make('refund_state')
-                    ->label('Refund')
+                    ->label(__('shops-commerce::orders.columns.refund'))
                     ->badge()
                     ->color('danger')
                     ->getStateUsing(function (Order $record): ?string {
@@ -91,24 +98,27 @@ class OrderResource extends PackageResource
                         $refunded = $record->refundedTotal();
 
                         return match (true) {
-                            $refunded > 0 && $refunded >= $record->total => 'Refunded',
-                            $refunded > 0 => 'Partial',
+                            $refunded > 0 && $refunded >= $record->total => __('shops-commerce::orders.refund_state.refunded'),
+                            $refunded > 0 => __('shops-commerce::orders.refund_state.partial'),
                             default => null,
                         };
                     }),
                 Tables\Columns\TextColumn::make('currency')
+                    ->label(__('shops-common::fields.currency'))
                     ->badge()
                     ->formatStateUsing(fn ($state) => $state->value),
                 Tables\Columns\TextColumn::make('shipping_cost')
-                    ->label('Shipping')
+                    ->label(__('shops-commerce::orders.columns.shipping'))
                     ->formatStateUsing(fn ($record) => $record->shipping_cost > 0
                         ? $record->currency->format($record->shipping_cost)
                         : '—')
                     ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('total')
+                    ->label(__('shops-commerce::orders.fields.total'))
                     ->formatStateUsing(fn ($record) => $record->currency->format($record->total))
                     ->sortable(),
                 Tables\Columns\TextColumn::make('created_at')
+                    ->label(__('shops-common::fields.created_at'))
                     ->dateTime()
                     ->sortable(),
             ])
@@ -120,12 +130,11 @@ class OrderResource extends PackageResource
             ->actions([
                 static::updateStatusAction(),
                 Actions\EditAction::make(),
-            ])
-            ->bulkActions([
-                Actions\BulkActionGroup::make([
-                    Actions\DeleteBulkAction::make(),
-                ]),
             ]);
+        // No bulk delete (D4/M3): a bulk action can't tell a fresh, payment-less
+        // Pending order from a paid one, and deleting a paid order destroys the
+        // record of money that moved. Per-order deletion of a genuinely-deletable
+        // order stays available on the edit page, gated by Order::isDeletable().
     }
 
     public static function getRelations(): array
@@ -162,36 +171,42 @@ class OrderResource extends PackageResource
     {
         return [
             Select::make('customer_id')
-                ->label('Customer')
+                ->label(__('shops-commerce::orders.fields.customer'))
                 ->relationship('customer', 'name')
                 ->searchable()
                 ->preload()
-                ->placeholder('Guest (no customer)'),
+                ->placeholder(__('shops-commerce::orders.placeholders.guest_no_customer')),
             TextInput::make('email')
+                ->label(__('shops-common::fields.email'))
                 ->email()
                 ->maxLength(255),
             TextInput::make('order_number')
+                ->label(__('shops-commerce::orders.fields.order_number'))
                 ->required()
                 ->maxLength(255)
                 ->unique(ignoreRecord: true)
                 ->disabled(fn (?Order $record): bool => $record !== null),
             Select::make('status')
+                ->label(__('shops-common::fields.status'))
                 ->options(OrderStatus::class)
                 ->default(OrderStatus::Pending)
                 ->required()
                 ->disabled(fn (?Order $record): bool => $record !== null),
             ...static::orderCurrencyFields(),
             MoneyFields::moneyInput('subtotal', zeroWhenEmpty: true)
+                ->label(__('shops-commerce::orders.fields.subtotal'))
                 ->live()
                 ->afterStateUpdated(function (Set $set, Get $get): void {
                     static::recalculateTotal($set, $get);
                 }),
             MoneyFields::moneyInput('tax', zeroWhenEmpty: true)
+                ->label(__('shops-commerce::orders.fields.tax'))
                 ->live()
                 ->afterStateUpdated(function (Set $set, Get $get): void {
                     static::recalculateTotal($set, $get);
                 }),
             MoneyFields::moneyInput('discount', zeroWhenEmpty: true)
+                ->label(__('shops-commerce::orders.fields.discount'))
                 ->live()
                 ->afterStateUpdated(function (Set $set, Get $get): void {
                     static::recalculateTotal($set, $get);
@@ -201,11 +216,13 @@ class OrderResource extends PackageResource
             // a discrepancy between total and its parts. See H6 in the
             // 2026-05-09 audit / docs/launch-blockers.md.
             MoneyFields::moneyInput('total', zeroWhenEmpty: true)
+                ->label(__('shops-commerce::orders.fields.total'))
                 ->disabled()
                 ->dehydrated(),
             MoneyFields::moneyInput('_shipping_cost', zeroWhenEmpty: true)
-                ->label('Shipping cost'),
+                ->label(__('shops-commerce::orders.fields.shipping_cost')),
             Textarea::make('notes')
+                ->label(__('shops-common::fields.notes'))
                 ->columnSpanFull(),
         ];
     }
@@ -221,7 +238,7 @@ class OrderResource extends PackageResource
             return [
                 Hidden::make('currency')->default($value),
                 TextInput::make('currency_display')
-                    ->label('Currency')
+                    ->label(__('shops-common::fields.currency'))
                     ->default($value)
                     ->formatStateUsing(fn ($record) => $record?->currency->value ?? $value)
                     ->disabled()
@@ -231,6 +248,7 @@ class OrderResource extends PackageResource
 
         return [
             BackedEnumState::normalize(Select::make('currency'))
+                ->label(__('shops-common::fields.currency'))
                 ->options($options)
                 ->required(),
         ];
@@ -270,13 +288,13 @@ class OrderResource extends PackageResource
     protected static function updateStatusAction(): Actions\Action
     {
         return Actions\Action::make('updateStatus')
-            ->label('Update Status')
+            ->label(__('shops-commerce::orders.actions.update_status'))
             ->icon('heroicon-o-arrow-path')
             ->color('gray')
             ->hidden(fn (Order $record): bool => $record->status->allowedTransitions() === [])
             ->form([
                 Select::make('status')
-                    ->label('New Status')
+                    ->label(__('shops-commerce::orders.fields.new_status'))
                     ->options(fn (Order $record): array => collect($record->status->allowedTransitions())
                         ->mapWithKeys(fn (OrderStatus $status) => [$status->value => $status->label()])
                         ->all())

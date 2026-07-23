@@ -52,6 +52,11 @@ final class ClaimCart
             'owner_type' => $owner->getMorphClass(),
             'owner_id' => $owner->getKey(),
             'session_token' => null,
+            // Owner carts don't expire. Without this, the guest-era stamp
+            // fossilises (nothing slides it for owner carts) and 30 idle days
+            // later the cartable-deletion guard reads the cart as dead —
+            // making a product in a customer's cart deletable.
+            'expires_at' => null,
         ]);
 
         return $guestCart->refresh();

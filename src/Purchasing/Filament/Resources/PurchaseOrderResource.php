@@ -33,32 +33,40 @@ class PurchaseOrderResource extends PackageResource
 
     protected static string|\UnitEnum|null $navigationGroup = NavigationGroup::Purchasing;
 
+    protected static function labelKey(): string
+    {
+        return 'shops-purchasing::purchaseorder';
+    }
+
     public static function form(Schema $schema): Schema
     {
         return $schema
             ->schema([
-                Section::make('Details')
+                Section::make(__('shops-purchasing::purchaseorder.section.details'))
                     ->schema([
                         Select::make('supplier_id')
+                            ->label(__('shops-purchasing::purchaseorder.fields.supplier'))
                             ->relationship('supplier', 'name')
                             ->searchable()
                             ->preload()
                             ->required()
                             ->disabledOn('edit'),
                         TextInput::make('reference')
+                            ->label(__('shops-common::fields.reference'))
                             ->disabled()
                             ->dehydrated(false)
                             ->visibleOn('edit'),
                         DatePicker::make('expected_delivery_at')
-                            ->label('Expected delivery'),
-                        ...self::costField('shipping_cost', 'Shipping cost'),
-                        ...self::costField('customs_cost', 'Customs cost'),
+                            ->label(__('shops-purchasing::purchaseorder.fields.expected_delivery')),
+                        ...self::costField('shipping_cost', __('shops-purchasing::purchaseorder.fields.shipping_cost')),
+                        ...self::costField('customs_cost', __('shops-purchasing::purchaseorder.fields.customs_cost')),
                         Textarea::make('notes')
+                            ->label(__('shops-common::fields.notes'))
                             ->rows(3)
                             ->columnSpanFull(),
                     ])
                     ->columns(2),
-                Section::make('Lines')
+                Section::make(__('shops-purchasing::purchaseorder.section.lines'))
                     ->schema([
                         PurchasingSchema::purchaseLinesRepeater(),
                     ])
@@ -87,25 +95,29 @@ class PurchaseOrderResource extends PackageResource
         return $table
             ->columns([
                 Tables\Columns\TextColumn::make('reference')
+                    ->label(__('shops-common::fields.reference'))
                     ->searchable()
                     ->sortable(),
                 Tables\Columns\TextColumn::make('supplier.name')
-                    ->label('Supplier')
+                    ->label(__('shops-purchasing::purchaseorder.fields.supplier'))
                     ->searchable()
                     ->sortable(),
                 Tables\Columns\TextColumn::make('status')
+                    ->label(__('shops-common::fields.status'))
                     ->badge()
                     ->formatStateUsing(fn (PurchaseOrderStatus $state): string => $state->label())
                     ->color(fn (PurchaseOrderStatus $state): string => $state->color()),
                 Tables\Columns\TextColumn::make('total')
+                    ->label(__('shops-purchasing::purchaseorder.columns.total'))
                     ->formatStateUsing(fn (PurchaseOrder $record): string => $record->currency->format($record->total))
                     ->sortable(),
                 Tables\Columns\TextColumn::make('expected_delivery_at')
-                    ->label('Expected')
+                    ->label(__('shops-purchasing::purchaseorder.columns.expected'))
                     ->date()
                     ->placeholder('—')
                     ->sortable(),
                 Tables\Columns\TextColumn::make('created_at')
+                    ->label(__('shops-common::fields.created_at'))
                     ->dateTime()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
@@ -113,6 +125,7 @@ class PurchaseOrderResource extends PackageResource
             ->defaultSort('created_at', 'desc')
             ->filters([
                 Tables\Filters\SelectFilter::make('status')
+                    ->label(__('shops-common::fields.status'))
                     ->options(fn (): array => collect(PurchaseOrderStatus::cases())
                         ->mapWithKeys(fn (PurchaseOrderStatus $status) => [$status->value => $status->label()])
                         ->all()),
@@ -133,7 +146,7 @@ class PurchaseOrderResource extends PackageResource
     private static function placeAction(): Actions\Action
     {
         return Actions\Action::make('place')
-            ->label('Mark ordered')
+            ->label(__('shops-purchasing::purchaseorder.actions.place'))
             ->icon('heroicon-o-paper-airplane')
             ->color('info')
             ->requiresConfirmation()
@@ -141,14 +154,14 @@ class PurchaseOrderResource extends PackageResource
             ->action(function (PurchaseOrder $record): void {
                 app(PlacePurchaseOrder::class)($record);
 
-                Notification::make()->title('Purchase order placed')->success()->send();
+                Notification::make()->title(__('shops-purchasing::purchaseorder.notifications.placed'))->success()->send();
             });
     }
 
     private static function receiveAction(): Actions\Action
     {
         return Actions\Action::make('receive')
-            ->label('Receive')
+            ->label(__('shops-purchasing::purchaseorder.actions.receive'))
             ->icon('heroicon-o-inbox-stack')
             ->color('success')
             ->visible(fn (PurchaseOrder $record): bool => $record->status->isReceivable())
@@ -164,16 +177,16 @@ class PurchaseOrderResource extends PackageResource
                 }
 
                 if ($quantities === []) {
-                    Notification::make()->title('Nothing to receive')->warning()->send();
+                    Notification::make()->title(__('shops-purchasing::purchaseorder.notifications.nothing_to_receive'))->warning()->send();
 
                     return;
                 }
 
                 try {
                     app(ReceiveItems::class)($record, $quantities);
-                    Notification::make()->title('Items received')->success()->send();
+                    Notification::make()->title(__('shops-purchasing::purchaseorder.notifications.items_received'))->success()->send();
                 } catch (\DomainException $e) {
-                    Notification::make()->title('Could not receive items')->body($e->getMessage())->danger()->send();
+                    Notification::make()->title(__('shops-purchasing::purchaseorder.notifications.receive_failed'))->body($e->getMessage())->danger()->send();
                 }
             });
     }
@@ -207,7 +220,7 @@ class PurchaseOrderResource extends PackageResource
     private static function cancelAction(): Actions\Action
     {
         return Actions\Action::make('cancel')
-            ->label('Cancel')
+            ->label(__('shops-purchasing::purchaseorder.actions.cancel'))
             ->icon('heroicon-o-x-circle')
             ->color('danger')
             ->requiresConfirmation()
@@ -215,9 +228,9 @@ class PurchaseOrderResource extends PackageResource
             ->action(function (PurchaseOrder $record): void {
                 try {
                     app(CancelPurchaseOrder::class)($record);
-                    Notification::make()->title('Purchase order cancelled')->success()->send();
+                    Notification::make()->title(__('shops-purchasing::purchaseorder.notifications.cancelled'))->success()->send();
                 } catch (\DomainException $e) {
-                    Notification::make()->title('Could not cancel')->body($e->getMessage())->danger()->send();
+                    Notification::make()->title(__('shops-purchasing::purchaseorder.notifications.cancel_failed'))->body($e->getMessage())->danger()->send();
                 }
             });
     }

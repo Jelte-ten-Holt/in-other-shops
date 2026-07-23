@@ -19,6 +19,7 @@ use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
 use PHPUnit\Framework\Attributes\Test;
 use RuntimeException;
 use Stripe\Customer;
+use Stripe\Exception\InvalidRequestException;
 use Stripe\PaymentIntent;
 use Stripe\Refund;
 use Stripe\Service\CustomerService;
@@ -207,6 +208,75 @@ final class StripePaymentGatewayTest extends TestCase
             ->once()
             ->with('pi_cancelable')
             ->andReturn(PaymentIntent::constructFrom(['id' => 'pi_cancelable', 'status' => 'canceled']));
+
+        $this->gateway->cancelSession($payment);
+    }
+
+    #[Test]
+    public function cancel_session_maps_a_race_to_succeeded_into_not_cancelable(): void
+    {
+        // M11: the intent read as cancelable, but succeeded between the retrieve
+        // and the cancel. Stripe rejects the cancel with an InvalidRequestException;
+        // it must surface as PaymentNotCancelableException (the "money may yet
+        // move" signal) rather than a raw Stripe error escaping to a 500.
+        $payment = $this->paymentFor(1000, Currency::EUR);
+        $payment->gateway_reference = 'pi_raced';
+
+        $this->paymentIntents
+            ->shouldReceive('retrieve')
+            ->once()
+            ->with('pi_raced')
+            ->andReturn(PaymentIntent::constructFrom(['id' => 'pi_raced', 'status' => 'requires_payment_method']));
+
+        $this->paymentIntents
+            ->shouldReceive('cancel')
+            ->once()
+            ->with('pi_raced')
+            ->andThrow(InvalidRequestException::factory(
+                'You cannot cancel this PaymentIntent because it has a status of succeeded.',
+                400,
+                null,
+                null,
+                null,
+                'payment_intent_unexpected_state',
+            ));
+
+        $this->expectException(PaymentNotCancelableException::class);
+
+        $this->gateway->cancelSession($payment);
+    }
+
+    #[Test]
+    public function cancel_session_rethrows_an_invalid_request_that_is_not_a_state_race(): void
+    {
+        // The SDK maps every 400/404 to InvalidRequestException. Only the
+        // `payment_intent_unexpected_state` code is the "money may yet move"
+        // race; anything else (a resource_missing 404, a malformed id) must
+        // escape as the real error, not masquerade as "intent live" and be
+        // warn-logged forever by the expiry sweep.
+        $payment = $this->paymentFor(1000, Currency::EUR);
+        $payment->gateway_reference = 'pi_gone';
+
+        $this->paymentIntents
+            ->shouldReceive('retrieve')
+            ->once()
+            ->with('pi_gone')
+            ->andReturn(PaymentIntent::constructFrom(['id' => 'pi_gone', 'status' => 'requires_payment_method']));
+
+        $this->paymentIntents
+            ->shouldReceive('cancel')
+            ->once()
+            ->with('pi_gone')
+            ->andThrow(InvalidRequestException::factory(
+                'No such payment_intent: pi_gone',
+                404,
+                null,
+                null,
+                null,
+                'resource_missing',
+            ));
+
+        $this->expectException(InvalidRequestException::class);
 
         $this->gateway->cancelSession($payment);
     }
