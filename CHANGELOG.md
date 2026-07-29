@@ -8,6 +8,29 @@ The format is loosely [Keep a Changelog](https://keepachangelog.com/); the
 package is pre-1.0, so minor versions may carry breaking changes (all consumers
 are pre-launch — single-release-window policy, no deprecation bridges).
 
+## v0.53.0 — 2026-07-29
+
+Additive. No breaking changes; a collection without the new key behaves exactly
+as before.
+
+### Added
+- **Per-collection media type restriction.** A `media.collections` entry may now
+  carry `types => ['embed']` (strings or `MediaType` cases) to narrow which of
+  Upload / External / Embed the admin offers for that collection, alongside the
+  existing `cover => false`. New public `MediaSchema::collectionTypes()` is the
+  source of truth the Select is wired to.
+
+  The motivating case: a video-embed collection that still offers "Upload" lets
+  an editor put a JPEG where a player URL belongs. The upload succeeds, and the
+  breakage surfaces later as a dead embed on a public page. Narrowing the
+  options removes the wrong answer from the form rather than validating it after
+  the fact.
+
+  An unrecognised or empty list falls back to every type rather than none, so a
+  config typo can't lock an editor out of their own media form. Save-time
+  enforcement comes from Filament, which validates a Select against its own
+  option list.
+
 ## v0.52.1 — 2026-07-23
 
 Fast-follows from the v0.52.0 supervisor acceptance (recorded in the bianka

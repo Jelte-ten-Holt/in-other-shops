@@ -34,12 +34,8 @@ final class MediaSchema
             Hidden::make('media_id'),
             Select::make('type')
                 ->label(__('shops-common::fields.type'))
-                ->options([
-                    MediaType::Upload->value => __('shops-media::media.type_options.upload'),
-                    MediaType::External->value => __('shops-media::media.type_options.external'),
-                    MediaType::Embed->value => __('shops-media::media.type_options.embed'),
-                ])
-                ->default(MediaType::Upload->value)
+                ->options(self::collectionTypeOptions($collection))
+                ->default(self::collectionTypes($collection)[0]->value)
                 ->required()
                 ->live()
                 ->columnSpanFull(),
@@ -184,6 +180,61 @@ final class MediaSchema
     public static function collectionAllowsCover(string $collection): bool
     {
         return (self::collections()[$collection]['cover'] ?? true) !== false;
+    }
+
+    /**
+     * Which media types a collection accepts. Defaults to all three; a
+     * collection restricts itself with `types => ['embed']` in its
+     * `media.collections` config entry.
+     *
+     * The reason this exists: a collection's type list is part of what the
+     * collection *means*. A video-embed collection that still offers "Upload"
+     * lets an editor put a JPEG where a player URL belongs — the upload
+     * succeeds, and the breakage only shows up later as a dead embed on the
+     * public page. Narrowing the options removes the wrong answer from the form
+     * instead of validating it after the fact.
+     *
+     * An unknown or empty list falls back to all types rather than none, so a
+     * config typo can't lock an editor out of their own media form.
+     *
+     * @return non-empty-list<MediaType>
+     */
+    public static function collectionTypes(string $collection): array
+    {
+        $configured = self::collections()[$collection]['types'] ?? null;
+
+        if (! is_array($configured) || $configured === []) {
+            return MediaType::cases();
+        }
+
+        $types = array_values(array_filter(array_map(
+            static fn (mixed $value): ?MediaType => $value instanceof MediaType
+                ? $value
+                : (is_string($value) ? MediaType::tryFrom($value) : null),
+            $configured,
+        )));
+
+        return $types === [] ? MediaType::cases() : $types;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private static function collectionTypeOptions(string $collection): array
+    {
+        $labels = [
+            MediaType::Upload->value => __('shops-media::media.type_options.upload'),
+            MediaType::External->value => __('shops-media::media.type_options.external'),
+            MediaType::Embed->value => __('shops-media::media.type_options.embed'),
+        ];
+
+        $options = [];
+
+        foreach (self::collectionTypes($collection) as $type) {
+            $options[$type->value] = $labels[$type->value];
+        }
+
+        return $options;
     }
 
     private static function syncCollection(Model&HasMedia $record, string $collection, array $items): void

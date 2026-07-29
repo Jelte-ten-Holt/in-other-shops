@@ -37,6 +37,11 @@ return [
     | URL is never a valid <img> source. Omit the key (or set true) for image
     | collections.
     |
+    | Set `types => [...]` to restrict which media types a collection accepts —
+    | e.g. `types => ['embed']` on a video collection, so the admin offers only
+    | a player URL and an editor can't upload a file into a slot that expects
+    | one. Omit the key to allow all three types.
+    |
     */
     'collections' => [
         'images' => [
