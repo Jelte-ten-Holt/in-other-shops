@@ -9,6 +9,7 @@ use InOtherShops\Storefront\Contracts\HasStorefrontPresence;
 use InOtherShops\Taxonomy\Contracts\HasCategories;
 use InOtherShops\Taxonomy\Contracts\HasTags;
 use InOtherShops\Taxonomy\Taxonomy;
+use InOtherShops\Translation\Contracts\HasTranslations;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
@@ -16,6 +17,9 @@ use Illuminate\Http\Request;
 final class ListBrowsables
 {
     use ResolvesEagerLoading;
+
+    /** @var array<string, bool> Memoized `{class}:{column}` schema lookups. */
+    private static array $columnCache = [];
 
     /**
      * @param  class-string<HasStorefrontPresence>  $modelClass
@@ -27,8 +31,8 @@ final class ListBrowsables
         $this->eagerLoadForContracts($query, $modelClass);
         $this->filterByCategory($query, $modelClass, $request);
         $this->filterByTag($query, $modelClass, $request);
-        $this->filterBySearch($query, $request);
-        $this->applySortOrder($query, $request);
+        $this->filterBySearch($query, $modelClass, $request);
+        $this->applySortOrder($query, $modelClass, $request);
 
         return $this->paginate($query, $request);
     }
@@ -59,7 +63,20 @@ final class ListBrowsables
         }
     }
 
-    private function filterBySearch(Builder $query, Request $request): void
+    /**
+     * Search name and description, wherever this consumer keeps them.
+     *
+     * `name` and `description` are contract METHODS, never promised columns.
+     * One consumer stores them as columns; another stores them as rows in the
+     * `translations` table. A flat `where('name', 'like', …)` is therefore only
+     * correct by accident — against a translation-backed catalog it fails with
+     * "Unknown column 'name'", turning the whole listing into a 500 the moment
+     * a shopper types in the search box.
+     *
+     * Each field is routed to whichever storage this model actually uses, and
+     * a field the model has in neither form is skipped rather than guessed at.
+     */
+    private function filterBySearch(Builder $query, string $modelClass, Request $request): void
     {
         $search = $request->input('search');
 
@@ -67,13 +84,24 @@ final class ListBrowsables
             return;
         }
 
-        $query->where(function (Builder $q) use ($search) {
-            $q->where('name', 'like', "%{$search}%")
-                ->orWhere('description', 'like', "%{$search}%");
+        $translatable = $this->translatableFields($modelClass);
+
+        $query->where(function (Builder $q) use ($modelClass, $search, $translatable): void {
+            foreach (['name', 'description'] as $field) {
+                if (in_array($field, $translatable, true)) {
+                    $q->orWhere(fn (Builder $inner) => $inner->whereTranslation($field, 'like', "%{$search}%"));
+
+                    continue;
+                }
+
+                if ($this->hasColumn($modelClass, $field)) {
+                    $q->orWhere($field, 'like', "%{$search}%");
+                }
+            }
         });
     }
 
-    private function applySortOrder(Builder $query, Request $request): void
+    private function applySortOrder(Builder $query, string $modelClass, Request $request): void
     {
         $sort = $request->input('sort');
         $allowed = ['name', 'created_at', 'published_at'];
@@ -86,14 +114,63 @@ final class ListBrowsables
                 $sort = substr($sort, 1);
             }
 
-            if (in_array($sort, $allowed, true)) {
-                $query->orderBy($sort, $direction);
-
+            if (in_array($sort, $allowed, true) && $this->applySort($query, $modelClass, $sort, $direction)) {
                 return;
             }
         }
 
         $query->latest('published_at');
+    }
+
+    /**
+     * Returns false when the requested sort is not expressible for this model,
+     * so the caller falls through to the default ordering rather than emitting
+     * SQL against a column that isn't there.
+     */
+    private function applySort(Builder $query, string $modelClass, string $sort, string $direction): bool
+    {
+        if (in_array($sort, $this->translatableFields($modelClass), true)) {
+            $query->orderByTranslation($sort, $direction);
+
+            return true;
+        }
+
+        if (! $this->hasColumn($modelClass, $sort)) {
+            return false;
+        }
+
+        $query->orderBy($sort, $direction);
+
+        return true;
+    }
+
+    /**
+     * @param  class-string  $modelClass
+     * @return array<string>
+     */
+    private function translatableFields(string $modelClass): array
+    {
+        if (! is_a($modelClass, HasTranslations::class, true)) {
+            return [];
+        }
+
+        return (new $modelClass)->translatableFields();
+    }
+
+    /**
+     * Schema introspection is a per-connection round trip, so memoize it. The
+     * set of columns cannot change within a request.
+     *
+     * @param  class-string  $modelClass
+     */
+    private function hasColumn(string $modelClass, string $column): bool
+    {
+        $model = new $modelClass;
+        $key = $modelClass.':'.$column;
+
+        return self::$columnCache[$key] ??= $model->getConnection()
+            ->getSchemaBuilder()
+            ->hasColumn($model->getTable(), $column);
     }
 
     private function paginate(Builder $query, Request $request): LengthAwarePaginator

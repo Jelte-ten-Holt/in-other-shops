@@ -35,7 +35,7 @@ use InOtherShops\Variants\Contracts\HasVariants;
 use Illuminate\Database\Eloquent\Builder;
 
 /*
- * The 14 test stubs. Class names are unchanged from the pre-consolidation
+ * The 16 test stubs. Class names are unchanged from the pre-consolidation
  * one-file-per-stub layout so every test file and the morph map keep resolving.
  * Each subclass carries only what a trait can't supply: its contract set, its
  * traits, its table, its capability list, and the handful of contract methods
@@ -116,6 +116,114 @@ final class TestCartable extends StubModel implements HasCart, HasOrders
             'expected_ship_date' => $this->expected_ship_date instanceof \DateTimeInterface
                 ? $this->expected_ship_date->format('Y-m-d')
                 : $this->expected_ship_date,
+        ];
+    }
+
+    public function availableCurrencies(): array
+    {
+        return [Currency::EUR->value];
+    }
+}
+
+/**
+ * `HasStorefrontPresence`, `HasTranslations` — the second catalog shape, browsable.
+ *
+ * The storefront counterpart to {@see TestTranslatableCartable}: no `name` and
+ * no `description` column, both resolved from the `translations` table. Only
+ * the `storefront` capability is declared — it already supplies `slug`, and
+ * `translations` would collide on that same column.
+ *
+ * Exists so {@see \InOtherShops\Storefront\Actions\ListBrowsables} search and
+ * sort are exercised against a catalog whose text is not in columns. Against
+ * {@see TestBrowsable} alone, `where('name', 'like', …)` looks perfectly fine.
+ */
+final class TestTranslatableBrowsable extends StubModel implements HasStorefrontPresence, HasTranslations
+{
+    use InteractsWithTranslations;
+
+    protected $table = 'test_translatable_browsables';
+
+    public static function capabilities(): array
+    {
+        return ['storefront'];
+    }
+
+    /** @return array<string> */
+    public function translatableFields(): array
+    {
+        return ['name', 'description'];
+    }
+
+    public function getBrowsableName(): string
+    {
+        return (string) $this->name;
+    }
+
+    public function getBrowsableSlug(): string
+    {
+        return (string) $this->slug;
+    }
+
+    public function getBrowsableDescription(): ?string
+    {
+        return $this->description;
+    }
+
+    public function getBrowsableRouteKeyName(): string
+    {
+        return 'slug';
+    }
+
+    public static function browseQuery(): Builder
+    {
+        return static::query();
+    }
+}
+
+/**
+ * `HasCart`, `HasOrders`, `HasTranslations` — the second catalog shape.
+ *
+ * Deliberately has NO `name` column: its name and description live in the
+ * `translations` table and surface only through the accessor
+ * `InteractsWithTranslations::getAttribute()` installs. This is the bianka
+ * consumer's shape, and its absence from the stub set is exactly why the order
+ * admin shipped a `pluck('name', 'id')` that 500'd on every order page while
+ * 1055 tests stayed green — every other orderable stub declares `identity`,
+ * so a column-level read could never fail here.
+ *
+ * Any package code that resolves a label, searches, or sorts a consumer model
+ * should be exercised against BOTH this and {@see TestCartable}.
+ */
+final class TestTranslatableCartable extends StubModel implements HasCart, HasOrders, HasTranslations
+{
+    use InteractsWithCart;
+    use InteractsWithTranslations;
+
+    protected $table = 'test_translatable_cartables';
+
+    public static function capabilities(): array
+    {
+        return ['translations', 'flatPrice'];
+    }
+
+    /** @return array<string> */
+    public function translatableFields(): array
+    {
+        return ['name', 'description'];
+    }
+
+    public function getCartableUnitPrice(Currency $currency): ?int
+    {
+        return $this->unit_price;
+    }
+
+    public function toOrderLineData(string $currencyCode): array
+    {
+        return [
+            'description' => $this->translated('name') ?? $this->slug,
+            'sku' => null,
+            'currency' => $currencyCode,
+            'unit_price' => $this->unit_price ?? 0,
         ];
     }
 

@@ -7,6 +7,8 @@ namespace InOtherShops\Commerce\Filament;
 use InOtherShops\Commerce\Order\Contracts\HasOrders;
 use InOtherShops\Support\Filament\BackedEnumState;
 use InOtherShops\Support\Filament\MoneyFields;
+use InOtherShops\Support\ModelLabel;
+use InOtherShops\Translation\Contracts\HasTranslations;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
@@ -14,6 +16,7 @@ use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Component;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Database\Eloquent\Relations\Relation;
 
 final class CommerceSchema
@@ -123,12 +126,41 @@ final class CommerceSchema
         $options = [];
 
         foreach ($orderableModels as $alias => $modelClass) {
-            foreach ($modelClass::query()->pluck('name', 'id') as $id => $title) {
-                $options["{$alias}:{$id}"] = $title;
+            foreach (self::orderableRecords($modelClass) as $record) {
+                $options["{$alias}:{$record->getKey()}"] = ModelLabel::for($record);
             }
         }
 
         return $options;
+    }
+
+    /**
+     * Hydrate the orderables rather than plucking a column.
+     *
+     * This used to be `pluck('name', 'id')`, which asks the database for a
+     * `name` column. A consumer whose catalog keeps its name in the
+     * translations table has no such column, so every order page 500'd with
+     * "Unknown column 'name' in 'field list'" — the storefront being perfectly
+     * fine, because model-level access goes through the translation accessor.
+     * Going through the model is what makes both catalog shapes work.
+     *
+     * The cost is hydrating the rows instead of plucking two columns. That is
+     * acceptable here: this is one admin form, the option list is already
+     * loaded in full, and correctness is not optional. Translations are
+     * eager-loaded so the label resolution does not turn into an N+1.
+     *
+     * @param  class-string<HasOrders>  $modelClass
+     * @return EloquentCollection<int, \Illuminate\Database\Eloquent\Model>
+     */
+    private static function orderableRecords(string $modelClass): EloquentCollection
+    {
+        $query = $modelClass::query();
+
+        if (is_a($modelClass, HasTranslations::class, true)) {
+            $query->with('translations');
+        }
+
+        return $query->get();
     }
 
     /** @return array<Component> */
