@@ -385,4 +385,150 @@ final class MediaSchemaTest extends TestCase
         $this->assertSame('media/a.jpeg', $filled['_media']['images'][0]['path']);
         $this->assertTrue($filled['_media']['images'][0]['is_cover']);
     }
+
+    #[Test]
+    public function it_persists_a_description_alongside_alt_on_create(): void
+    {
+        $record = TestMediable::factory()->create();
+
+        UploadedFile::fake()->create('a.jpeg', 100, 'image/jpeg')->storeAs('media', 'a.jpeg', 'public');
+
+        MediaSchema::saveFormData($record, [
+            '_media' => [
+                'images' => [
+                    [
+                        'media_id' => null,
+                        'type' => MediaType::Upload->value,
+                        'path' => 'media/a.jpeg',
+                        'alt' => 'A hero image',
+                        'description' => 'Ink and wash, 2026. Commissioned for the second edition.',
+                    ],
+                ],
+            ],
+        ]);
+
+        $media = Media::sole();
+
+        $this->assertSame('A hero image', $media->alt);
+        $this->assertSame('Ink and wash, 2026. Commissioned for the second edition.', $media->description);
+    }
+
+    #[Test]
+    public function it_persists_a_description_on_external_and_embed_rows(): void
+    {
+        $record = TestMediable::factory()->create();
+
+        MediaSchema::saveFormData($record, [
+            '_media' => [
+                'images' => [
+                    [
+                        'media_id' => null,
+                        'type' => MediaType::External->value,
+                        'url' => 'https://example.test/a.jpeg',
+                        'alt' => null,
+                        'description' => 'Hosted by the illustrator.',
+                    ],
+                ],
+                'embed' => [
+                    [
+                        'media_id' => null,
+                        'type' => MediaType::Embed->value,
+                        'url' => 'https://youtu.be/abc123',
+                        'alt' => null,
+                        'description' => 'Playthrough, recorded live.',
+                    ],
+                ],
+            ],
+        ]);
+
+        $external = Media::where('type', MediaType::External)->sole();
+        $embed = Media::where('type', MediaType::Embed)->sole();
+
+        $this->assertSame('Hosted by the illustrator.', $external->description);
+        $this->assertSame('Playthrough, recorded live.', $embed->description);
+    }
+
+    #[Test]
+    public function it_updates_and_clears_the_description_on_an_existing_row(): void
+    {
+        $record = TestMediable::factory()->create();
+
+        UploadedFile::fake()->create('a.jpeg', 100, 'image/jpeg')->storeAs('media', 'a.jpeg', 'public');
+
+        MediaSchema::saveFormData($record, [
+            '_media' => [
+                'images' => [
+                    [
+                        'media_id' => null,
+                        'type' => MediaType::Upload->value,
+                        'path' => 'media/a.jpeg',
+                        'alt' => null,
+                        'description' => 'First caption.',
+                    ],
+                ],
+            ],
+        ]);
+
+        $mediaId = Media::sole()->id;
+
+        MediaSchema::saveFormData($record, [
+            '_media' => [
+                'images' => [
+                    [
+                        'media_id' => $mediaId,
+                        'type' => MediaType::Upload->value,
+                        'path' => 'media/a.jpeg',
+                        'alt' => null,
+                        'description' => 'Revised caption.',
+                    ],
+                ],
+            ],
+        ]);
+
+        $this->assertSame('Revised caption.', Media::find($mediaId)->description);
+
+        // An editor who empties the textarea means "no caption", not "keep the
+        // old one" — the update path must write the null through.
+        MediaSchema::saveFormData($record, [
+            '_media' => [
+                'images' => [
+                    [
+                        'media_id' => $mediaId,
+                        'type' => MediaType::Upload->value,
+                        'path' => 'media/a.jpeg',
+                        'alt' => null,
+                        'description' => null,
+                    ],
+                ],
+            ],
+        ]);
+
+        $this->assertNull(Media::find($mediaId)->description);
+    }
+
+    #[Test]
+    public function it_includes_the_description_when_filling_form_data(): void
+    {
+        $record = TestMediable::factory()->create();
+
+        UploadedFile::fake()->create('a.jpeg', 100, 'image/jpeg')->storeAs('media', 'a.jpeg', 'public');
+
+        MediaSchema::saveFormData($record, [
+            '_media' => [
+                'images' => [
+                    [
+                        'media_id' => null,
+                        'type' => MediaType::Upload->value,
+                        'path' => 'media/a.jpeg',
+                        'alt' => null,
+                        'description' => 'Ink and wash, 2026.',
+                    ],
+                ],
+            ],
+        ]);
+
+        $filled = MediaSchema::fillFormData($record, []);
+
+        $this->assertSame('Ink and wash, 2026.', $filled['_media']['images'][0]['description']);
+    }
 }

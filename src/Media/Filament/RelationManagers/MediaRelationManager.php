@@ -10,6 +10,7 @@ use InOtherShops\Media\Models\Media;
 use Filament\Actions;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Schemas\Schema;
@@ -55,6 +56,10 @@ class MediaRelationManager extends RelationManager
                 TextInput::make('alt')
                     ->label(__('shops-media::media_relation.fields.alt'))
                     ->maxLength(255),
+                Textarea::make('description')
+                    ->label(__('shops-media::media_relation.fields.description'))
+                    ->rows(2)
+                    ->columnSpanFull(),
             ]);
     }
 

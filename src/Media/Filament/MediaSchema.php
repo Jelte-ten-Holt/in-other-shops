@@ -8,6 +8,7 @@ use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Html;
@@ -70,6 +71,11 @@ final class MediaSchema
             TextInput::make('alt')
                 ->label(__('shops-media::media.fields.alt'))
                 ->maxLength(255),
+            Textarea::make('description')
+                ->label(__('shops-media::media.fields.description'))
+                ->helperText(__('shops-media::media.fields.description_help'))
+                ->rows(2)
+                ->columnSpanFull(),
         ];
 
         // The cover toggle only makes sense for collections that hold actual
@@ -114,6 +120,7 @@ final class MediaSchema
                     'path' => $media->path,
                     'url' => $media->type !== MediaType::Upload ? $media->getAttribute('url') : null,
                     'alt' => $media->alt,
+                    'description' => $media->description,
                     'is_cover' => (bool) $media->pivot->is_cover,
                 ])
                 ->all();
@@ -276,7 +283,10 @@ final class MediaSchema
         int $position,
         array $item,
     ): void {
-        $updates = ['alt' => $item['alt'] ?? null];
+        $updates = [
+            'alt' => $item['alt'] ?? null,
+            'description' => $item['description'] ?? null,
+        ];
 
         $type = MediaType::tryFrom($item['type'] ?? '') ?? MediaType::Upload;
 
@@ -323,6 +333,7 @@ final class MediaSchema
             'mime_type' => $storage->mimeType($path) ?: 'application/octet-stream',
             'size' => $storage->size($path) ?: 0,
             'alt' => $item['alt'] ?? null,
+            'description' => $item['description'] ?? null,
         ]);
     }
 
@@ -362,6 +373,7 @@ final class MediaSchema
             'size' => 0,
             'url' => $url,
             'alt' => $item['alt'] ?? null,
+            'description' => $item['description'] ?? null,
         ]);
     }
 
@@ -378,6 +390,7 @@ final class MediaSchema
             'size' => 0,
             'url' => $item['url'],
             'alt' => $item['alt'] ?? null,
+            'description' => $item['description'] ?? null,
         ]);
     }
 

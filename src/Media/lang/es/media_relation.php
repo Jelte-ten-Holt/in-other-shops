@@ -13,6 +13,7 @@ return [
         'path' => 'Ruta',
         'collection' => 'Colección',
         'alt' => 'Texto alternativo',
+        'description' => 'Descripción',
     ],
     'columns' => [
         'thumbnail' => 'Miniatura',

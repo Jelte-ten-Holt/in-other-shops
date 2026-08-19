@@ -11,6 +11,8 @@ return [
         'path' => 'Path',
         'url' => 'URL',
         'alt' => 'Alt',
+        'description' => 'Description',
+        'description_help' => 'Shown beneath the image on the site. Leave empty for no caption. Text written alongside the image in the content body takes precedence over this.',
         'is_cover' => 'Use as cover image',
         'is_cover_help' => 'The cover image is used in listings and social previews. Only one row across all media collections is kept as the cover.',
     ],

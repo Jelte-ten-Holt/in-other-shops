@@ -13,6 +13,7 @@ return [
         'path' => 'Path',
         'collection' => 'Collection',
         'alt' => 'Alt',
+        'description' => 'Description',
     ],
     'columns' => [
         'thumbnail' => 'Thumbnail',

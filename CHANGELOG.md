@@ -8,6 +8,50 @@ The format is loosely [Keep a Changelog](https://keepachangelog.com/); the
 package is pre-1.0, so minor versions may carry breaking changes (all consumers
 are pre-launch — single-release-window policy, no deprecation bridges).
 
+## v0.55.0 — 2026-08-19
+
+Additive. No breaking changes; a consumer that never sets the new field stores
+null and renders nothing.
+
+### Added
+- **Media descriptions.** Every media row now carries a `description` (nullable
+  `text`) beside `alt`, edited from a Textarea in `MediaSchema::mediaRepeater()`
+  and in `MediaRelationManager`, and carried in the `_media.{collection}` item
+  shape that `fillFormData` reads and `saveFormData` writes.
+
+  `alt` and `description` answer different questions and neither is a fallback
+  for the other. `alt` is the text a screen reader announces *in place of* the
+  image; `description` is prose meant to be read *alongside* it, rendered as a
+  visible caption. Consumers that had been leaning on `alt` for a visible
+  caption were making assistive tech announce the same words twice.
+
+  Rendering is the consumer's — the package carries the field, not the layout.
+  So is precedence against any caption the consumer's own content body already
+  supplies for the same image (in-other-worlds lets the closer author win: a
+  caption written into a `::media` directive supersedes the media's
+  description).
+
+  Migration `2026_08_19_000001_add_description_to_media_table` is additive and
+  nullable — a normal `migrate`, no backfill, no table rewrite.
+
+## v0.54.0 — 2026-08-05
+
+Additive. Both changed signatures are unchanged; in-other-worlds, whose catalog
+is column-backed, was never affected.
+
+### Fixed
+- **Catalog text is resolved through the model, not the query builder.** A live
+  500 on every order show/edit page for consumers whose catalog keeps
+  `name`/`description` in the `translations` table rather than as columns
+  (bianka), plus the same fault latent in storefront listing search and
+  `?sort=name`. New public `Support\ModelLabel::for(Model): string` resolves a
+  label via `getAttribute()` — name → title → label → slug →
+  `"{alias} #{id}"` — and never returns empty.
+  `Commerce\Filament\CommerceSchema::buildOrderableOptions()` and
+  `Storefront\Actions\ListBrowsables` both route through it.
+
+  (Entry backfilled 2026-08-19 — the tag shipped without one.)
+
 ## v0.53.0 — 2026-07-29
 
 Additive. No breaking changes; a collection without the new key behaves exactly

@@ -11,6 +11,8 @@ return [
         'path' => 'Ruta',
         'url' => 'URL',
         'alt' => 'Texto alternativo',
+        'description' => 'Descripción',
+        'description_help' => 'Se muestra debajo de la imagen en el sitio. Déjalo vacío para no mostrar pie de foto. El texto escrito junto a la imagen en el cuerpo del contenido tiene prioridad sobre este.',
         'is_cover' => 'Usar como imagen de portada',
         'is_cover_help' => 'La imagen de portada se usa en los listados y en las vistas previas para redes sociales. Solo se conserva una fila como portada en todas las colecciones de medios.',
     ],
