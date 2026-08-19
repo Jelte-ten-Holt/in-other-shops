@@ -53,14 +53,39 @@ class MediaRelationManager extends RelationManager
                     ->label(__('shops-media::media_relation.fields.collection'))
                     ->options($collectionOptions)
                     ->required(),
-                TextInput::make('alt')
-                    ->label(__('shops-media::media_relation.fields.alt'))
-                    ->maxLength(255),
-                Textarea::make('description')
-                    ->label(__('shops-media::media_relation.fields.description'))
-                    ->rows(2)
-                    ->columnSpanFull(),
+                ...self::translatableTextInputs(),
             ]);
+    }
+
+    /**
+     * Alt and description, one pair per configured locale — the same shape
+     * MediaSchema's repeater uses, for the same reason: both are prose a reader
+     * sees, so they live in `translations`, not in a column.
+     *
+     * @return list<TextInput|Textarea>
+     */
+    private static function translatableTextInputs(): array
+    {
+        $locales = config('translation.locales', ['en']);
+        $locales = is_array($locales) && $locales !== [] ? $locales : ['en'];
+        $multi = count($locales) > 1;
+
+        $fields = [];
+
+        foreach ($locales as $locale) {
+            $suffix = $multi ? ' ('.strtoupper($locale).')' : '';
+
+            $fields[] = TextInput::make("_text.alt.{$locale}")
+                ->label(__('shops-media::media_relation.fields.alt').$suffix)
+                ->maxLength(255);
+
+            $fields[] = Textarea::make("_text.description.{$locale}")
+                ->label(__('shops-media::media_relation.fields.description').$suffix)
+                ->rows(2)
+                ->columnSpanFull();
+        }
+
+        return $fields;
     }
 
     public function table(Table $table): Table
@@ -95,6 +120,9 @@ class MediaRelationManager extends RelationManager
                         return $this->enrichFormData($data);
                     })
                     ->after(function (Media $record, array $data): void {
+                        $this->syncText($record, ['_text' => $this->stagedText]);
+                        $this->stagedText = [];
+
                         $this->getOwnerRecord()->media()->attach($record->id, [
                             'collection' => $data['collection'] ?? '',
                             'position' => 0,
@@ -102,7 +130,19 @@ class MediaRelationManager extends RelationManager
                     }),
             ])
             ->actions([
-                Actions\EditAction::make(),
+                Actions\EditAction::make()
+                    ->mutateRecordDataUsing(fn (array $data, Media $record): array => $this->fillText($data, $record))
+                    ->mutateFormDataUsing(function (array $data): array {
+                        // `_text` is not a column; it is written after the save.
+                        $this->stagedText = $data['_text'] ?? [];
+                        unset($data['_text']);
+
+                        return $data;
+                    })
+                    ->after(function (Media $record): void {
+                        $this->syncText($record, ['_text' => $this->stagedText]);
+                        $this->stagedText = [];
+                    }),
                 Actions\DetachAction::make()
                     ->after(function (Media $record): void {
                         $record->delete();
@@ -115,8 +155,77 @@ class MediaRelationManager extends RelationManager
             ]);
     }
 
+    /**
+     * Per-locale text captured between the form save and the after-hook, where
+     * the record exists and its translation rows can be written.
+     *
+     * @var array<string, array<string, string>>
+     */
+    private array $stagedText = [];
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    private function fillText(array $data, Media $record): array
+    {
+        $record->loadMissing('translations');
+
+        foreach (['alt', 'description'] as $field) {
+            foreach ($this->formLocales() as $locale) {
+                $data['_text'][$field][$locale] = $record->translations
+                    ->where('locale', $locale)
+                    ->where('field', $field)
+                    ->first()
+                    ?->value ?? '';
+            }
+        }
+
+        return $data;
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    private function syncText(Media $record, array $data): void
+    {
+        $text = $data['_text'] ?? [];
+
+        foreach (['alt', 'description'] as $field) {
+            foreach ($this->formLocales() as $locale) {
+                $value = $text[$field][$locale] ?? null;
+
+                if ($value === null || $value === '') {
+                    $record->translations()
+                        ->where('locale', $locale)
+                        ->where('field', $field)
+                        ->delete();
+
+                    continue;
+                }
+
+                $record->setTranslation($field, $locale, (string) $value);
+            }
+        }
+
+        $record->unsetRelation('translations');
+    }
+
+    /** @return list<string> */
+    private function formLocales(): array
+    {
+        $locales = config('translation.locales', ['en']);
+
+        return is_array($locales) && $locales !== [] ? array_values($locales) : ['en'];
+    }
+
     private function enrichFormData(array $data): array
     {
+        // `_text` is not a column; stage it for the after-hook, where the
+        // record exists and its translation rows can be written.
+        $this->stagedText = $data['_text'] ?? [];
+        unset($data['_text']);
+
         $disk = config('media.disk');
         $data['disk'] = $disk;
         $data['type'] = MediaType::Upload;
