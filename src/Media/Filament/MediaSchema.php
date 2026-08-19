@@ -68,14 +68,7 @@ final class MediaSchema
             Html::make(fn ($get) => self::embedPreview($get('url')))
                 ->visible(fn ($get) => $get('type') === MediaType::Embed->value && filled($get('url')))
                 ->columnSpanFull(),
-            TextInput::make('alt')
-                ->label(__('shops-media::media.fields.alt'))
-                ->maxLength(255),
-            Textarea::make('description')
-                ->label(__('shops-media::media.fields.description'))
-                ->helperText(__('shops-media::media.fields.description_help'))
-                ->rows(2)
-                ->columnSpanFull(),
+            ...self::translatableTextInputs(),
         ];
 
         // The cover toggle only makes sense for collections that hold actual
@@ -100,12 +93,125 @@ final class MediaSchema
     }
 
     /**
+     * The alt and description inputs, one pair per configured locale.
+     *
+     * Both fields are read by a person, so on a multi-locale storefront they
+     * belong in the `translations` table rather than in a column — one photo
+     * hangs on a record shared across language editions, and a column could
+     * only ever hold one language's words. A single-locale consumer sees
+     * exactly one of each input, unchanged from when they were columns.
+     *
+     * The locale suffix is only shown when there is more than one locale;
+     * labelling a lone field "Alt (EN)" is noise in a shop that has no other
+     * language to distinguish it from.
+     *
+     * @return list<TextInput|Textarea>
+     */
+    private static function translatableTextInputs(): array
+    {
+        $locales = self::locales();
+        $multi = count($locales) > 1;
+
+        $fields = [];
+
+        foreach ($locales as $locale) {
+            $suffix = $multi ? ' ('.strtoupper($locale).')' : '';
+
+            $fields[] = TextInput::make("alt.{$locale}")
+                ->label(__('shops-media::media.fields.alt').$suffix)
+                ->maxLength(255);
+
+            $fields[] = Textarea::make("description.{$locale}")
+                ->label(__('shops-media::media.fields.description').$suffix)
+                ->helperText(__('shops-media::media.fields.description_help'))
+                ->rows(2)
+                ->columnSpanFull();
+        }
+
+        return $fields;
+    }
+
+    /** @return non-empty-list<string> */
+    private static function locales(): array
+    {
+        $configured = config('translation.locales', ['en']);
+
+        if (! is_array($configured) || $configured === []) {
+            return ['en'];
+        }
+
+        return array_values(array_filter($configured, 'is_string')) ?: ['en'];
+    }
+
+    /**
+     * Per-locale values for one media row, as the repeater state expects them:
+     * `['alt' => ['es' => …, 'en' => …], 'description' => [...]]`. Reads the
+     * loaded `translations` relation rather than the accessor, because the
+     * accessor answers for the *current* locale with a fallback and the form
+     * needs each locale's own value, blanks included.
+     *
+     * @return array<string, array<string, string>>
+     */
+    private static function translatableState(Media $media): array
+    {
+        $state = [];
+
+        foreach (['alt', 'description'] as $field) {
+            foreach (self::locales() as $locale) {
+                $state[$field][$locale] = $media->translations
+                    ->where('locale', $locale)
+                    ->where('field', $field)
+                    ->first()
+                    ?->value ?? '';
+            }
+        }
+
+        return $state;
+    }
+
+    /**
+     * Write one media row's per-locale alt and description. A blank clears that
+     * locale's row rather than storing an empty string — "no caption" and "a
+     * caption that is the empty string" are the same thing to a reader, and
+     * only one of them survives a round trip.
+     *
+     * @param  array<string, mixed>  $item
+     */
+    private static function syncTranslatableText(Media $media, array $item): void
+    {
+        foreach (['alt', 'description'] as $field) {
+            $values = $item[$field] ?? [];
+
+            if (! is_array($values)) {
+                continue;
+            }
+
+            foreach (self::locales() as $locale) {
+                $value = $values[$locale] ?? null;
+
+                if ($value === null || $value === '') {
+                    $media->translations()
+                        ->where('locale', $locale)
+                        ->where('field', $field)
+                        ->delete();
+
+                    continue;
+                }
+
+                $media->setTranslation($field, $locale, (string) $value);
+            }
+        }
+
+        $media->unsetRelation('translations');
+    }
+
+    /**
      * @param  array<string, mixed>  $data
      * @return array<string, mixed>
      */
     public static function fillFormData(Model&HasMedia $record, array $data): array
     {
-        $record->load('media');
+        $record->load('media.translations');
 
         $collections = array_keys(self::collections());
 
@@ -119,8 +225,7 @@ final class MediaSchema
                     'type' => $media->type->value,
                     'path' => $media->path,
                     'url' => $media->type !== MediaType::Upload ? $media->getAttribute('url') : null,
-                    'alt' => $media->alt,
-                    'description' => $media->description,
+                    ...self::translatableState($media),
                     'is_cover' => (bool) $media->pivot->is_cover,
                 ])
                 ->all();
@@ -283,18 +388,19 @@ final class MediaSchema
         int $position,
         array $item,
     ): void {
-        $updates = [
-            'alt' => $item['alt'] ?? null,
-            'description' => $item['description'] ?? null,
-        ];
+        $media = Media::find($mediaId);
+
+        if ($media === null) {
+            return;
+        }
 
         $type = MediaType::tryFrom($item['type'] ?? '') ?? MediaType::Upload;
 
         if ($type === MediaType::External || $type === MediaType::Embed) {
-            $updates['url'] = $item['url'] ?? null;
+            $media->forceFill(['url' => $item['url'] ?? null])->save();
         }
 
-        Media::where('id', $mediaId)->update($updates);
+        self::syncTranslatableText($media, $item);
 
         $record->media()->updateExistingPivot($mediaId, [
             'collection' => $collection,
@@ -325,16 +431,18 @@ final class MediaSchema
         $disk = config('media.disk');
         $storage = Storage::disk($disk);
 
-        return Media::create([
+        $media = Media::create([
             'type' => MediaType::Upload,
             'disk' => $disk,
             'path' => $path,
             'filename' => basename($path),
             'mime_type' => $storage->mimeType($path) ?: 'application/octet-stream',
             'size' => $storage->size($path) ?: 0,
-            'alt' => $item['alt'] ?? null,
-            'description' => $item['description'] ?? null,
         ]);
+
+        self::syncTranslatableText($media, $item);
+
+        return $media;
     }
 
     /**
@@ -366,15 +474,17 @@ final class MediaSchema
         $url = $item['url'];
         $filename = basename(parse_url($url, PHP_URL_PATH) ?: 'external');
 
-        return Media::create([
+        $media = Media::create([
             'type' => MediaType::External,
             'filename' => $filename,
             'mime_type' => 'image/jpeg',
             'size' => 0,
             'url' => $url,
-            'alt' => $item['alt'] ?? null,
-            'description' => $item['description'] ?? null,
         ]);
+
+        self::syncTranslatableText($media, $item);
+
+        return $media;
     }
 
     private static function createEmbedMedia(array $item): ?Media
@@ -383,15 +493,17 @@ final class MediaSchema
             return null;
         }
 
-        return Media::create([
+        $media = Media::create([
             'type' => MediaType::Embed,
             'filename' => 'embed',
             'mime_type' => 'text/html',
             'size' => 0,
             'url' => $item['url'],
-            'alt' => $item['alt'] ?? null,
-            'description' => $item['description'] ?? null,
         ]);
+
+        self::syncTranslatableText($media, $item);
+
+        return $media;
     }
 
     private static function embedPreview(string $url): HtmlString

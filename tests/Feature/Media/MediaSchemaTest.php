@@ -40,7 +40,7 @@ final class MediaSchemaTest extends TestCase
                         'media_id' => null,
                         'type' => MediaType::Upload->value,
                         'path' => ['ulid-livewire-id' => 'media/01KQYB-real.jpeg'],
-                        'alt' => 'A hero image',
+                        'alt' => ['en' => 'A hero image'],
                     ],
                 ],
             ],
@@ -400,8 +400,8 @@ final class MediaSchemaTest extends TestCase
                         'media_id' => null,
                         'type' => MediaType::Upload->value,
                         'path' => 'media/a.jpeg',
-                        'alt' => 'A hero image',
-                        'description' => 'Ink and wash, 2026. Commissioned for the second edition.',
+                        'alt' => ['en' => 'A hero image'],
+                        'description' => ['en' => 'Ink and wash, 2026. Commissioned for the second edition.'],
                     ],
                 ],
             ],
@@ -426,7 +426,7 @@ final class MediaSchemaTest extends TestCase
                         'type' => MediaType::External->value,
                         'url' => 'https://example.test/a.jpeg',
                         'alt' => null,
-                        'description' => 'Hosted by the illustrator.',
+                        'description' => ['en' => 'Hosted by the illustrator.'],
                     ],
                 ],
                 'embed' => [
@@ -435,7 +435,7 @@ final class MediaSchemaTest extends TestCase
                         'type' => MediaType::Embed->value,
                         'url' => 'https://youtu.be/abc123',
                         'alt' => null,
-                        'description' => 'Playthrough, recorded live.',
+                        'description' => ['en' => 'Playthrough, recorded live.'],
                     ],
                 ],
             ],
@@ -463,7 +463,7 @@ final class MediaSchemaTest extends TestCase
                         'type' => MediaType::Upload->value,
                         'path' => 'media/a.jpeg',
                         'alt' => null,
-                        'description' => 'First caption.',
+                        'description' => ['en' => 'First caption.'],
                     ],
                 ],
             ],
@@ -479,7 +479,7 @@ final class MediaSchemaTest extends TestCase
                         'type' => MediaType::Upload->value,
                         'path' => 'media/a.jpeg',
                         'alt' => null,
-                        'description' => 'Revised caption.',
+                        'description' => ['en' => 'Revised caption.'],
                     ],
                 ],
             ],
@@ -497,7 +497,7 @@ final class MediaSchemaTest extends TestCase
                         'type' => MediaType::Upload->value,
                         'path' => 'media/a.jpeg',
                         'alt' => null,
-                        'description' => null,
+                        'description' => ['en' => null],
                     ],
                 ],
             ],
@@ -521,7 +521,7 @@ final class MediaSchemaTest extends TestCase
                         'type' => MediaType::Upload->value,
                         'path' => 'media/a.jpeg',
                         'alt' => null,
-                        'description' => 'Ink and wash, 2026.',
+                        'description' => ['en' => 'Ink and wash, 2026.'],
                     ],
                 ],
             ],
@@ -529,6 +529,115 @@ final class MediaSchemaTest extends TestCase
 
         $filled = MediaSchema::fillFormData($record, []);
 
-        $this->assertSame('Ink and wash, 2026.', $filled['_media']['images'][0]['description']);
+        $this->assertSame('Ink and wash, 2026.', $filled['_media']['images'][0]['description']['en']);
+    }
+
+    #[Test]
+    public function it_saves_and_refills_a_caption_in_every_locale(): void
+    {
+        config(['translation.locales' => ['es', 'en'], 'translation.default' => 'es', 'translation.fallback' => 'es']);
+
+        $record = TestMediable::factory()->create();
+
+        UploadedFile::fake()->create('a.jpeg', 100, 'image/jpeg')->storeAs('media', 'a.jpeg', 'public');
+
+        MediaSchema::saveFormData($record, [
+            '_media' => [
+                'images' => [
+                    [
+                        'media_id' => null,
+                        'type' => MediaType::Upload->value,
+                        'path' => 'media/a.jpeg',
+                        'alt' => ['es' => 'Collar de plata', 'en' => 'Silver necklace'],
+                        'description' => ['es' => 'Plata de ley.', 'en' => 'Sterling silver.'],
+                    ],
+                ],
+            ],
+        ]);
+
+        $media = Media::sole();
+
+        app()->setLocale('en');
+        $this->assertSame('Sterling silver.', $media->fresh()->description);
+        app()->setLocale('es');
+        $this->assertSame('Plata de ley.', $media->fresh()->description);
+
+        // The form needs each locale's own value back, blanks included — not
+        // the accessor's answer for the current locale, which would copy the
+        // fallback into the empty tab and silently promote it to a real
+        // translation on the next save.
+        $filled = MediaSchema::fillFormData($record, []);
+        $item = $filled['_media']['images'][0];
+
+        $this->assertSame('Collar de plata', $item['alt']['es']);
+        $this->assertSame('Silver necklace', $item['alt']['en']);
+        $this->assertSame('Plata de ley.', $item['description']['es']);
+        $this->assertSame('Sterling silver.', $item['description']['en']);
+    }
+
+    #[Test]
+    public function it_leaves_an_untranslated_locale_blank_in_the_form(): void
+    {
+        config(['translation.locales' => ['es', 'en'], 'translation.default' => 'es', 'translation.fallback' => 'es']);
+
+        $record = TestMediable::factory()->create();
+
+        UploadedFile::fake()->create('a.jpeg', 100, 'image/jpeg')->storeAs('media', 'a.jpeg', 'public');
+
+        MediaSchema::saveFormData($record, [
+            '_media' => [
+                'images' => [
+                    [
+                        'media_id' => null,
+                        'type' => MediaType::Upload->value,
+                        'path' => 'media/a.jpeg',
+                        'description' => ['es' => 'Plata de ley.', 'en' => ''],
+                    ],
+                ],
+            ],
+        ]);
+
+        $filled = MediaSchema::fillFormData($record, []);
+
+        $this->assertSame('Plata de ley.', $filled['_media']['images'][0]['description']['es']);
+        $this->assertSame('', $filled['_media']['images'][0]['description']['en']);
+    }
+
+    #[Test]
+    public function clearing_one_locale_leaves_the_others_standing(): void
+    {
+        config(['translation.locales' => ['es', 'en'], 'translation.default' => 'es', 'translation.fallback' => 'es']);
+
+        $record = TestMediable::factory()->create();
+
+        UploadedFile::fake()->create('a.jpeg', 100, 'image/jpeg')->storeAs('media', 'a.jpeg', 'public');
+
+        $save = fn (array $description) => MediaSchema::saveFormData($record, [
+            '_media' => [
+                'images' => [
+                    [
+                        'media_id' => Media::first()?->id,
+                        'type' => MediaType::Upload->value,
+                        'path' => 'media/a.jpeg',
+                        'description' => $description,
+                    ],
+                ],
+            ],
+        ]);
+
+        $save(['es' => 'Plata de ley.', 'en' => 'Sterling silver.']);
+        $save(['es' => 'Plata de ley.', 'en' => '']);
+
+        $media = Media::sole();
+
+        app()->setLocale('es');
+        $this->assertSame('Plata de ley.', $media->fresh()->description);
+
+        $this->assertDatabaseMissing('translations', [
+            'translatable_type' => 'media',
+            'translatable_id' => $media->id,
+            'locale' => 'en',
+            'field' => 'description',
+        ]);
     }
 }

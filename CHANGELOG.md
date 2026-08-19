@@ -8,6 +8,52 @@ The format is loosely [Keep a Changelog](https://keepachangelog.com/); the
 package is pre-1.0, so minor versions may carry breaking changes (all consumers
 are pre-launch — single-release-window policy, no deprecation bridges).
 
+## v0.56.0 — 2026-08-19
+
+Media text becomes translatable. No consumer code change is required, but this
+migrates data and drops two columns — read the migration note before deploying.
+
+### Changed
+- **`media.alt` and `media.description` move out of columns and into the
+  `translations` table**, one row per locale. Both are prose a reader sees, so a
+  single column was wrong by construction on a multi-locale storefront: one
+  photo hangs on a record shared across language editions and could only ever
+  carry one language's words. That is harmless for a consumer whose language
+  editions are separate rows owning separate media (in-other-worlds), and broken
+  for one whose catalog shares a row across locales (bianka).
+
+  `Media` now implements `HasTranslations` with
+  `translatableFields() = ['alt', 'description']`, appends both to `toArray()`
+  so Inertia payloads keep their shape, and eager-loads `translations` so a
+  gallery costs one extra query per batch rather than one per image.
+
+  **Reads are unchanged.** `$media->alt` and `$media->description` still work
+  and are now locale-aware, falling back to `translation.fallback` when the
+  requested locale has no value — an untranslated caption shows the shop's own
+  language rather than a blank space.
+
+  **Writes are unchanged too.** `Media::create(['alt' => 'Hero'])` still works:
+  assignments to a translatable field are buffered and written to
+  `translation.default` once the row has an id. The one thing that no longer
+  works is writing through the query builder
+  (`Media::where(...)->update(['alt' => …])`) — there is no column to write.
+
+- **The media form takes one input pair per configured locale.** A single-locale
+  consumer sees exactly one alt input and one description textarea, unchanged.
+  A multi-locale consumer sees each locale suffixed. The repeater item shape
+  changed accordingly — `alt` and `description` are now
+  `array<locale, string>` — but `MediaSchema` owns that shape end to end, so no
+  consumer code touches it.
+
+### Migration
+`2026_08_19_000002_move_media_text_into_translations` copies every non-empty
+`alt`/`description` into the consumer's `translation.default` locale and only
+then drops the columns, so nothing an editor already wrote is lost. Plain DML
+plus a two-column drop — no table rebuild, no foreign keys. The backfill is an
+upsert keyed on `translations_unique`, so a re-run after a failed drop (the DDL
+is not transactional on MySQL) is safe. Covered by
+`MediaTextBackfillMigrationTest`.
+
 ## v0.55.0 — 2026-08-19
 
 Additive. No breaking changes; a consumer that never sets the new field stores
