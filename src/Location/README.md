@@ -61,7 +61,33 @@ interface HasAddresses
 
 None. Location is an independent domain.
 
+## Country names
+
+`InOtherShops\Location\Countries` turns ISO 3166-1 alpha-2 codes into localized
+names:
+
+```php
+Countries::name('DE', 'es');            // "Alemania"
+Countries::options(['NL', 'DE'], 'es'); // [['code'=>'DE','name'=>'Alemania'], ['code'=>'NL','name'=>'Países Bajos']]
+```
+
+**No country data ships with this package, in any language.** Names come from
+ICU/CLDR via ext-intl, so a consumer adding a locale costs nothing — the
+alternative (a shipped name table) would make every consumer's new language a
+package release carrying ~250 translations for it.
+
+`options()` sorts by the *localized* name using `Collator`, which is what makes
+Spanish put "Bélgica" between "Austria" and "Bulgaria" rather than after both.
+
+Resolution per code: `location.country_names[CODE][locale]` → ICU → the code
+itself. That override map is empty by default and exists for the cases where a
+shop disagrees with ICU's wording.
+
+**Which** countries to offer is not this domain's business — that is the
+consumer's (its shipping zones, usually). `Countries` only names them.
+
 ## Future
 
-- Country list enum or config (currently free-text `country_code`)
 - Address validation / geocoding integration
+- `LocationSchema`'s `country_code` is still a free-text `TextInput`; a select
+  needs the shop's destination list, which the package does not have.

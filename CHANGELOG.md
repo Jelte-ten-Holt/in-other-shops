@@ -8,6 +8,35 @@ The format is loosely [Keep a Changelog](https://keepachangelog.com/); the
 package is pre-1.0, so minor versions may carry breaking changes (all consumers
 are pre-launch — single-release-window policy, no deprecation bridges).
 
+## v0.61.0 — 2026-08-22
+
+Localized country names, so a shop can show a shopper "Alemania" instead of
+"DE". Additive; nothing existing changes behaviour.
+
+### Added
+- **`InOtherShops\Location\Countries`** — `name(code, ?locale)` and
+  `options(codes, ?locale)`. Names come from ICU/CLDR via ext-intl (already a
+  hard requirement), so **the package ships no country data in any language**
+  and a consumer adding a locale costs nothing. `options()` returns
+  `{code, name}` rows sorted by the LOCALIZED name using `Collator` — without
+  accent-aware collation Spanish sorts "Bélgica" after "Bulgaria", and sorting
+  by code at all gives a shopper "AT, AU, BE, BG".
+- Config `location.country_names` — **empty by default**, keyed
+  `[CODE][locale]`. The escape hatch for the few cases where ICU's wording is
+  not the shop's ("Chequia" vs "República Checa"). Resolution order is
+  override → ICU → the code itself.
+
+### Notes
+- Which countries a shop offers stays the consumer's business (its shipping
+  zones, typically); `Countries` only answers what a code is called.
+- ICU aliases deprecated codes — `AN` resolves to "Curazao" — so a stale code
+  in a consumer's zone list yields a real name rather than an error. Deemed not
+  worth an ISO code table to defend against: it needs someone to type a
+  deprecated code, and it is visible the moment anyone opens the picker.
+- `LocationSchema`'s admin `country_code` field is still a free-text
+  `TextInput`. Turning it into a select needs the *shop's* destination list,
+  which the package does not have — left to the consumer for now.
+
 ## v0.60.0 — 2026-08-22
 
 Checkout consolidation: the quote side of checkout and the voucher HTTP wiring

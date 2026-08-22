@@ -135,7 +135,7 @@ What each subsystem reads from and writes to. Consumers should not write to thes
 For completeness — when adding to these, also reconsider whether you're adding periphery and update the relevant section above.
 
 - **Currency** — foundational data, no events. Since v0.37.0 it ships one opt-in runtime actor: `Currency\Http\Middleware\SetMoneyDisplayLocale`, registered by consumers on their Filament panel (not auto-registered, fires nowhere unless attached). See External surface → Currency display surface.
-- **Location** — provides address data only
+- **Location** — address data + `Countries` name lookup; no runtime actors, no events
 - **Storefront** — read-aggregation only, no writes
 - **Tax** — configuration/calculation only
 - **Translation** — multilingual data tables, no events
@@ -194,6 +194,18 @@ The quote side of checkout, consolidated from the two consumers' twinned app cod
 - **HTTP:** `CheckoutRoutes::voucher(string $path = 'checkout/voucher')` registers `POST`/`DELETE` as `checkout.voucher.apply`/`checkout.voucher.remove` — **consumer-mounted only**, inside its localized group; the package never auto-registers these. Controllers redirect to `commerce.checkout.voucher.redirect_route` (default `checkout.index`). Apply reprices first, then dry-runs; IP-keyed limiter (5/60s, config) — see the trust-boundary note in the Last-verified log: verify `trustProxies` both ways (under-trust = one shared bucket; over-trust = spoofable key).
 - **`Commerce\Checkout\Support\VoucherSession`** — code-only, session-scoped (key via `commerce.checkout.voucher.session_key`); `sync(CheckoutQuote)` is the render path's one obligatory line (forgets a dropped code).
 - **Lang:** `shops-commerce::checkout.voucher.errors.{not_found,invalid,minimum,throttled}` — translated server-side into the error bag; override via `lang/vendor/shops-commerce/{locale}/checkout.php`.
+
+### Country names (v0.61.0)
+
+- **`Location\Countries::name(string $code, ?string $locale = null): string`** — one ISO 3166-1 alpha-2 code, localized. Resolution: `location.country_names[CODE][locale]` → ICU/CLDR → the code itself. Case-insensitive, trims. An empty code returns `''`.
+- **`Location\Countries::options(iterable $codes, ?string $locale = null): list<array{code,name}>`** — names the given codes and sorts by the **localized name** via `Collator` (accent-aware: Spanish puts "Bélgica" between "Austria" and "Bulgaria"; a plain sort does not). Upper-cases, de-duplicates, drops blanks. **Output order follows the name, not the input order** — a consumer relying on input order will be surprised.
+- **Config `location.country_names`** — empty by default, `[CODE][locale] => string`. Consumer override for the cases where ICU's wording is not the shop's.
+
+**No country data ships, in any language, and that is the design.** A shipped name table would make every consumer's new locale a package release carrying ~250 translations for it. ICU (via ext-intl, already a hard `composer.json` requirement) makes a new consumer locale free. The cost accepted in exchange: ICU aliases deprecated codes (`AN` → "Curazao") and names `ZZ` ("Región desconocida"), so a stale code in a consumer's zone list resolves to a plausible name rather than erroring — visible on sight in the picker, judged not worth an ISO code table.
+
+**Which** countries to offer is *not* this domain's business; that is the consumer's (`config('shipping.zones')` in both consumers today). `Countries` only names what it is handed.
+
+ICU wording can shift between ICU versions — the tests pin the contract (resolution order, sorting, fallbacks) rather than most exact strings, and `country_names` is the answer if a rendering is ever unacceptable.
 
 ### Public action signatures called by consumers
 
