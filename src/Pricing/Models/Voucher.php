@@ -10,6 +10,7 @@ use InOtherShops\Pricing\Enums\VoucherType;
 use InOtherShops\Pricing\Exceptions\VoucherCurrencyMismatchException;
 use InOtherShops\Pricing\Exceptions\VoucherInvalidException;
 use InOtherShops\Pricing\Exceptions\VoucherMinimumNotMetException;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -34,6 +35,34 @@ class Voucher extends Model
             'valid_until' => 'datetime',
             'is_active' => 'boolean',
         ];
+    }
+
+    /**
+     * Codes are case- and whitespace-insensitive, normalized to upper case on
+     * the way in. A code is printed on a card and pasted out of an email, so
+     * "spring10" and " SPRING10" are the shopper typing, not different codes.
+     *
+     * Normalized explicitly rather than left to the database: `vouchers.code`
+     * is a plain unique column, and whether `where('code', 'SPRING10')` matches
+     * a stored `spring10` is then a property of the column's COLLATION — true
+     * under MySQL's default case-insensitive collation, false under SQLite.
+     * That is a redemption that works in production and fails in a consumer's
+     * test suite, which is the worst shape a bug can have.
+     *
+     * The lookups in {@see \InOtherShops\Pricing\Actions\CalculateVoucherDiscount}
+     * and {@see \InOtherShops\Pricing\Actions\ApplyVoucher} normalize the same
+     * way — a query builder `where` does not pass through this mutator.
+     */
+    protected function code(): Attribute
+    {
+        return Attribute::make(
+            set: fn (?string $value): ?string => $value === null ? null : self::normalizeCode($value),
+        );
+    }
+
+    public static function normalizeCode(string $code): string
+    {
+        return mb_strtoupper(trim($code));
     }
 
     public function isValid(): bool

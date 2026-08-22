@@ -8,6 +8,32 @@ The format is loosely [Keep a Changelog](https://keepachangelog.com/); the
 package is pre-1.0, so minor versions may carry breaking changes (all consumers
 are pre-launch — single-release-window policy, no deprecation bridges).
 
+## v0.58.0 — 2026-08-22
+
+Voucher codes stop being case-sensitive.
+
+### Changed
+- **`vouchers.code` is normalized to trimmed upper case on write**, via a
+  `Voucher::code` mutator, and both lookups (`CalculateVoucherDiscount`,
+  `ApplyVoucher`) normalize their input the same way through the new
+  `Voucher::normalizeCode()`. A shopper typing `spring10` now redeems the code
+  an admin created as `SPRING10`, and vice versa.
+
+  Explicit normalization rather than leaning on the database: `code` is a plain
+  unique column, so case-insensitive matching was previously a property of the
+  column's **collation** — true under MySQL's default `utf8mb4_0900_ai_ci`,
+  false under SQLite. A redemption that works in production and fails in a
+  consumer's test suite is the worst shape a bug can take, and a collation
+  change would have silently flipped it.
+
+### Upgrade note
+No data migration ships. Existing rows keep whatever casing they were created
+with, and a mixed-case stored code will no longer be found by a lookup (which
+normalizes to upper case) unless it was already upper case. Uppercase any
+existing `vouchers.code` values by hand before relying on redemption —
+deliberately not automated, because two codes differing only by case would
+collide on the unique index.
+
 ## v0.57.0 — 2026-08-22
 
 Vouchers become traceable and stop losing races at the till. Additive migration;

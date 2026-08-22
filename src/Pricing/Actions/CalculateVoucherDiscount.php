@@ -29,7 +29,7 @@ final class CalculateVoucherDiscount
 
     private function findVoucher(string $code): Voucher
     {
-        $voucher = Voucher::where('code', $code)->first();
+        $voucher = Voucher::where('code', Voucher::normalizeCode($code))->first();
 
         if ($voucher === null) {
             throw VoucherNotFoundException::forCode($code);
