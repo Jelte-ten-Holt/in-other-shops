@@ -38,6 +38,17 @@ return [
         'number_prefix' => env('ORDER_NUMBER_PREFIX', 'ORD'),
         'number_generator' => InOtherShops\Commerce\Order\Support\RandomOrderNumberGenerator::class,
 
+        /*
+        | OrderSummary presenter. `shows_vat` decides whether a VAT line
+        | exists on shopper-facing order summaries at all — a shop that
+        | charges no VAT (e.g. German §19 Kleinunternehmer) sets false, since
+        | on its invoices the line would be actively wrong. Default true: the
+        | ordinary EU B2C shop shows included VAT.
+        */
+        'summary' => [
+            'shows_vat' => true,
+        ],
+
         // How long a Pending (unpaid) order is held before `commerce:expire-orders`
         // cancels it — releasing its reservations and cancelling the gateway
         // intent so a late payment can't land on it (F14). Must comfortably
@@ -83,5 +94,35 @@ return [
         | history is never affected either way).
         */
         'guard_cartable_deletion' => true,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Checkout
+    |--------------------------------------------------------------------------
+    |
+    | Quote-side checkout pieces (QuoteCheckout, the voucher apply/remove
+    | endpoints). The voucher routes are NEVER auto-registered — the consumer
+    | mounts CheckoutRoutes::voucher() inside its own (localized) route group.
+    | The checkout CHAIN itself stays consumer-owned.
+    |
+    */
+
+    'checkout' => [
+        'voucher' => [
+            // Where the shopper's applied code lives between form and submit.
+            'session_key' => 'checkout.voucher_code',
+
+            // Route the apply/remove controllers redirect back to.
+            'redirect_route' => 'checkout.index',
+
+            // The apply endpoint answers "is this a real code?" — the IP-keyed
+            // limiter is the only thing stopping a code-space walk. Generous
+            // for typing, useless for enumeration.
+            'rate_limit' => [
+                'max_attempts' => 5,
+                'decay_seconds' => 60,
+            ],
+        ],
     ],
 ];

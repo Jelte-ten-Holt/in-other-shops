@@ -97,6 +97,22 @@ class Cart extends Model
         return $this->hasMany(Commerce::cartItem())->orderBy('id');
     }
 
+    /**
+     * The cart's snapshot subtotal: stored `unit_price` × quantity, one term
+     * per item, nothing filtered. This is THE pre-order subtotal — the
+     * displayed lines, QuoteCheckout, the voucher dry-run, and the
+     * free-shipping threshold all read it, so they can never disagree with
+     * each other. Freshness against live prices is RepriceCart's job, on its
+     * documented cadence. (Replaces six private byte-identical copies across
+     * the two consumers.)
+     */
+    public function subtotalCents(): int
+    {
+        return (int) $this->items->sum(
+            fn (CartItem $item): int => (int) ($item->unit_price ?? 0) * (int) $item->quantity,
+        );
+    }
+
     public function requiresShipping(): bool
     {
         $this->loadMissing('items.cartable');

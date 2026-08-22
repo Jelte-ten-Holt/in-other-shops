@@ -220,7 +220,9 @@ class OrderResource extends PackageResource
                 ->disabled()
                 ->dehydrated(false)
                 ->visible(fn (Get $get): bool => filled($get('voucher_code'))),
-            // Total is computed (subtotal + tax + shipping_cost - discount) by
+            // Total is computed (subtotal − discount + shipping_cost — the
+            // PriceBreakdown identity; under the inclusive tax mode `tax` is
+            // already contained in `subtotal` and must NOT be added on top) by
             // recalculateTotal() above. Read-only so an admin can't introduce
             // a discrepancy between total and its parts. See H6 in the
             // 2026-05-09 audit / docs/launch-blockers.md.
@@ -228,8 +230,12 @@ class OrderResource extends PackageResource
                 ->label(__('shops-commerce::orders.fields.total'))
                 ->disabled()
                 ->dehydrated(),
-            MoneyFields::moneyInput('_shipping_cost', zeroWhenEmpty: true)
-                ->label(__('shops-commerce::orders.fields.shipping_cost')),
+            MoneyFields::moneyInput('shipping_cost', zeroWhenEmpty: true)
+                ->label(__('shops-commerce::orders.fields.shipping_cost'))
+                ->live()
+                ->afterStateUpdated(function (Set $set, Get $get): void {
+                    static::recalculateTotal($set, $get);
+                }),
             Textarea::make('notes')
                 ->label(__('shops-common::fields.notes'))
                 ->columnSpanFull(),
@@ -264,7 +270,8 @@ class OrderResource extends PackageResource
     }
 
     /**
-     * Recalculate order totals from line items.
+     * Recalculate order totals from line items, then the total via the
+     * domain identity (see recalculateTotal).
      */
     protected static function recalculateOrderTotals(Set $set, Get $get): void
     {
@@ -277,21 +284,34 @@ class OrderResource extends PackageResource
 
         $set('subtotal', number_format($subtotal, 2, '.', ''));
 
-        $tax = (float) ($get('tax') ?? 0);
-        $discount = (float) ($get('discount') ?? 0);
-        $set('total', number_format($subtotal + $tax - $discount, 2, '.', ''));
+        static::recalculateTotal($set, $get);
     }
 
     /**
-     * Recalculate the total from subtotal, tax, and discount.
+     * Recalculate the total from its parts via the PriceBreakdown identity:
+     * `total = subtotal − discount + shipping_cost`. Under the inclusive tax
+     * mode `tax` is the VAT already CONTAINED in `subtotal` — adding it here
+     * (the pre-v0.60 formula `subtotal + tax − discount`) double-counted VAT
+     * and dropped shipping, so the recomputed admin total disagreed with
+     * every total CreateOrder persists.
      */
     protected static function recalculateTotal(Set $set, Get $get): void
     {
-        $subtotal = (float) ($get('subtotal') ?? 0);
-        $tax = (float) ($get('tax') ?? 0);
-        $discount = (float) ($get('discount') ?? 0);
+        $set('total', static::computeTotal(
+            subtotal: (float) ($get('subtotal') ?? 0),
+            discount: (float) ($get('discount') ?? 0),
+            shippingCost: (float) ($get('shipping_cost') ?? 0),
+        ));
+    }
 
-        $set('total', number_format($subtotal + $tax - $discount, 2, '.', ''));
+    /**
+     * The identity itself, pure and directly testable (the suite has no
+     * Livewire panel harness to drive the form end-to-end). Inputs are the
+     * form's major-unit decimals, not cents.
+     */
+    public static function computeTotal(float $subtotal, float $discount, float $shippingCost): string
+    {
+        return number_format($subtotal - $discount + $shippingCost, 2, '.', '');
     }
 
     protected static function updateStatusAction(): Actions\Action
