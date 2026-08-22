@@ -8,6 +8,34 @@ The format is loosely [Keep a Changelog](https://keepachangelog.com/); the
 package is pre-1.0, so minor versions may carry breaking changes (all consumers
 are pre-launch — single-release-window policy, no deprecation bridges).
 
+## v0.59.0 — 2026-08-22
+
+An unpaid order stops eating a voucher use. New runtime listener — see the
+periphery note.
+
+### Added
+- **`ReleaseVoucher`** — the counterpart of `ApplyVoucher`. Takes the same
+  `SELECT ... FOR UPDATE` lock, decrements `times_used`, floors at zero, treats
+  an unknown code as a no-op (the voucher may have been deleted since the order
+  was placed), and dispatches the new **`VoucherReleased`** event, which
+  `PricingLogSubscriber` writes to the `commerce` audit channel.
+
+- **`ReleaseVoucherOnOrderCancelled`**, registered on `OrderStatusChanged` in
+  `CommerceServiceProvider` alongside `SyncInventoryOnOrderStatusChange`. This
+  is the voucher-side mirror of releasing a cancelled order's stock: an order
+  that is never paid must not consume a voucher use any more than it keeps the
+  stock it reserved. Without it, abandoned checkouts permanently ate a
+  campaign's uses, and a single-use personal code locked its owner out of their
+  own discount the moment they closed the payment tab.
+
+  It fires on every path that cancels a Pending order — the expiry sweep, a
+  consumer's cancel-and-replace, an admin cancelling in Filament.
+
+  **`Pending → Cancelled` only**, deliberately narrower than the inventory
+  listener's `* → Cancelled`. A Confirmed order that is later cancelled was
+  PAID; whether its voucher use returns is a refund-policy decision, and
+  answering it here would settle it silently for every consumer.
+
 ## v0.58.0 — 2026-08-22
 
 Voucher codes stop being case-sensitive.

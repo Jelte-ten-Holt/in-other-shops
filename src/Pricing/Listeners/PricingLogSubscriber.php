@@ -11,6 +11,7 @@ use InOtherShops\Pricing\Events\PriceCreated;
 use InOtherShops\Pricing\Events\PriceDeleted;
 use InOtherShops\Pricing\Events\PriceUpdated;
 use InOtherShops\Pricing\Events\VoucherApplied;
+use InOtherShops\Pricing\Events\VoucherReleased;
 use Illuminate\Contracts\Events\Dispatcher;
 
 final class PricingLogSubscriber extends LogSubscriberBase
@@ -35,6 +36,7 @@ final class PricingLogSubscriber extends LogSubscriberBase
             PriceDeleted::class => 'handlePriceDeleted',
             CompareAtPriceExpired::class => 'handleCompareAtPriceExpired',
             VoucherApplied::class => 'handleVoucherApplied',
+            VoucherReleased::class => 'handleVoucherReleased',
         ];
     }
 
@@ -85,6 +87,17 @@ final class PricingLogSubscriber extends LogSubscriberBase
                 'times_used' => $event->voucher->times_used,
                 'max_uses' => $event->voucher->max_uses,
             ]);
+    }
+
+    public function handleVoucherReleased(VoucherReleased $event): void
+    {
+        $this->log(LogLevel::Info, "Voucher released: {$event->voucher->code}.", [
+            'voucher_id' => $event->voucher->id,
+            'code' => $event->voucher->code,
+            'type' => $event->voucher->type->value,
+            'times_used' => $event->voucher->times_used,
+            'max_uses' => $event->voucher->max_uses,
+        ]);
     }
 
     /** @return array<string, mixed> */
