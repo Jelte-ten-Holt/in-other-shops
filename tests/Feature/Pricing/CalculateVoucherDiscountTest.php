@@ -10,6 +10,7 @@ use InOtherShops\Pricing\Exceptions\VoucherCurrencyMismatchException;
 use InOtherShops\Pricing\Exceptions\VoucherInvalidException;
 use InOtherShops\Pricing\Exceptions\VoucherMinimumNotMetException;
 use InOtherShops\Pricing\Exceptions\VoucherNotFoundException;
+use InOtherShops\Pricing\Enums\VoucherType;
 use InOtherShops\Pricing\Models\Voucher;
 use InOtherShops\Tests\TestCase;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -139,5 +140,27 @@ final class CalculateVoucherDiscountTest extends TestCase
 
         $this->assertSame(500, $eur);
         $this->assertSame(500, $usd);
+    }
+
+    #[Test]
+    public function a_code_matches_regardless_of_case_or_stray_whitespace(): void
+    {
+        // A code is printed on a card and pasted out of an email. Normalizing
+        // here rather than leaning on the column collation is what stops this
+        // from passing under MySQL and failing under SQLite.
+        Voucher::factory()->create([
+            'code' => 'spring10',
+            'type' => VoucherType::Fixed,
+            'amount' => 500,
+            'currency' => Currency::EUR,
+        ]);
+
+        $this->assertSame('SPRING10', Voucher::query()->value('code'),
+            'The model must store the normalized code, not what was typed.');
+
+        foreach (['SPRING10', 'spring10', ' Spring10 '] as $typed) {
+            $this->assertSame(500, ($this->calculate)(5000, $typed, Currency::EUR),
+                "Lookup must find the voucher for input [{$typed}].");
+        }
     }
 }

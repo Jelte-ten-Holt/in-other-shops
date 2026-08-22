@@ -72,7 +72,7 @@ final class ApplyVoucher
 
     private function lockVoucher(string $code): Voucher
     {
-        $voucher = Voucher::where('code', $code)->lockForUpdate()->first();
+        $voucher = Voucher::where('code', Voucher::normalizeCode($code))->lockForUpdate()->first();
 
         if ($voucher === null) {
             throw VoucherNotFoundException::forCode($code);
