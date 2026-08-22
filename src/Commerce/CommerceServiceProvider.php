@@ -66,7 +66,10 @@ final class CommerceServiceProvider extends DomainServiceProvider
 
     private function registerCartRoutes(): void
     {
-        if (! config('commerce.cart.api.enabled', true)) {
+        // Fallback false, matching the shipped config default — a fallback of
+        // true would silently register public endpoints if config merging
+        // ever misses (default-inverting trap).
+        if (! config('commerce.cart.api.enabled', false)) {
             return;
         }
 

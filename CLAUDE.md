@@ -85,9 +85,14 @@ Adding a dependency is judged by tier, not by a blanket "significant decision" r
 ### What Does NOT Belong in This Package
 
 - Project-specific models (Product, Bundle, etc.) — these are defined by the consuming project
-- Project-specific orchestration (checkout flows, listeners that wire domains together)
+- Project-specific orchestration (the checkout **chain** and its steps, listeners that wire domains together). Amended 2026-08-22: the package MAY ship **optional checkout-adjacent modules** — quote-side actions (`Commerce\Checkout\QuoteCheckout`) and consumer-mounted HTTP surfaces (the voucher apply/remove pair) — once both consumers have independently built the same thing. The chain itself stays consumer-owned, and checkout HTTP routes are **never auto-registered** (consumers mount `CheckoutRoutes::*` inside their own localized groups).
+- Frontend assets — the package is storefront-language-agnostic: it emits data shapes (DTOs in cents, presenter arrays), never Vue/JS/Blade storefront components
 - Seeders — project-specific data belongs in the consuming project
 - Authentication — every project handles this differently
+
+### Presenters (new convention, v0.60.0)
+
+`Commerce\Order\Support\OrderSummary` is the package's first presenter: a `final` static class shaping a model into the array a storefront renders. The dividing line: **DTOs carry cents; presenters carry formatted strings** (plus the cents alongside). Presenters emit package data only — anything presentation-specific (status label/color pairs, per-line URLs, i18n'd labels) is the consumer's to decorate. New presenters live in `{Domain}/.../Support/`.
 
 ### Naming
 

@@ -8,6 +8,40 @@ The format is loosely [Keep a Changelog](https://keepachangelog.com/); the
 package is pre-1.0, so minor versions may carry breaking changes (all consumers
 are pre-launch — single-release-window policy, no deprecation bridges).
 
+## v0.60.0 — 2026-08-22
+
+Checkout consolidation: the quote side of checkout and the voucher HTTP wiring
+move into the package, generalized from the two consumers' twinned app code
+(brief: projects-root `order-summary-consolidation-brief.md`).
+
+### Added
+- **`Commerce/Checkout`** (new namespace — quote-side only; the checkout chain
+  stays consumer-owned): `QuoteCheckout` (snapshot subtotal, voucher discount,
+  per-shipping-method totals on the PriceBreakdown identity; throws on
+  `TaxMode::Exclusive`), `CheckoutQuote`/`ShippingMethodQuote` DTOs,
+  `ApplyVoucherController` (reprices, dry-runs, IP-keyed 5/60s limiter,
+  translated messages) + `RemoveVoucherController` + `ApplyVoucherRequest`,
+  `VoucherSession` (+ `sync()`), and the consumer-mounted `CheckoutRoutes`
+  registrar (never auto-registered).
+- `Commerce\Cart\Actions\RepriceCart` (from bianka-shop-one) + the documented
+  reprice cadence: render / voucher-apply / submit-with-bounce.
+- `Cart::subtotalCents()` — the one pre-order snapshot subtotal.
+- `Commerce\Order\Support\OrderSummary` — the shopper-facing order projection
+  (the package's first presenter); `commerce.order.summary.shows_vat` config.
+- Config subtree `commerce.checkout.voucher.*`; shopper-facing lang
+  `shops-commerce::checkout.*` (en + es — es is a draft pending review).
+
+### Fixed
+- Filament `OrderResource` total recalc now follows
+  `subtotal − discount + shipping_cost`; the old `subtotal + tax − discount`
+  double-counted inclusive VAT and dropped shipping. The form's shipping input
+  now binds to the real `shipping_cost` column (was the phantom
+  `_shipping_cost`, which always rendered 0.00 and saved nowhere).
+- `CommerceServiceProvider` cart-API gate fallback corrected to `false`
+  (a fallback of `true` would auto-register public endpoints if config
+  merging ever missed).
+- `composer.json` branch alias unstuck from `0.15.x-dev` → `0.60.x-dev`.
+
 ## v0.59.0 — 2026-08-22
 
 An unpaid order stops eating a voucher use. New runtime listener — see the
