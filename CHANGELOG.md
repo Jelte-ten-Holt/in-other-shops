@@ -8,6 +8,51 @@ The format is loosely [Keep a Changelog](https://keepachangelog.com/); the
 package is pre-1.0, so minor versions may carry breaking changes (all consumers
 are pre-launch — single-release-window policy, no deprecation bridges).
 
+## v0.57.0 — 2026-08-22
+
+Vouchers become traceable and stop losing races at the till. Additive migration;
+one deliberate behaviour change to voucher redemption at order commit.
+
+### Added
+- **`orders.voucher_code`** — a nullable, indexed snapshot of the code that
+  produced `orders.discount`. The order stored the amount but never its cause,
+  so a discounted order could not be traced to the campaign behind it and
+  per-code reporting was impossible. `CreateOrder` writes it from
+  `PriceBreakdown::$voucherCode`, which already carried the code and was being
+  dropped on the floor.
+
+  A code snapshot rather than a `voucher_id` foreign key, for the same reason
+  tax and shipping are snapshotted on an order: the record of a transaction has
+  to stay true after the voucher row is edited or deleted.
+
+- **`ApplyVoucher(..., alreadyValidated: true)`** — record the redemption without
+  re-running the guard under the row lock. Usage is still incremented inside the
+  lock, so `times_used` stays accurate.
+
+- **The admin order form shows the voucher code**, read-only, beside the
+  discount, and hidden on orders that carried no voucher.
+
+### Changed
+- **A voucher that goes invalid between quote and commit is now honoured
+  instead of failing the order.** `CreateOrder` passes `alreadyValidated: true`.
+
+  The window is the microseconds between `CalculateTotal` validating the code to
+  arrive at a discount and `CreateOrder` committing the order. Refusing there
+  killed a checkout that had already quoted the shopper a price and, in a
+  persist-then-pay flow, already sent them to a payment form — a strictly worse
+  outcome than the rare overshoot past `max_uses`, which the shop can absorb.
+
+  The overshoot is **recorded, not hidden**: `times_used` still increments, so a
+  voucher reads 101/100 and the admin can see what happened.
+
+  A code that matches **no voucher row** still throws `VoucherNotFoundException`
+  and still rolls the order back — a missing voucher is not a race, and there is
+  nothing to honour or increment. Consumers wanting the strict re-check call
+  `ApplyVoucher` themselves; the parameter defaults to `false`.
+
+  Test `CreateOrderTest::a_voucher_invalid_at_apply_time_rolls_back_a_partially_written_order`
+  is replaced by `::a_voucher_that_went_invalid_since_it_was_quoted_is_still_honoured`.
+
 ## v0.56.0 — 2026-08-19
 
 Media text becomes translatable. No consumer code change is required, but this

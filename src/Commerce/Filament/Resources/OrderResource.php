@@ -211,6 +211,15 @@ class OrderResource extends PackageResource
                 ->afterStateUpdated(function (Set $set, Get $get): void {
                     static::recalculateTotal($set, $get);
                 }),
+            // The voucher behind the discount, read-only: it is a snapshot of
+            // what was redeemed, and an admin retyping it would make the order
+            // claim a campaign it was never priced under. Hidden when the order
+            // carried no voucher, so manual orders don't show an empty field.
+            TextInput::make('voucher_code')
+                ->label(__('shops-commerce::orders.fields.voucher_code'))
+                ->disabled()
+                ->dehydrated(false)
+                ->visible(fn (Get $get): bool => filled($get('voucher_code'))),
             // Total is computed (subtotal + tax + shipping_cost - discount) by
             // recalculateTotal() above. Read-only so an admin can't introduce
             // a discrepancy between total and its parts. See H6 in the
