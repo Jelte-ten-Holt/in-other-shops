@@ -29,6 +29,7 @@ return [
         'subtotal' => 'Subtotal',
         'tax' => 'Tax',
         'discount' => 'Discount',
+        'voucher_code' => 'Voucher code',
         'total' => 'Total',
         'shipping_cost' => 'Shipping cost',
         'new_status' => 'New Status',

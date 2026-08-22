@@ -28,6 +28,7 @@ return [
         'subtotal' => 'Subtotal',
         'tax' => 'Impuesto',
         'discount' => 'Descuento',
+        'voucher_code' => 'Código de descuento',
         'total' => 'Total',
         'shipping_cost' => 'Costo de envío',
         'new_status' => 'Nuevo estado',

@@ -42,6 +42,31 @@ final class ApplyVoucherTest extends TestCase
     }
 
     #[Test]
+    public function already_validated_honours_a_voucher_that_went_invalid_since_it_was_quoted(): void
+    {
+        // The commit-time path. The caller validated at quote time; between
+        // then and here the last use was taken. Refusing would fail an order
+        // the shopper was already quoted, so the redemption stands.
+        Voucher::factory()->withMaxUses(max: 2, used: 2)->create(['code' => 'FULL']);
+
+        $applied = ($this->apply)(5000, 'FULL', Currency::EUR, alreadyValidated: true);
+
+        $this->assertSame(3, $applied->times_used,
+            'The overshoot must be recorded, not swallowed — 3/2 is what really happened.');
+    }
+
+    #[Test]
+    public function already_validated_still_throws_for_a_voucher_that_does_not_exist(): void
+    {
+        // Not a race: there is no row to lock, nothing to increment, and no
+        // quoted redemption to honour. The skip covers stale validation, not
+        // a missing voucher.
+        $this->expectException(VoucherNotFoundException::class);
+
+        ($this->apply)(5000, 'GHOST', Currency::EUR, alreadyValidated: true);
+    }
+
+    #[Test]
     public function it_throws_when_voucher_is_at_max_uses_without_advancing_usage(): void
     {
         Voucher::factory()->withMaxUses(max: 2, used: 2)->create(['code' => 'FULL']);

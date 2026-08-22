@@ -241,13 +241,16 @@ final class CreateOrderTest extends TestCase
     }
 
     #[Test]
-    public function a_voucher_invalid_at_apply_time_rolls_back_a_partially_written_order(): void
+    public function a_voucher_that_went_invalid_since_it_was_quoted_is_still_honoured(): void
     {
-        // The race the docblock specifically calls out: voucher passes
-        // CalculateVoucherDiscount during pricing, then by the time
-        // CreateOrder calls ApplyVoucher the voucher is no longer valid
-        // (expired, max-uses reached on another tx). We simulate by
-        // creating a voucher already at max uses.
+        // The race the action's docblock calls out, and the POLICY CHANGE that
+        // answers it: the voucher passed CalculateVoucherDiscount during
+        // pricing, and by the time CreateOrder commits it is spent. Refusing
+        // here would fail an order the shopper has already been quoted — and at
+        // checkout, already been sent to a payment form for. So the redemption
+        // is honoured (`alreadyValidated: true`) and the shop absorbs the
+        // overshoot. Contrast the NONEXISTENT case above, which still throws:
+        // a missing row is not a race.
         Event::fake([OrderCreated::class]);
 
         Voucher::factory()->withMaxUses(max: 1, used: 1)->create([
@@ -256,19 +259,54 @@ final class CreateOrderTest extends TestCase
             'currency' => Currency::EUR,
         ]);
 
-        try {
-            ($this->createOrder)(
-                cart: $this->cartWithItem(),
-                breakdown: $this->breakdown(voucherCode: 'BURNED', discount: 500, total: 9500),
-                billingAddress: $this->billingAddress(),
-            );
-            $this->fail('Expected ApplyVoucher to reject the already-spent voucher.');
-        } catch (VoucherInvalidException) {
-            $this->assertSame(0, Order::query()->count());
-            $this->assertSame(0, $this->orderLineCount());
-            $this->assertSame(0, $this->addressCount());
-            Event::assertNotDispatched(OrderCreated::class);
-        }
+        $order = ($this->createOrder)(
+            cart: $this->cartWithItem(),
+            breakdown: $this->breakdown(voucherCode: 'BURNED', discount: 500, total: 9500),
+            billingAddress: $this->billingAddress(),
+        );
+
+        $this->assertSame(1, Order::query()->count());
+        $this->assertSame(500, (int) $order->discount);
+        Event::assertDispatched(OrderCreated::class);
+
+        // The overshoot is RECORDED, not hidden: 2 uses against a max of 1 is
+        // what really happened, and it is what the admin needs to see.
+        $this->assertSame(2, Voucher::query()->where('code', 'BURNED')->value('times_used'),
+            'Honouring the redemption must still increment usage, so the overshoot past max_uses is visible.');
+    }
+
+    #[Test]
+    public function the_voucher_code_is_snapshotted_onto_the_order(): void
+    {
+        // The discount amount alone leaves an order untraceable to the campaign
+        // that caused it. A code snapshot rather than a voucher_id: the order
+        // must stay true after the voucher row is edited or deleted, like every
+        // other snapshot on it.
+        Voucher::factory()->create([
+            'code' => 'SPRING',
+            'amount' => 500,
+            'currency' => Currency::EUR,
+        ]);
+
+        $order = ($this->createOrder)(
+            cart: $this->cartWithItem(),
+            breakdown: $this->breakdown(voucherCode: 'SPRING', discount: 500, total: 9500),
+            billingAddress: $this->billingAddress(),
+        );
+
+        $this->assertSame('SPRING', $order->fresh()->voucher_code);
+    }
+
+    #[Test]
+    public function an_order_without_a_voucher_snapshots_no_code(): void
+    {
+        $order = ($this->createOrder)(
+            cart: $this->cartWithItem(),
+            breakdown: $this->breakdown(),
+            billingAddress: $this->billingAddress(),
+        );
+
+        $this->assertNull($order->fresh()->voucher_code);
     }
 
     #[Test]

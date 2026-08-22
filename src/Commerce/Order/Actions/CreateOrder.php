@@ -87,6 +87,19 @@ final class CreateOrder
         return $order;
     }
 
+    /**
+     * Redeem the voucher the breakdown was priced with.
+     *
+     * `alreadyValidated` because the breakdown reaching this action came from
+     * CalculateTotal, which validated the code to arrive at `discount` — the
+     * only gap is the microseconds between that and this transaction. Refusing
+     * there would fail an order the shopper has already been quoted and, at
+     * checkout, sent to a payment form for; the rare overshoot past `max_uses`
+     * is the cheaper side of that trade. The row lock still serialises the
+     * increment, so `times_used` stays truthful about the overshoot.
+     *
+     * A consumer that wants the strict re-check calls ApplyVoucher itself.
+     */
     private function commitVoucherUsage(PriceBreakdown $breakdown): void
     {
         if ($breakdown->voucherCode === null) {
@@ -97,6 +110,7 @@ final class CreateOrder
             subtotal: $breakdown->subtotal,
             code: $breakdown->voucherCode,
             currency: $breakdown->currency,
+            alreadyValidated: true,
         );
     }
 
@@ -113,6 +127,10 @@ final class CreateOrder
             'tax_rate_country_code' => $taxSnapshot?->countryCode,
             'tax_summary' => TaxBreakdownLine::serializeMany($breakdown->taxBreakdown),
             'discount' => $breakdown->discount,
+            // Snapshot which voucher caused the discount, so a discounted order
+            // is traceable to its campaign after the voucher row is edited or
+            // deleted.
+            'voucher_code' => $breakdown->voucherCode,
             'total' => $breakdown->total,
             'shipping_method_identifier' => $shippingSnapshot?->methodIdentifier,
             'shipping_cost' => $shippingSnapshot?->cost ?? 0,

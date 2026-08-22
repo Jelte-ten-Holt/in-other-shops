@@ -12,9 +12,13 @@ use Illuminate\Support\Facades\DB;
 
 /**
  * Records a voucher use. Acquires a `SELECT ... FOR UPDATE` lock on the
- * voucher row before re-validating and incrementing `times_used`, so
- * concurrent applies cannot exceed `max_uses`. Throws if the voucher
- * is invalid at apply time (race-loss, expiry, etc.).
+ * voucher row before incrementing `times_used`, so concurrent applies serialise
+ * against each other and the count stays accurate.
+ *
+ * By default it re-validates under that lock and throws if the voucher went
+ * invalid since it was quoted (race-loss, expiry). Pass `alreadyValidated: true`
+ * when the caller validated at quote time and wants the redemption honoured
+ * regardless — see the parameter's note.
  *
  * Call this at order-commit time, inside the same outer transaction as
  * the order-creation action (Phase E1) so a failed order rolls back the
@@ -25,10 +29,25 @@ use Illuminate\Support\Facades\DB;
  */
 final class ApplyVoucher
 {
-    public function __invoke(int $subtotal, string $code, Currency $currency): Voucher
+    /**
+     * @param  bool  $alreadyValidated  Skip the re-check under the lock and honour
+     *                                  a voucher the caller already validated. The
+     *                                  window this covers is the microseconds
+     *                                  between quoting a total and committing the
+     *                                  order; refusing there fails a checkout the
+     *                                  shopper has already been shown a price for,
+     *                                  which costs more than the rare overshoot
+     *                                  past `max_uses`. Usage is still incremented
+     *                                  under the lock, so `times_used` records what
+     *                                  really happened (101/100 reads as the
+     *                                  overshoot it is) rather than hiding it. A
+     *                                  voucher that does not exist at all still
+     *                                  throws — that is not a race.
+     */
+    public function __invoke(int $subtotal, string $code, Currency $currency, bool $alreadyValidated = false): Voucher
     {
         $voucher = DB::transaction(
-            fn (): Voucher => $this->apply($subtotal, $code, $currency),
+            fn (): Voucher => $this->apply($subtotal, $code, $currency, $alreadyValidated),
         );
 
         VoucherApplied::dispatch($voucher);
@@ -36,13 +55,15 @@ final class ApplyVoucher
         return $voucher;
     }
 
-    private function apply(int $subtotal, string $code, Currency $currency): Voucher
+    private function apply(int $subtotal, string $code, Currency $currency, bool $alreadyValidated): Voucher
     {
         $voucher = $this->lockVoucher($code);
 
-        // Still inside the row lock — the guard runs on locked state, so
-        // the TOCTOU semantics are unchanged by the extraction.
-        $voucher->validateForUse($subtotal, $currency);
+        if (! $alreadyValidated) {
+            // Still inside the row lock — the guard runs on locked state, so
+            // the TOCTOU semantics are unchanged by the extraction.
+            $voucher->validateForUse($subtotal, $currency);
+        }
 
         $voucher->incrementUsage();
 
