@@ -1,0 +1,78 @@
+# The package had NO CI at all until 2026-08-23 — its ~1,160 tests ran only on
+# whatever machine happened to cut a release, while both consumers gate their
+# deploys on tests. This closes that.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        db: [sqlite, mysql]
+    name: test (${{ matrix.db }})
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: shops_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, pdo, pdo_sqlite, pdo_mysql, bcmath, intl, zip, gd
+          coverage: none
+          tools: composer:v2
+
+      - name: Cache Composer packages
+        uses: actions/cache@v5
+        with:
+          path: vendor
+          key: composer-${{ runner.os }}-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-${{ runner.os }}-
+
+      - name: Install PHP dependencies
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      - name: Run tests (SQLite)
+        if: matrix.db == 'sqlite'
+        run: vendor/bin/phpunit
+
+      # The MySQL leg is not redundant. This package SHIPS migrations, and
+      # SQLite cannot validate MySQL DDL — foreign-key names are schema-global
+      # and DDL is non-transactional there, which is how a table-rebuild
+      # migration took bianka down on 2026-07-09. phpunit.xml pins
+      # DB_CONNECTION=sqlite WITHOUT force="true", so these env vars genuinely
+      # win rather than silently falling back to SQLite.
+      - name: Run tests (MySQL)
+        if: matrix.db == 'mysql'
+        env:
+          DB_CONNECTION: mysql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_DATABASE: shops_test
+          DB_USERNAME: root
+          DB_PASSWORD: root
+        run: vendor/bin/phpunit
