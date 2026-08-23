@@ -8,6 +8,42 @@ The format is loosely [Keep a Changelog](https://keepachangelog.com/); the
 package is pre-1.0, so minor versions may carry breaking changes (all consumers
 are pre-launch — single-release-window policy, no deprecation bridges).
 
+## v0.62.0 — 2026-08-23
+
+A read-only way to get the current cart. Additive; nothing existing changes
+behaviour.
+
+### Added
+- **`InOtherShops\Commerce\Cart\Actions\FindCart`** — the read-only twin of
+  `ResolveCart`. Same owner-over-session precedence, returns `?Cart`, never
+  writes.
+- **`InOtherShops\Commerce\Cart\Http\Support\FindCurrentCart`** — the
+  read-only twin of `ResolveCurrentCart`. Returns the visitor's cart or `null`.
+
+### Why
+Both consumers shared a `cart` badge prop on **every** Inertia response, and
+that prop went through `ResolveCurrentCart` — whose `firstOrCreate` minted a
+`carts` row per anonymous page view. Every crawler hit wrote to the database,
+and the rows outlived the sessions that caused them: 2,991 accumulated on
+in-other-worlds and 103 on bianka-shop-one before it was caught (2026-08-23).
+
+The rule this establishes: **display paths use `Find*`, paths that genuinely
+create cart state use `Resolve*`.** A read must not write.
+
+### Notes
+- `PruneExpiredCartsCommand` has a related sharp edge, deliberately left alone
+  in this release: its `whereNotNull('expires_at')` clause does no protective
+  work (owner carts are already excluded by `whereNull('owner_id')`, and
+  `ClaimCart` only nulls `expires_at` in the same `update()` that sets
+  `owner_id`) — but it makes any guest cart with a null expiry permanently
+  un-prunable. That is exactly how the 3,094 rows above became immortal. Worth
+  a follow-up predicate that falls back to `created_at`.
+- Checkout call sites (`ShowCheckoutFormController`, `StoreCheckoutController`,
+  `StoreCheckoutRequest`, and the IOW `Checkout\*Controller`s) still use
+  `ResolveCurrentCart`. They sit on write paths, so the create is defensible —
+  but `ShowCheckoutFormController` minting a cart for a visitor who has none is
+  a design call left open.
+
 ## v0.61.0 — 2026-08-22
 
 Localized country names, so a shop can show a shopper "Alemania" instead of
