@@ -101,6 +101,16 @@ abstract class DomainServiceProvider extends ServiceProvider
 
         $this->loadTranslationsFrom($this->domainDir().'/lang', $this->translationNamespace());
 
+        // Views are opt-in per domain — only Inventory ships one today (the
+        // stock-movements modal body). Guarded on existence so the other ten
+        // domains don't register a finder path for a directory that isn't
+        // there. Same namespace as the translations: one namespace per domain.
+        $viewDir = $this->domainDir().'/resources/views';
+
+        if (is_dir($viewDir)) {
+            $this->loadViewsFrom($viewDir, $this->translationNamespace());
+        }
+
         $aliases = $this->morphAliases();
 
         if ($aliases !== []) {
