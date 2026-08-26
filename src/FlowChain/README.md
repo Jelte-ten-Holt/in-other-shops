@@ -227,6 +227,8 @@ Output: `app/Project/FlowChains/Cart/AddToCart.php` (per the chain's `domain()` 
 
 Consumer-owned steps inserted into a published chain live alongside the chain file at `app/Project/FlowChains/{Domain}/Steps/{StepName}.php`. They extend `AbstractFlowStep` like any other step. Example:
 
+> **Note:** `RecordCartItemAttribution` below started life as exactly this — a consumer-owned step in in-other-worlds — and has since graduated into the package as `InOtherShops\Tracking\FlowChains\Steps\RecordCartItemAttribution`. It is kept here as the worked example because it is a good one, but a consumer wanting attribution today should insert the **package** step rather than write their own. The shape below is still exactly what a genuinely consumer-specific step looks like.
+
 ```php
 // app/Project/FlowChains/Cart/Steps/RecordCartItemAttribution.php
 final class RecordCartItemAttribution extends AbstractFlowStep

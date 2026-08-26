@@ -53,6 +53,7 @@ Shop core — one unit; moves together if ever split; internal coupling is expec
   Commerce ────── depends on Currency, Location, Payment, Pricing, Shipping, Tax, FlowChain (registers AddToCartChain); Inventory contracts + InsufficientStockException
   Shipping ────── depends on Currency, Location; hard-dep on Commerce (OrderLine in ShipmentItem) — cycle with Commerce, ACCEPTED within shop core. The Shippable-polymorphism fix is only needed if a non-order shipment use case appears (warehouse transfer, B2B sample, returns)
   Purchasing ──── depends on Inventory (AdjustStock action, StockMovementReason enum), Tax (TaxCategory enum)
+  Tracking ────── depends on Commerce (CartItem/OrderLine via the Commerce registry; AddToCartPayload), FlowChain (AbstractFlowStep). Both attribution tables FK into Commerce tables, so it moves with the shop core
 
 Integration tier — not extractable by design:
   Storefront ──── depends on Currency, Inventory, Media, Pricing, Taxonomy, Translation
