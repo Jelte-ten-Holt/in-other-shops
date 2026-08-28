@@ -20,6 +20,7 @@ return [
     'form' => [
         'carrier' => 'Transportista',
         'tracking_number' => 'Número de seguimiento',
+        'tracking_number_help' => 'Déjalo en blanco para envío ordinario sin seguimiento — el envío se despacha y notifica igualmente.',
         'tracking_url' => 'URL de seguimiento',
         'tracking_url_help' => 'Déjalo en blanco para derivarla de la plantilla del transportista (config/shipping.carriers).',
         'reason' => 'Motivo',

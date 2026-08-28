@@ -64,6 +64,8 @@ return [
 
 `carrier` is a free-form string on Shipment — the config map provides validation hints and tracking-URL templates but doesn't enforce. One-off carriers with non-templatable URLs (signed query strings, customer-token-bearing URLs) work too: pass an explicit `$trackingUrl` to `DispatchShipment` and the template lookup is skipped.
 
+**Tracking is optional.** Untracked post is a real service — often the cheaper of a shop's two methods for a small parcel — and it has no tracking number by definition. `DispatchShipment` therefore takes carrier and number as nullable, and stamps `shipped_at` and dispatches `ShipmentDispatched` **regardless**. This matters more than it looks: `InTransit` is reachable only through that action and `Delivered` only through `InTransit`, so requiring a number would strand every untracked parcel at `Ready` and silently disable everything downstream of dispatch. A shop that genuinely wants to insist on a number enforces it in its own admin form.
+
 ### Models
 
 **Shipment** — operational artifact for a parcel. Owns its lifecycle state, carrier, tracking, and timestamps.
@@ -116,7 +118,7 @@ interface HasShipment
 - **`CalculateShippingCost(ShippingMethod $method, ShippingZone $zone, ?int $subtotalCents = null): int`** — returns the rate in cents. Throws `MethodNotAvailableInZoneException` if the method has no rate for the zone. Returns `0` when `subtotalCents` is provided and meets/exceeds the zone's free-shipping threshold.
 - **`CreateShipment(Model $order, ShippingMethod $method, ?Collection $orderLines = null): Shipment`** — creates a `Pending` Shipment with one `ShipmentItem` per included `OrderLine`. `orderLines` defaults to all of the order's lines. Dispatches `ShipmentCreated`.
 - **`MarkShipmentReady(Shipment): Shipment`** — `Pending → Ready`. Dispatches `ShipmentReady`.
-- **`DispatchShipment(Shipment, string $trackingNumber, string $carrier, ?string $trackingUrl = null): Shipment`** — `Ready → InTransit`, sets `shipped_at`, persists tracking. Dispatches `ShipmentDispatched`.
+- **`DispatchShipment(Shipment, ?string $trackingNumber = null, ?string $carrier = null, ?string $trackingUrl = null): Shipment`** — `Ready → InTransit`, sets `shipped_at`, persists tracking. Dispatches `ShipmentDispatched`. **All tracking is optional** — untracked post still ships and still announces; see the note under Configuration. No URL is derived when either the carrier or the number is absent (`''` counts as absent).
 - **`MarkShipmentDelivered(Shipment): Shipment`** — `InTransit → Delivered`, sets `delivered_at`. Dispatches `ShipmentDelivered`. Typical webhook target.
 - **`MarkShipmentReturnedToSender(Shipment, string $reason): Shipment`** — `InTransit → ReturnedToSender`. Reason is logged.
 - **`MarkShipmentLost(Shipment, string $reason): Shipment`** — any non-terminal → `Lost`. Reason is logged.
@@ -125,7 +127,7 @@ interface HasShipment
 
 ### Events
 
-`ShipmentCreated`, `ShipmentReady`, `ShipmentDispatched`, `ShipmentDelivered`, `ShipmentReturnedToSender`, `ShipmentLost`. `ShipmentDispatched` is the "shipped with tracking" event consumers' transactional-email listeners attach to; `ShipmentDelivered` is the "delivered" notification trigger.
+`ShipmentCreated`, `ShipmentReady`, `ShipmentDispatched`, `ShipmentDelivered`, `ShipmentReturnedToSender`, `ShipmentLost`. `ShipmentDispatched` is the "it has been posted" event consumers' transactional-email listeners attach to — it fires with or without tracking, so a listener must treat `tracking_number` / `tracking_url` as nullable rather than assuming a parcel that shipped can be tracked. `ShipmentDelivered` is the "delivered" notification trigger.
 
 ### Auto-create on `OrderCreated`
 
@@ -189,6 +191,8 @@ $cost = (new CalculateShippingCost)($method, $zone, subtotalCents: $cart->subtot
 ```php
 app(MarkShipmentReady::class)($shipment);
 app(DispatchShipment::class)($shipment, trackingNumber: 'TRK123', carrier: 'dhl');
+// …or untracked standard post, which still stamps shipped_at and fires the event:
+app(DispatchShipment::class)($shipment);
 app(MarkShipmentDelivered::class)($shipment);
 ```
 

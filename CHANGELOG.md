@@ -8,6 +8,50 @@ The format is loosely [Keep a Changelog](https://keepachangelog.com/); the
 package is pre-1.0, so minor versions may carry breaking changes (all consumers
 are pre-launch — single-release-window policy, no deprecation bridges).
 
+## v0.64.0 — 2026-08-28
+
+Untracked post can ship. A **widening**: no consumer has to change — every
+existing callsite still compiles, and both consumers dispatch through the
+package's own Filament action rather than calling `DispatchShipment` directly.
+
+### Changed
+- **`Shipping\Actions\DispatchShipment::__invoke()`** — tracking is now
+  optional:
+  `__invoke(Shipment $shipment, ?string $trackingNumber = null, ?string $carrier = null, ?string $trackingUrl = null)`.
+  Both tracking parameters were non-nullable and positionally required.
+  `shipped_at` is stamped and `ShipmentDispatched` is dispatched **regardless
+  of tracking** — that is the whole point of the change.
+- **`Shipping\Filament\RelationManagers\ShipmentsRelationManager`** — the
+  dispatch form no longer marks `carrier` or `tracking_number` as required
+  (both branches of the carrier field: the config-sourced Select and the
+  free-text fallback). The callsite normalizes `''` → null on all three
+  tracking fields, not just the URL: with `required()` gone an untouched
+  Filament input arrives as an empty string, and `carrier = ''` would persist
+  as a carrier that reads back as "present, prints as nothing".
+  **One action, not two** — a separate "Mark as posted" would be the same
+  mechanic wearing a second name.
+- **`DispatchShipment::resolveTrackingUrl()`** returns null explicitly when the
+  carrier OR the tracking number is absent, rather than relying on the config
+  lookup missing. A blank string counts as absent, so a forgetful callsite
+  can't template an empty number into a link to a carrier's "not found" page.
+
+### Added
+- Lang key `shops-shipping::shipment.form.tracking_number_help` (en + es; the
+  es string is a draft pending review, like the rest of that file).
+
+### Why — this fixed a silent failure, not just an ergonomic one
+`ShipmentStatus::allowedTransitions()` makes `InTransit` reachable **only**
+through `DispatchShipment`, and `Delivered` reachable only through
+`InTransit`. Untracked post is a real service a shop sells — at a small-parcel
+shop it is the cheaper of two methods and plausibly the majority case — and it
+has no tracking number by definition. Such a shipment could therefore never
+leave `Ready`, which silently disabled everything downstream of dispatch: no
+event to hang a "your order shipped" notification on, and a review-invitation
+sweep reading `shipped_at` would find null and never become due. Nothing threw;
+the suite stayed green; the feature just never fired. The alternative fixes —
+a magic tracking value in a column two features read, or a second app-side
+transition path — both work around a package stating something untrue.
+
 ## v0.63.0 — 2026-08-26
 
 The `Tracking` domain: attribution graduates out of in-other-worlds and into
@@ -60,6 +104,7 @@ not change the result.
   history modal now renders the body it was pointing at (`adfef28`), and the
   package gained a CI suite of its own — SQLite and MySQL legs (`b450734`).
   Smoke the movement-history modal in both consumers after bumping.
+
 
 ## v0.62.0 — 2026-08-23
 

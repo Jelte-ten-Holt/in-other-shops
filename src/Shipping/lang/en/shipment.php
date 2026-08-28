@@ -20,6 +20,7 @@ return [
     'form' => [
         'carrier' => 'Carrier',
         'tracking_number' => 'Tracking number',
+        'tracking_number_help' => 'Leave blank for untracked post — the shipment still ships and still notifies.',
         'tracking_url' => 'Tracking URL',
         'tracking_url_help' => 'Leave blank to derive from the carrier template (config/shipping.carriers).',
         'reason' => 'Reason',
