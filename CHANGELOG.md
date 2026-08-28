@@ -8,6 +8,59 @@ The format is loosely [Keep a Changelog](https://keepachangelog.com/); the
 package is pre-1.0, so minor versions may carry breaking changes (all consumers
 are pre-launch — single-release-window policy, no deprecation bridges).
 
+## v0.63.0 — 2026-08-26
+
+The `Tracking` domain: attribution graduates out of in-other-worlds and into
+the package, so both shops share one implementation instead of two.
+
+### Added
+- **`InOtherShops\Tracking`** — a new domain. `CartItemAttribution` and
+  `OrderLineAttribution` models, their factories, the `Tracking` model
+  registry, and the two FlowChain steps that write them:
+  `FlowChains\Steps\RecordCartItemAttribution` (an `AddToCartChain` step,
+  reads `metadata.source`, silently skips anything malformed, first-source-wins)
+  and `FlowChains\Steps\SnapshotCartItemAttributions` (a checkout step that
+  copies attributions onto order lines so they survive the cart).
+- **`InOtherShops\Tracking\Contracts\HasCheckoutAttribution`** — implemented
+  by a consumer's checkout payload so the snapshot step can reach the cart and
+  the order. Checkout chains are app-owned in every consumer, so the package
+  cannot name the payload class; this is the usual `Has*` seam. Two one-line
+  methods on an existing payload.
+- The two attribution migrations, **auto-loaded from the package like every
+  other domain's** — not published into consumers.
+
+### Migration adoption — read this before upgrading in-other-worlds
+The package's two migration files carry the **same basenames** as the project
+migrations in-other-worlds already ran
+(`2026_05_27_141346_create_*_attributions_table.php`). The migrator keys
+applied migrations by basename across all load paths, so on in-other-worlds the
+package pair matches the existing `migrations` rows and is skipped — its live
+tables and data are untouched — while a fresh install runs them for real.
+
+The consumer MUST **delete** its project copies rather than empty them: a
+lingering project file shadows the package copy in the migrator's path merge.
+
+Consequence worth knowing: `down()` now targets in-other-worlds' live tables, so
+a `migrate:rollback` walking back that far drops real attribution history.
+
+Schema note, measured on MySQL 8.0.46: the pair produces three keys per table —
+PRIMARY, the unique on the FK column, and the `source_type`/`source_id` index.
+There is no separate `*_foreign` backing index, because InnoDB reuses the unique
+index for that, and the declaration order of `constrained()` and `unique()` does
+not change the result.
+
+### Notes
+- Tracking ships **no log subscriber**, deliberately — the attribution row is
+  itself the record, and logging it would double a money-path write for nothing
+  an operator would read. First domain to skip that convention on purpose.
+- Tracking ships **no read surface**. `order_line_attributions` is the table to
+  query; what counts as an interesting source is a shop-specific question, so
+  consumers own their reports and widgets.
+- Also in this release, carried from unreleased commits: the stock-movement
+  history modal now renders the body it was pointing at (`adfef28`), and the
+  package gained a CI suite of its own — SQLite and MySQL legs (`b450734`).
+  Smoke the movement-history modal in both consumers after bumping.
+
 ## v0.62.0 — 2026-08-23
 
 A read-only way to get the current cart. Additive; nothing existing changes

@@ -60,7 +60,8 @@
             "InOtherShops\\Tax\\": "src/Tax/",
             "InOtherShops\\Taxonomy\\": "src/Taxonomy/",
             "InOtherShops\\Translation\\": "src/Translation/",
-            "InOtherShops\\Variants\\": "src/Variants/"
+            "InOtherShops\\Variants\\": "src/Variants/",
+        "InOtherShops\\Tracking\\": "src/Tracking/"
         }
     },
     "autoload-dev": {
@@ -77,7 +78,7 @@
     },
     "extra": {
         "branch-alias": {
-            "dev-main": "0.60.x-dev"
+            "dev-main": "0.63.x-dev"
         },
         "laravel": {
             "providers": [
@@ -99,7 +100,8 @@
                 "InOtherShops\\Variants\\VariantsServiceProvider",
                 "InOtherShops\\FlowChain\\FlowChainServiceProvider",
                 "InOtherShops\\Storefront\\StorefrontServiceProvider",
-                "InOtherShops\\Agent\\AgentServiceProvider"
+                "InOtherShops\\Tracking\\TrackingServiceProvider",
+            "InOtherShops\\Agent\\AgentServiceProvider"
             ]
         }
     },

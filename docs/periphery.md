@@ -126,6 +126,7 @@ What each subsystem reads from and writes to. Consumers should not write to thes
 | Shipping | `shipments`, `shipment_items` |
 | Tax | `tax_rates` |
 | Taxonomy | `categories`, `categorizables`, `tags`, `taggables`, `category_morph_counts` |
+| Tracking | `cart_item_attributions`, `order_line_attributions` (both FK into Commerce tables, cascade-delete with them) |
 | Translation | `translations`, `locale_groups` |
 | Variants | `options`, `option_values`, `variants`, `option_value_variant`, `optionables` |
 | Currency / FlowChain / Storefront / Agent | no tables — enum, orchestration, read-aggregation, or integration layers |
@@ -138,6 +139,7 @@ For completeness — when adding to these, also reconsider whether you're adding
 - **Location** — address data + `Countries` name lookup; no runtime actors, no events
 - **Storefront** — read-aggregation only, no writes
 - **Tax** — configuration/calculation only
+- **Tracking** — two write-once tables written by two explicitly-wired FlowChain steps. No events, no observers, no commands, and **no log subscriber** (deliberate: the attribution row is itself the record — see `src/Tracking/README.md`)
 - **Translation** — multilingual data tables, no events
 
 ---
@@ -165,6 +167,7 @@ The trait companions (`InteractsWith*`) are documented alongside their contracts
 | Taxonomy | `HasCategories`, `HasTags` | `InteractsWithCategories`, `InteractsWithTags` | **package model: `Taxonomy\Category` adopts `HasTags`** (intra-domain; enables a `featured`-style category flag, semantics consumer-side). in-other-worlds: Content, Product, Bundle. bianka: Product, Bundle |
 | Translation | `HasTranslations` | `InteractsWithTranslations` | **package models: `Variants\Option`** (name), **`Variants\OptionValue`** (label) — column-translation. bianka: Product, Bundle, Category, Tag |
 | Translation | `HasLocaleGroup` | `InteractsWithLocaleGroup` | in-other-worlds: Product, Bundle (deliberately not adopted in bianka — see bianka BRIEF §4.9) |
+| Tracking | `HasCheckoutAttribution` | — (pure interface) | **New in v0.63.0.** Implemented by a consumer's **checkout FlowChain payload**, not a model — the only `Has*` contract on this list that isn't a catalog-model capability. Gives `SnapshotCartItemAttributions` the cart and the order: `attributionCart(): Cart`, `attributionOrder(): ?Order`. Needed because ProcessCheckout and its payload are app-owned in every consumer, so the package cannot name the payload class. Adoption is two one-line methods over properties both consumers' payloads already have. in-other-worlds + bianka: `App\Actions\Checkout\CheckoutPayload` |
 | Variants | `HasVariants` | `InteractsWithVariants` | **Contract + trait ship (unreleased).** Methods: `variants`, `options` (declared axes), `hasVariants`, `lowestVariantPrice`, `hasVariantInStock`, `variantStockTotal` (all trait-defaulted). No public `HasOptions` contract — owner→option link is internal. bianka: Product (planned). in-other-worlds: not adopted — flat SKUs only |
 
 **Adding/removing/renaming a contract or trait** breaks every consumer that opts in. Adding a new method to an existing contract is breaking unless the trait provides a default. Removing or retyping a method is always breaking.
@@ -358,7 +361,7 @@ Published chains and their step payload contracts are public API — consumers `
 
 | Published chain | Step payload contract | Used by |
 | --- | --- | --- |
-| `Commerce\Cart\FlowChains\AddToCartChain` | see chain definition | in-other-worlds publishes a copy at `app/Project/FlowChains/Cart/AddToCart.php`, inserts `RecordCartItemAttribution` step. **Behaviour (unreleased, non-breaking — BUG-7):** `FindOrCreateCartItemStep`'s create path now absorbs the two-tab double-add unique violation via `createOrFirst` and folds the loser's quantity into the winner's row (was: raw `QueryException` → consumer 500). `@reads`/`@writes` payload contract unchanged. |
+| `Commerce\Cart\FlowChains\AddToCartChain` | see chain definition | both consumers publish a copy at `app/Project/FlowChains/Cart/AddToCart.php` and insert the **package** `Tracking\FlowChains\Steps\RecordCartItemAttribution` after `FindOrCreateCartItemStep` (v0.63.0 — in-other-worlds' project-local copy of that step was deleted in the same window). **Behaviour (unreleased, non-breaking — BUG-7):** `FindOrCreateCartItemStep`'s create path now absorbs the two-tab double-add unique violation via `createOrFirst` and folds the loser's quantity into the winner's row (was: raw `QueryException` → consumer 500). `@reads`/`@writes` payload contract unchanged. |
 
 Adding a step at the end of a chain is non-breaking. Inserting in the middle, renaming, removing, or changing a step's payload `@writes` field is breaking. See [`src/FlowChain/README.md`](../src/FlowChain/README.md) §Publishing.
 

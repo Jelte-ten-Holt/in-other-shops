@@ -21,6 +21,7 @@ use InOtherShops\Support\SupportServiceProvider;
 use InOtherShops\Tax\TaxServiceProvider;
 use InOtherShops\Taxonomy\TaxonomyServiceProvider;
 use InOtherShops\Tests\Stubs\StubModel;
+use InOtherShops\Tracking\TrackingServiceProvider;
 use InOtherShops\Translation\TranslationServiceProvider;
 use InOtherShops\Variants\VariantsServiceProvider;
 use Illuminate\Database\Eloquent\Relations\Relation;
@@ -67,6 +68,7 @@ abstract class TestCase extends Orchestra
             VariantsServiceProvider::class,
             FlowChainServiceProvider::class,
             StorefrontServiceProvider::class,
+            TrackingServiceProvider::class,
             LaravelMcpServerServiceProvider::class,
             AgentServiceProvider::class,
         ];

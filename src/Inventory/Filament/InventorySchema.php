@@ -68,7 +68,7 @@ final class InventorySchema
             ->icon('heroicon-o-clock')
             ->modalHeading(__('shops-inventory::stock.actions.movement_history_heading'))
             ->modalWidth(Width::FourExtraLarge)
-            ->modalContent(fn (Model $record) => view('domains.inventory.stock-movements-modal', [
+            ->modalContent(fn (Model $record) => view('shops-inventory::stock-movements-modal', [
                 'stockableType' => $record->getMorphClass(),
                 'stockableId' => $record->getKey(),
             ]))

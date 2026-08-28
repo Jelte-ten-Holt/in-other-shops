@@ -37,6 +37,7 @@ final class BootConfigMergeTest extends TestCase
             'storefront' => ['storefront.models'],
             'tax' => ['tax.jurisdictions'],
             'taxonomy' => ['taxonomy.models'],
+            'tracking' => ['tracking.models'],
             'translation' => ['translation.locales'],
             'variants' => ['variants.models'],
         ];
