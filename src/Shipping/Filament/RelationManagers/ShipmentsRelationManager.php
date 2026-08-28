@@ -100,8 +100,8 @@ class ShipmentsRelationManager extends RelationManager
                 static::carrierField(),
                 TextInput::make('tracking_number')
                     ->label(__('shops-shipping::shipment.form.tracking_number'))
-                    ->required()
-                    ->maxLength(128),
+                    ->maxLength(128)
+                    ->helperText(__('shops-shipping::shipment.form.tracking_number_help')),
                 TextInput::make('tracking_url')
                     ->label(__('shops-shipping::shipment.form.tracking_url'))
                     ->url()
@@ -119,10 +119,15 @@ class ShipmentsRelationManager extends RelationManager
                     return;
                 }
 
+                // `?: null` on all three, not just the URL. With `required()`
+                // gone an untouched Filament text input arrives as '', and ''
+                // in `carrier` would be persisted as a carrier the shipment
+                // does not have — read back as "there is a carrier, it just
+                // prints as nothing". Absent means null in the column.
                 app(DispatchShipment::class)(
                     $record,
-                    $data['tracking_number'],
-                    $data['carrier'],
+                    $data['tracking_number'] ?: null,
+                    $data['carrier'] ?: null,
                     $data['tracking_url'] ?: null,
                 );
 
@@ -180,6 +185,12 @@ class ShipmentsRelationManager extends RelationManager
      * otherwise. Picking from config keeps Shipment.carrier aligned with
      * the carriers that have tracking_url_templates so DispatchShipment
      * can auto-derive the URL.
+     *
+     * OPTIONAL, like the tracking number beside it: untracked post has no
+     * carrier reference to give, and a shop that sells it must still be able
+     * to say the parcel has gone out. See DispatchShipment for the full
+     * reasoning; one dispatch action covers both cases rather than a second
+     * "mark as posted" wearing the same mechanic under another name.
      */
     private static function carrierField(): Select|TextInput
     {
@@ -188,7 +199,6 @@ class ShipmentsRelationManager extends RelationManager
         if (! is_array($carriers) || $carriers === []) {
             return TextInput::make('carrier')
                 ->label(__('shops-shipping::shipment.form.carrier'))
-                ->required()
                 ->maxLength(64);
         }
 
@@ -202,7 +212,6 @@ class ShipmentsRelationManager extends RelationManager
         return Select::make('carrier')
             ->label(__('shops-shipping::shipment.form.carrier'))
             ->options($options)
-            ->required()
             ->searchable();
     }
 
