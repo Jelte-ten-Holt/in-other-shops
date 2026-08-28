@@ -8,14 +8,11 @@ The format is loosely [Keep a Changelog](https://keepachangelog.com/); the
 package is pre-1.0, so minor versions may carry breaking changes (all consumers
 are pre-launch — single-release-window policy, no deprecation bridges).
 
-## Unreleased — untracked dispatch
+## v0.64.0 — 2026-08-28
 
-A **widening**. No consumer has to change: every existing callsite still
-compiles, and both consumers dispatch through the package's own Filament
-action rather than calling `DispatchShipment` directly.
-
-The version number is deliberately left open — the `Tracking` domain is also
-queued for release on its own branch, and whoever tags decides the order.
+Untracked post can ship. A **widening**: no consumer has to change — every
+existing callsite still compiles, and both consumers dispatch through the
+package's own Filament action rather than calling `DispatchShipment` directly.
 
 ### Changed
 - **`Shipping\Actions\DispatchShipment::__invoke()`** — tracking is now
