@@ -8,6 +8,47 @@ The format is loosely [Keep a Changelog](https://keepachangelog.com/); the
 package is pre-1.0, so minor versions may carry breaking changes (all consumers
 are pre-launch — single-release-window policy, no deprecation bridges).
 
+## v0.65.0 — 2026-08-29
+
+Tag types become a project's own vocabulary. A **widening**: no consumer has to
+change, and one that changes nothing keeps exactly the field it has today.
+
+`tags.type` is a free string the package stores and never interprets — every
+meaning it carries belongs to the consuming project. Until now the admin offered
+it as a bare text input, so the vocabulary lived only in whatever the editor
+typed. Projects can now declare their own list, and only their own: an editorial
+site partitioning tags by genre and disclosure must not push either onto a shop
+that has no use for them.
+
+### Added
+- **`config('taxonomy.tag_types')`** — the vocabulary for `tags.type`, declared
+  per project. Values may be a plain label (`'genre' => 'Genre'`) or a label
+  with an editor-facing description
+  (`['label' => 'Disclosure', 'description' => 'How the work was made.']`).
+  Defaults to `[]`.
+- **`Taxonomy\Support\TagTypes`** — normalizes that config. `isConfigured()`,
+  `options(?string $current = null)`, `descriptions()`.
+
+### Changed
+- **`Taxonomy\Filament\Resources\TagResource`** — the `type` field is a
+  `Select` over the declared vocabulary when a project declares one, and the
+  existing free-text `TextInput` when it does not. **Declaring nothing is the
+  default and preserves current behaviour**, which is why this needs no
+  consumer action.
+
+### Notes
+- The select **merges the record's current value into the options** when the
+  vocabulary does not contain it. Without that, a tag typed before the list
+  existed renders as an empty select and loses its type on the next save of an
+  unrelated field — a silent destruction of data the editor never touched.
+  Pinned by `TagTypesTest`.
+- A malformed (non-array) config degrades to free text rather than fataling in
+  the admin.
+- The package still assigns **no meaning** to any type value. Consumers that
+  give one behaviour — in-other-worlds treats `hidden_on_front` as
+  "keep out of public eager-loads" via its own `PublicTags` — keep that
+  entirely on their side.
+
 ## v0.64.0 — 2026-08-28
 
 Untracked post can ship. A **widening**: no consumer has to change — every
