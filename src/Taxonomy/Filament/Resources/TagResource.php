@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace InOtherShops\Taxonomy\Filament\Resources;
 
 use Filament\Actions;
+use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use InOtherShops\Support\Filament\NavigationGroup;
@@ -16,6 +17,7 @@ use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use InOtherShops\Taxonomy\Filament\Resources\TagResource\Pages;
 use InOtherShops\Taxonomy\Models\Tag;
+use InOtherShops\Taxonomy\Support\TagTypes;
 use InOtherShops\Translation\Filament\TranslationSchema;
 
 final class TagResource extends PackageResource
@@ -49,10 +51,7 @@ final class TagResource extends PackageResource
                             ->required()
                             ->maxLength(255)
                             ->unique(ignoreRecord: true),
-                        TextInput::make('type')
-                            ->label(__('shops-common::fields.type'))
-                            ->maxLength(255)
-                            ->placeholder(__('shops-taxonomy::tag.fields.type_placeholder')),
+                        static::typeField(),
                         TextInput::make('position')
                             ->label(__('shops-common::fields.position'))
                             ->numeric()
@@ -63,6 +62,42 @@ final class TagResource extends PackageResource
                             ->default(true),
                     ]),
             ]);
+    }
+
+    /**
+     * `tags.type` is a free string the package stores and never interprets, so
+     * the vocabulary belongs to the project — see `config('taxonomy.tag_types')`
+     * and `TagTypes`.
+     *
+     * A project that declares one gets a select; a project that declares
+     * nothing keeps the free-text input it has always had, which is what makes
+     * this additive rather than a change every consumer has to react to.
+     *
+     * The select merges the record's CURRENT value in when the vocabulary does
+     * not contain it — a tag typed before the list existed would otherwise show
+     * an empty select and lose its type on the next save of any other field.
+     */
+    private static function typeField(): TextInput|Select
+    {
+        if (! TagTypes::isConfigured()) {
+            return TextInput::make('type')
+                ->label(__('shops-common::fields.type'))
+                ->maxLength(255)
+                ->placeholder(__('shops-taxonomy::tag.fields.type_placeholder'));
+        }
+
+        $descriptions = TagTypes::descriptions();
+
+        return Select::make('type')
+            ->label(__('shops-common::fields.type'))
+            ->options(fn (?Tag $record): array => TagTypes::options($record?->type))
+            ->native(false)
+            // Nullable by design: `type` has always been optional, and the
+            // package's own public-tag filtering treats null as untyped.
+            ->placeholder(__('shops-taxonomy::tag.fields.type_placeholder'))
+            ->helperText($descriptions === [] ? null : collect($descriptions)
+                ->map(fn (string $description, string $value): string => "{$value}: {$description}")
+                ->implode(' · '));
     }
 
     public static function table(Table $table): Table
