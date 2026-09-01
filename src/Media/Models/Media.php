@@ -65,7 +65,7 @@ class Media extends Model implements HasTranslations
     protected static function booted(): void
     {
         self::deleting(function (Media $media): void {
-            if ($media->type === MediaType::Upload && $media->disk && $media->path) {
+            if ($media->type === MediaType::Upload && $media->disk && $media->path && ! $media->fileIsShared()) {
                 Storage::disk($media->disk)->delete($media->path);
             }
 
@@ -75,6 +75,25 @@ class Media extends Model implements HasTranslations
         self::saved(function (Media $media): void {
             $media->flushPendingTranslations();
         });
+    }
+
+    /**
+     * Whether another media row points at this row's file.
+     *
+     * `MediaSchema::saveFormData` re-creates a row it cannot match (a form
+     * state without `media_id` — an Edit page that did not refill after its
+     * last save) before it removes the orphan, so at deletion time the file is
+     * already referenced by the replacement. Deleting it then leaves the live
+     * row pointing at nothing, silently. The row goes; the file stays as long
+     * as anything else needs it.
+     */
+    public function fileIsShared(): bool
+    {
+        return static::query()
+            ->whereKeyNot($this->getKey())
+            ->where('disk', $this->disk)
+            ->where('path', $this->path)
+            ->exists();
     }
 
     /** @return list<string> */

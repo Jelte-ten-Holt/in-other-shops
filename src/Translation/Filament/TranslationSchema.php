@@ -142,9 +142,18 @@ final class TranslationSchema
             $statePath = "translations.{$locale}.{$name}";
             $clone->statePath($statePath);
 
+            // The slug is derived from the default-locale source field while the
+            // record is being created, and never touched by that field again: a
+            // published record's slug is its URL, and retitling it must not move
+            // every inbound link. An editor who means to rename edits the slug
+            // field itself.
             if ($isDefault && $slugSource !== null && $slugTarget !== null && $name === $slugSource) {
                 $clone->live(onBlur: true)
-                    ->afterStateUpdated(fn (Set $set, ?string $state) => $set($slugTarget, Str::slug($state ?? '')));
+                    ->afterStateUpdated(function (Set $set, ?string $state, string $operation) use ($slugTarget): void {
+                        if ($operation === 'create') {
+                            $set($slugTarget, Str::slug($state ?? ''));
+                        }
+                    });
             }
 
             $tabFields[] = $clone;

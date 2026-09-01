@@ -17,10 +17,11 @@ use InOtherShops\Translation\Filament\TranslationSchema;
  * three schemas before the form hydrates, remember the dehydrated state on the
  * way to the model write, replay it to the schemas after.
  *
- * No `getRedirectUrl()` override, on purpose: like the consumer pages that
- * drifted, this page stays on itself after a save, so the Livewire form state
- * survives into the next save. That is the condition the page-level tests
- * need to reproduce.
+ * This is the reference implementation of the refill convention: no
+ * `getRedirectUrl()` override (the page stays on itself after a save, so the
+ * Livewire form state survives into the next save — the condition both
+ * consumer bugs needed), and `afterSave()` ends with
+ * `refillManualFormState()`, which is what makes that survival harmless.
  */
 final class EditStubEditable extends EditRecord
 {
@@ -54,5 +55,8 @@ final class EditStubEditable extends EditRecord
         TranslationSchema::saveFormData($this->record, $state);
         MediaSchema::saveFormData($this->record, $state);
         InventorySchema::saveFormData($this->record, $state);
+
+        // Last, always: the form now shows what a fresh load would.
+        $this->refillManualFormState();
     }
 }
