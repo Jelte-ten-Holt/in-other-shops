@@ -461,3 +461,34 @@ final class TestVariantable extends StubModel implements HasCart, HasPrices, Has
         return (bool) $this->tracks_stock;
     }
 }
+
+/**
+ * `HasStock`, `HasMedia`, `HasTranslations` — the consumer-catalogue shape that
+ * {@see \InOtherShops\Tests\Stubs\Filament\StubEditableResource} edits through
+ * real Filament pages, so the manual-sync Schemas are exercised across a page
+ * lifecycle and not only through their static halves.
+ */
+final class TestEditable extends StubModel implements HasMedia, HasStock, HasTranslations
+{
+    use InteractsWithMedia;
+    use InteractsWithStock;
+    use InteractsWithTranslations;
+
+    protected $table = 'test_editables';
+
+    public static function capabilities(): array
+    {
+        return ['stock', 'translations'];
+    }
+
+    /** @return array<string> */
+    public function translatableFields(): array
+    {
+        return ['name'];
+    }
+
+    public function tracksStock(): bool
+    {
+        return (bool) $this->tracks_stock;
+    }
+}

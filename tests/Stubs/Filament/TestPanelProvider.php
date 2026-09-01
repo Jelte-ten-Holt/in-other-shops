@@ -8,10 +8,12 @@ use Filament\Panel;
 use Filament\PanelProvider;
 
 /**
- * A bare default Filament panel so {@see \Filament\Facades\Filament::auth()}
- * resolves during authorization tests. The package ships no panel of its own
- * (consumers register theirs), so tests that exercise Resource authorization
- * register this one. It discovers nothing and only pins the auth guard.
+ * A bare default Filament panel for the tests that boot Filament (mix in
+ * {@see \InOtherShops\Tests\Support\BootsFilament}). The package ships no
+ * panel of its own — consumers register theirs — so this one exists to pin the
+ * auth guard for {@see \Filament\Facades\Filament::auth()} and to mount the
+ * stub Resources under `tests/Stubs/Filament` that the page-level tests drive.
+ * It discovers nothing; every Resource is listed explicitly.
  */
 final class TestPanelProvider extends PanelProvider
 {
@@ -20,6 +22,10 @@ final class TestPanelProvider extends PanelProvider
         return $panel
             ->id('test')
             ->default()
-            ->authGuard('web');
+            ->path('test-admin')
+            ->authGuard('web')
+            ->resources([
+                StubEditableResource::class,
+            ]);
     }
 }

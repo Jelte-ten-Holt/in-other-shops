@@ -11,8 +11,8 @@ use InOtherShops\Support\Filament\PackageResource;
 use InOtherShops\Tests\Stubs\Filament\DefaultDenyStubResource;
 use InOtherShops\Tests\Stubs\Filament\GrantingStockablePolicy;
 use InOtherShops\Tests\Stubs\Filament\LenientStubResource;
-use InOtherShops\Tests\Stubs\Filament\TestPanelProvider;
 use InOtherShops\Tests\Stubs\TestStockable;
+use InOtherShops\Tests\Support\BootsFilament;
 use InOtherShops\Tests\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 use RecursiveDirectoryIterator;
@@ -31,28 +31,7 @@ use RecursiveIteratorIterator;
  */
 final class PackageResourceAuthorizationTest extends TestCase
 {
-    protected function getPackageProviders($app): array
-    {
-        // The package never boots Filament in its suite (Resources are exercised
-        // via their static methods). Authorization, though, runs through
-        // Filament's container-bound manager, so this one class stands up the
-        // Filament runtime plus a bare default panel.
-        return [
-            ...parent::getPackageProviders($app),
-            \Livewire\LivewireServiceProvider::class,
-            \BladeUI\Icons\BladeIconsServiceProvider::class,
-            \Filament\Support\SupportServiceProvider::class,
-            \Filament\Actions\ActionsServiceProvider::class,
-            \Filament\Forms\FormsServiceProvider::class,
-            \Filament\Infolists\InfolistsServiceProvider::class,
-            \Filament\Notifications\NotificationsServiceProvider::class,
-            \Filament\Widgets\WidgetsServiceProvider::class,
-            \Filament\Tables\TablesServiceProvider::class,
-            \Filament\Schemas\SchemasServiceProvider::class,
-            \Filament\FilamentServiceProvider::class,
-            TestPanelProvider::class,
-        ];
-    }
+    use BootsFilament;
 
     #[Test]
     public function it_denies_a_package_resource_when_no_policy_grants_access(): void
