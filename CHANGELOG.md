@@ -8,7 +8,7 @@ The format is loosely [Keep a Changelog](https://keepachangelog.com/); the
 package is pre-1.0, so minor versions may carry breaking changes (all consumers
 are pre-launch — single-release-window policy, no deprecation bridges).
 
-## Unreleased
+## v0.66.0 — 2026-09-01
 
 Form state after a Filament save, and two smaller admin-correctness fixes,
 all surfaced by the 2026-09-01 in-other-worlds code-quality review and all
