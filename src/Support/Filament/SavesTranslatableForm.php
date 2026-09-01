@@ -22,6 +22,11 @@ namespace InOtherShops\Support\Filament;
  * mutateFormDataBeforeCreate()/afterCreate() on Create pages and
  * mutateFormDataBeforeFill()/mutateFormDataBeforeSave()/afterSave() on Edit
  * pages, so the unused hooks simply never fire.
+ *
+ * After an Edit save the form is refilled from the saved record
+ * ({@see SyncsManualFormState::refillManualFormState()}), so a page that
+ * adopts this trait cannot re-apply a one-shot field or churn media rows on
+ * its next save.
  */
 trait SavesTranslatableForm
 {
@@ -75,6 +80,7 @@ trait SavesTranslatableForm
     protected function afterSave(): void
     {
         $this->runSaveSyncs();
+        $this->refillManualFormState();
     }
 
     /**
