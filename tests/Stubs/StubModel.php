@@ -58,6 +58,7 @@ abstract class StubModel extends Model
             'test_localizable' => TestLocalizable::class,
             'test_stockable_localizable' => TestStockableLocalizable::class,
             'test_mediable' => TestMediable::class,
+            'test_editable' => TestEditable::class,
             'test_priceable' => TestPriceable::class,
             'test_purchasable' => TestPurchasable::class,
             'test_taxonomized' => TestTaxonomized::class,

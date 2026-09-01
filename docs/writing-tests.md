@@ -120,6 +120,7 @@ For each Command:
 - `tests/Unit/{Domain}/...` — only for pure-function classes that don't touch the database (rare; FlowChain transactions live here).
 - `tests/Stubs/Test{X}.php` — minimal models implementing one or more domain contracts, registered in `TestCase::defineEnvironment` morph map. **Cross-domain consumer tests use these stubs; never project-specific models from `in-other-worlds` or any other consumer.**
 - Test method names use snake_case after `it_…` / `<verb>_…`, match what a reader skim-greps for, and don't overstate scope.
+- **Filament page tests** — the suite does not boot Filament by default. A test that needs a real Resource page (form lifecycle across saves, authorization through Filament's manager) mixes in `Tests\Support\BootsFilament`, which registers the Filament/Livewire providers *in package-discovery order* (that order is load-bearing — see the trait) plus `Tests\Stubs\Filament\TestPanelProvider`. The panel mounts the stub Resources under `tests/Stubs/Filament/`; `StubEditableResource` is the consumer-shaped one whose Create/Edit pages carry `TranslationSchema`, `MediaSchema` and `InventorySchema`, wired the way in-other-worlds and bianka-shop-one wire theirs. Drive it with `Livewire::test(EditStubEditable::class, ['record' => $id])->fillForm([...])->call('save')`; the harness carries form state across `call()`s exactly as a browser does, which is the thing the static `fillFormData`/`saveFormData` tests cannot see. `tests/Feature/Support/Filament/StubEditablePageTest.php` is the reference.
 
 ---
 
