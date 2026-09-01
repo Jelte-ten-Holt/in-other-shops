@@ -8,6 +8,38 @@ The format is loosely [Keep a Changelog](https://keepachangelog.com/); the
 package is pre-1.0, so minor versions may carry breaking changes (all consumers
 are pre-launch — single-release-window policy, no deprecation bridges).
 
+## Unreleased
+
+Form state after a Filament save, and two smaller admin-correctness fixes,
+all surfaced by the 2026-09-01 in-other-worlds code-quality review and all
+shared by both consumers. Ships with the suite's first Filament page-test
+harness, which is what made them testable here.
+
+### Added
+- **`SyncsManualFormState::refillManualFormState()`** — re-hydrates an Edit
+  page's form from the saved record. Filament neither refills nor redirects
+  after `save()` unless told to, so the Livewire state that produced one save
+  was the state the next save read: a one-shot `_stock.adjustment_quantity`
+  of 5 applied twice, and a media row created by save #1 (no `media_id` in
+  the form yet) was deleted and re-created by save #2. **Consumers: end every
+  manual-sync Edit `afterSave()` with it.** `SavesTranslatableForm` now does
+  so by construction.
+- **`Media::fileIsShared()`** and the matching guard in `Media::deleting` — an
+  upload's file is no longer removed from disk while another `media` row
+  still points at it. `MediaSchema::saveFormData` creates a replacement row
+  *before* it removes an orphan it could not match, so the churn above also
+  deleted the file the replacement referenced.
+- **Filament page-test harness** — `tests/Support/BootsFilament` (provider
+  order is load-bearing: Filament before Livewire) and
+  `tests/Stubs/Filament/StubEditableResource` with `TestEditable`; see
+  `docs/writing-tests.md`.
+
+### Changed
+- **`TranslationSchema::fields(slugSource:)` derives the slug on create
+  only.** A saved record's slug is its URL; retitling it no longer rewrites
+  the slug (and 404s every inbound link). The slug field stays editable for a
+  deliberate rename.
+
 ## v0.65.0 — 2026-08-29
 
 Tag types become a project's own vocabulary. A **widening**: no consumer has to
