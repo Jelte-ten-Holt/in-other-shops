@@ -132,6 +132,14 @@ Consumers reference this doc rather than re-deriving the catalog from `vendor/`.
 
 **When adding, removing, or modifying any periphery actor or external-surface symbol** — a new `Schedule::command(...)` in a ServiceProvider, a new `Event::subscribe(...)`, a new model boot hook, a renamed dispatched event, a method added to a `Has*` contract, a public action signature change, a FlowChain step payload field renamed — **update `docs/periphery.md` and refresh its "Last verified" date in the same change.** Same discipline as updating tests. Cross-consumer audit: External surface changes affect every consumer; sweep both consumer `docs/periphery.md` files for impact before releasing.
 
+## Releasing
+
+**Both consumers should sit on the same version, and drift is closed deliberately rather than left to the next person who happens to bump.** `in-other-worlds` and `bianka-shop-one` consume one package, and the whole point of `Has*`/`InteractsWith*` is that a fix lands once and reaches both. When they diverge, that stops being true in a way nothing checks: a behaviour reasoned about in one app is a version behind in the other, a fix looks shipped while only half the estate has it, and the periphery docs describe versions that are no longer both installed. It also silently widens the surface a future release has to be correct against.
+
+So: after cutting a release, bump **both** consumers, even when only one asked for the change. Where a consumer genuinely cannot follow — real conflict, work in flight — say so in that consumer's `docs/periphery.md` status line with the version it is actually on and why, so the gap is a recorded decision instead of an accident. The status line is the thing that goes stale first (bianka's said v0.62.0 while its composer.json said `^0.64` — two bumps behind), so correct it in the same change as the bump.
+
+**A pushed tag is immutable.** Packagist resolves a tag to a commit **once** and does not re-resolve a moved one, so re-pointing a tag after pushing it leaves Packagist serving the old commit under the new version number — and nothing catches it: this package's suite tests `src/` regardless of what got tagged, and a consumer's suite passes because it has no test for a fix it never received. That is exactly how `v0.67.0` shipped the Filament page fixture without any of the fixes it exists to prove (found only when a consumer's `composer update` produced a trait with the new method missing). If a tag is wrong after it is pushed, **cut the next patch version** — never move it — and floor the consumers' constraints above the bad tag (`^0.67.1`, not `^0.67`) so no fresh install can resolve back to it.
+
 ## Adding a New Domain
 
 Checklist moved to [docs/adding-a-new-domain.md](docs/adding-a-new-domain.md).
