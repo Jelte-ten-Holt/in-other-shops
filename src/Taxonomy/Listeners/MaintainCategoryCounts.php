@@ -6,6 +6,7 @@ namespace InOtherShops\Taxonomy\Listeners;
 
 use Illuminate\Events\Dispatcher;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use InOtherShops\Taxonomy\Events\CategoryAttached;
 use InOtherShops\Taxonomy\Events\CategoryDeleted;
 use InOtherShops\Taxonomy\Events\CategoryDetached;
@@ -146,9 +147,34 @@ final class MaintainCategoryCounts
             ->all();
     }
 
+    /**
+     * Shift one counter row by `$delta`.
+     *
+     * Increments upsert: the row may legitimately not exist yet. Decrements
+     * deliberately do NOT — you never need to create a row in order to take
+     * something off it, and on MySQL the upsert form is not merely redundant
+     * but fatal. `count` is UNSIGNED, and MySQL assigns the VALUES row into the
+     * record buffer BEFORE testing the duplicate key, so under
+     * STRICT_TRANS_TABLES a negative delta raises 1264 "Out of range value"
+     * and the ON DUPLICATE KEY UPDATE branch never runs — every detach/move/
+     * delete failed, whatever the stored count. SQLite has no unsigned
+     * enforcement and so never reproduced it.
+     *
+     * The guarded UPDATE also refuses to underflow. Affecting no row means the
+     * counter had already drifted below what we are removing (or went missing);
+     * we log that rather than clamping silently, because a floored-at-zero
+     * counter is exactly the signal ReconcileCategoryCountsCommand exists to
+     * catch. The count stays as-is and recompute is the repair.
+     */
     private function applyDelta(int $categoryId, string $alias, int $delta): void
     {
         if ($delta === 0) {
+            return;
+        }
+
+        if ($delta < 0) {
+            $this->decrement($categoryId, $alias, -$delta);
+
             return;
         }
 
@@ -169,5 +195,26 @@ final class MaintainCategoryCounts
             .'ON CONFLICT (category_id, morph_alias) DO UPDATE SET count = category_morph_counts.count + EXCLUDED.count',
             [$categoryId, $alias, $delta],
         );
+    }
+
+    /**
+     * @param  int  $amount  Positive magnitude to subtract.
+     */
+    private function decrement(int $categoryId, string $alias, int $amount): void
+    {
+        $affected = DB::table('category_morph_counts')
+            ->where('category_id', $categoryId)
+            ->where('morph_alias', $alias)
+            ->where('count', '>=', $amount)
+            ->decrement('count', $amount);
+
+        if ($affected === 0) {
+            Log::warning('Category count drift: decrement skipped, counter is below the amount being removed.', [
+                'category_id' => $categoryId,
+                'morph_alias' => $alias,
+                'amount' => $amount,
+                'remedy' => 'php artisan taxonomy:recompute-category-counts',
+            ]);
+        }
     }
 }
