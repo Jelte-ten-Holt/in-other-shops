@@ -63,9 +63,18 @@ jobs:
       # The MySQL leg is not redundant. This package SHIPS migrations, and
       # SQLite cannot validate MySQL DDL — foreign-key names are schema-global
       # and DDL is non-transactional there, which is how a table-rebuild
-      # migration took bianka down on 2026-07-09. phpunit.xml pins
-      # DB_CONNECTION=sqlite WITHOUT force="true", so these env vars genuinely
-      # win rather than silently falling back to SQLite.
+      # migration took bianka down on 2026-07-09. SQLite also does not enforce
+      # UNSIGNED, which is how a fatal negative-delta upsert in
+      # MaintainCategoryCounts shipped green (every category detach failed on
+      # MySQL).
+      #
+      # TWO things must hold for this leg to reach MySQL, and only the first is
+      # visible here: phpunit.xml pins DB_CONNECTION WITHOUT force="true" so a
+      # real env var wins, AND tests/TestCase.php::defineEnvironment must honour
+      # that env var instead of hardcoding sqlite. It hardcoded sqlite until
+      # 2026-09-02, so this leg silently ran SQLite from the day it was added.
+      # If you touch either, re-verify by pointing DB_PORT at a dead port — the
+      # suite MUST error, not pass.
       - name: Run tests (MySQL)
         if: matrix.db == 'mysql'
         env:

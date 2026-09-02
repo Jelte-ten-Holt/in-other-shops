@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Log;
 use InOtherShops\Taxonomy\Actions\AttachCategory;
 use InOtherShops\Taxonomy\Actions\DetachCategory;
 use InOtherShops\Taxonomy\Events\CategoryAttached;
@@ -75,6 +76,80 @@ final class MaintainCategoryCountsTest extends TestCase
         ($this->detach)($model, $leaf);
 
         $this->assertSubtreeCount('test_taxonomized', $leaf, 0);
+        $this->assertSubtreeCount('test_taxonomized', $mid, 0);
+        $this->assertSubtreeCount('test_taxonomized', $root, 0);
+    }
+
+    #[Test]
+    public function detach_never_writes_a_negative_value_into_the_count_column(): void
+    {
+        // Regression: the decrement used to be an upsert carrying a negative
+        // delta. `count` is UNSIGNED, and MySQL assigns the VALUES row into the
+        // record buffer BEFORE testing the duplicate key, so under
+        // STRICT_TRANS_TABLES it raised 1264 "Out of range value" and never
+        // reached the ON DUPLICATE KEY UPDATE branch — every detach failed on
+        // MySQL whatever the stored count. SQLite has no unsigned enforcement,
+        // so asserting the resulting count cannot catch this on the default
+        // connection; assert the statement shape instead, which fails on both.
+        [$root, $mid, $leaf] = $this->tree();
+        $model = TestTaxonomized::factory()->create();
+
+        ($this->attach)($model, $leaf);
+
+        $statements = [];
+        DB::listen(function ($query) use (&$statements): void {
+            if (str_contains($query->sql, 'category_morph_counts')) {
+                $statements[] = $query;
+            }
+        });
+
+        ($this->detach)($model, $leaf);
+
+        self::assertNotSame([], $statements, 'Detach wrote nothing to category_morph_counts.');
+
+        foreach ($statements as $query) {
+            self::assertStringNotContainsStringIgnoringCase(
+                'insert',
+                $query->sql,
+                'Decrements must UPDATE an existing row, never INSERT — an INSERT carries the negative delta into an UNSIGNED column.',
+            );
+
+            foreach ($query->bindings as $binding) {
+                self::assertFalse(
+                    is_numeric($binding) && (float) $binding < 0,
+                    'A negative value reached the count column; it is UNSIGNED and MySQL rejects this under strict mode.',
+                );
+            }
+        }
+    }
+
+    #[Test]
+    public function detach_leaves_a_drifted_counter_alone_and_logs_it(): void
+    {
+        // A counter already below the amount being removed is drift. We refuse
+        // to underflow, but we also refuse to clamp silently — a floored-at-zero
+        // counter would hide exactly what ReconcileCategoryCountsCommand exists
+        // to surface. The row keeps its value and the drift is logged.
+        [$root, $mid, $leaf] = $this->tree();
+        $model = TestTaxonomized::factory()->create();
+
+        ($this->attach)($model, $leaf);
+
+        DB::table('category_morph_counts')
+            ->where('category_id', $leaf->id)
+            ->where('morph_alias', 'test_taxonomized')
+            ->update(['count' => 0]);
+
+        Log::shouldReceive('warning')
+            ->once()
+            ->withArgs(fn (string $message, array $context): bool => str_contains($message, 'Category count drift')
+                && $context['category_id'] === $leaf->id
+                && $context['morph_alias'] === 'test_taxonomized');
+
+        ($this->detach)($model, $leaf);
+
+        $this->assertSubtreeCount('test_taxonomized', $leaf, 0);
+        // Ancestors were not drifted, so they decrement normally.
         $this->assertSubtreeCount('test_taxonomized', $mid, 0);
         $this->assertSubtreeCount('test_taxonomized', $root, 0);
     }
