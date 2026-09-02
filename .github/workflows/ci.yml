@@ -14,7 +14,11 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # The MySQL leg is ~15x slower than SQLite (in-memory vs a real server with
+    # per-test transactions): SQLite finishes in ~2min, MySQL needs ~30. 15
+    # minutes silently cancelled the MySQL leg at 610/1207 the first time it
+    # genuinely ran MySQL, which reads as "cancelled", not "failed".
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
