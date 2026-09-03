@@ -289,7 +289,7 @@ The Filament admin's custom strings are being localized (`en` + `es`), driven by
 | `Support\Filament\PackageResource::hasTitleCaseModelLabel()` | behavior change | returns true only for `en`. Filament `ucwords()`es model labels for headings, which mangles "tasa de impuesto" into "Tasa De Impuesto"; English keeps Filament's Title Case (byte-identical), other locales use the translation's own casing. **A consumer overriding this back to `true` will re-mangle non-English labels.** |
 | 9 `*RelationManager::getTitle()` | ⚠EXT (v0.50.0) | Prices/Media/Payments/Shipments/Categories/Tags/Orders/Addresses/Lines titles now come from lang keys instead of the relationship name. `en` unchanged |
 
-Rollout tracked in the workspace-root `admin-i18n-job-contract.md`. Domains keyed so far: **Tax** (reference); remaining 10 in progress. Parity guardrail: `tests/Unit/Support/TranslationParityTest` (es key set === en key set, no empty values).
+Rollout tracked in `archive/admin-i18n-job-contract.md` (workspace root; rollout COMPLETE — all 12 domains carry `lang/{en,es}`). Parity guardrail: `tests/Unit/Support/TranslationParityTest` (es key set === en key set, no empty values).
 
 ### Public events dispatched (consumer-subscribable)
 

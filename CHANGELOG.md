@@ -251,7 +251,7 @@ Localized country names, so a shop can show a shopper "Alemania" instead of
 
 Checkout consolidation: the quote side of checkout and the voucher HTTP wiring
 move into the package, generalized from the two consumers' twinned app code
-(brief: projects-root `order-summary-consolidation-brief.md`).
+(brief: projects-root `archive/order-summary-consolidation-brief.md`).
 
 ### Added
 - **`Commerce/Checkout`** (new namespace — quote-side only; the checkout chain
