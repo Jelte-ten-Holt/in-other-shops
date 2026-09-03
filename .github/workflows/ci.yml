@@ -1,29 +1,81 @@
 # The package had NO CI at all until 2026-08-23 — its ~1,160 tests ran only on
 # whatever machine happened to cut a release, while both consumers gate their
 # deploys on tests. This closes that.
+#
+# Two cadences, because the drivers cost wildly different amounts of time:
+#
+#   SQLite  — every PR and every push to main. ~2 minutes. This is the gate.
+#   MySQL   — nightly, on demand, and on a release tag. ~30 minutes.
+#
+# MySQL is not on every push on purpose. It is ~15x slower (in-memory vs a real
+# server with per-test transactions), and a 30-minute check on every iteration is
+# one people learn to ignore — which is precisely how this leg came to run SQLite
+# in secret for weeks. Its real job is "do not ship a driver bug to the two
+# consumers", and that gate is the release, not the keystroke.
+#
+# BEFORE CUTTING A RELEASE TAG: run this workflow manually (Actions -> CI -> Run
+# workflow) or confirm the most recent nightly is green. The `push: tags` trigger
+# below is a BACKSTOP, not a gate — by the time it runs, the tag exists, and a
+# pushed tag is immutable (see CLAUDE.md "Releasing"). A red MySQL run on a tag
+# means cutting the next patch, not moving the tag.
 name: CI
 
 on:
   pull_request:
   push:
     branches: [main]
+    tags: ['v*']
+  schedule:
+    # 03:00 UTC nightly — 04:00/05:00 Berlin, so results are waiting in the
+    # morning rather than landing mid-session.
+    - cron: '0 3 * * *'
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
   test:
+    name: test (sqlite)
     runs-on: ubuntu-latest
-    # The MySQL leg is ~15x slower than SQLite (in-memory vs a real server with
-    # per-test transactions): SQLite finishes in ~2min, MySQL needs ~30. 15
-    # minutes silently cancelled the MySQL leg at 610/1207 the first time it
-    # genuinely ran MySQL, which reads as "cancelled", not "failed".
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, pdo, pdo_sqlite, pdo_mysql, bcmath, intl, zip, gd
+          coverage: none
+          tools: composer:v2
+
+      - name: Cache Composer packages
+        uses: actions/cache@v5
+        with:
+          path: vendor
+          key: composer-${{ runner.os }}-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-${{ runner.os }}-
+
+      - name: Install PHP dependencies
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      - name: Run tests (SQLite)
+        run: vendor/bin/phpunit
+
+  test-mysql:
+    name: test (mysql)
+    # Nightly, manual, and release tags only — see the cadence note at the top.
+    if: >-
+      github.event_name == 'schedule' ||
+      github.event_name == 'workflow_dispatch' ||
+      startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    # The MySQL leg needs ~30min against SQLite's ~2. A 15-minute budget silently
+    # cancelled it at 610/1207 the first time it genuinely ran MySQL, which reads
+    # as "cancelled", not "failed".
     timeout-minutes: 45
-    strategy:
-      fail-fast: false
-      matrix:
-        db: [sqlite, mysql]
-    name: test (${{ matrix.db }})
 
     services:
       mysql:
@@ -60,27 +112,21 @@ jobs:
       - name: Install PHP dependencies
         run: composer install --no-interaction --no-progress --prefer-dist
 
-      - name: Run tests (SQLite)
-        if: matrix.db == 'sqlite'
-        run: vendor/bin/phpunit
-
-      # The MySQL leg is not redundant. This package SHIPS migrations, and
-      # SQLite cannot validate MySQL DDL — foreign-key names are schema-global
-      # and DDL is non-transactional there, which is how a table-rebuild
-      # migration took bianka down on 2026-07-09. SQLite also does not enforce
-      # UNSIGNED, which is how a fatal negative-delta upsert in
-      # MaintainCategoryCounts shipped green (every category detach failed on
-      # MySQL).
+      # This leg is not redundant. The package SHIPS migrations, and SQLite
+      # cannot validate MySQL DDL — foreign-key names are schema-global and DDL
+      # is non-transactional there, which is how a table-rebuild migration took
+      # bianka down on 2026-07-09. SQLite also does not enforce UNSIGNED, which
+      # is how a fatal negative-delta upsert in MaintainCategoryCounts shipped
+      # green while failing every category detach on MySQL (v0.67.2).
       #
       # TWO things must hold for this leg to reach MySQL, and only the first is
       # visible here: phpunit.xml pins DB_CONNECTION WITHOUT force="true" so a
       # real env var wins, AND tests/TestCase.php::defineEnvironment must honour
       # that env var instead of hardcoding sqlite. It hardcoded sqlite until
-      # 2026-09-02, so this leg silently ran SQLite from the day it was added.
+      # 2026-09-03, so this leg silently ran SQLite from the day it was added.
       # If you touch either, re-verify by pointing DB_PORT at a dead port — the
       # suite MUST error, not pass.
       - name: Run tests (MySQL)
-        if: matrix.db == 'mysql'
         env:
           DB_CONNECTION: mysql
           DB_HOST: 127.0.0.1
@@ -89,3 +135,74 @@ jobs:
           DB_USERNAME: root
           DB_PASSWORD: root
         run: vendor/bin/phpunit
+
+  # A nightly nobody looks at is worse than no nightly: it manufactures the
+  # feeling of coverage without the coverage. So a failed unattended run files
+  # an issue, which GitHub emails/notifies straight away.
+  #
+  # PR failures are deliberately NOT routed here — they are already impossible
+  # to miss on the PR itself, and an issue per red PR is noise that trains you
+  # to ignore the label.
+  notify-failure:
+    name: notify on unattended failure
+    needs: [test, test-mysql]
+    if: >-
+      always() &&
+      (needs.test.result == 'failure' || needs.test-mysql.result == 'failure') &&
+      github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+
+    steps:
+      # One issue per outbreak, not per night. A run that keeps failing comments
+      # on the existing issue instead of opening a new one; closing the issue
+      # after a fix means the next failure opens a fresh one.
+      - name: File or update the failure issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SQLITE_RESULT: ${{ needs.test.result }}
+          MYSQL_RESULT: ${{ needs.test-mysql.result }}
+          TRIGGER: ${{ github.event_name }}
+          REF: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+
+          body=$(printf '%s\n' \
+            "CI failed on an unattended run — nobody is watching a PR for this one." \
+            "" \
+            "| | |" \
+            "|---|---|" \
+            "| Trigger | \`${TRIGGER}\` |" \
+            "| Ref | \`${REF}\` |" \
+            "| test (sqlite) | \`${SQLITE_RESULT}\` |" \
+            "| test (mysql) | \`${MYSQL_RESULT}\` |" \
+            "" \
+            "Run: ${RUN_URL}" \
+            "" \
+            "If the MySQL leg is the red one, read it before cutting a release —" \
+            "SQLite cannot validate MySQL DDL and does not enforce UNSIGNED, so a" \
+            "green SQLite gate says nothing about the driver both consumers run.")
+
+          # Ensure the label exists BEFORE listing by it: `gh issue list --label`
+          # errors on an unknown label, and `set -e` would kill the notification
+          # on the very first failure — the one run this job exists for.
+          gh label create ci-failure --color b60205 \
+            --description "Unattended CI run failed" 2>/dev/null || true
+
+          existing=$(gh issue list --state open --label ci-failure \
+            --json number --jq '.[0].number // empty' || true)
+
+          if [ -n "$existing" ]; then
+            echo "Commenting on existing issue #${existing}"
+            gh issue comment "$existing" --body "$body"
+          else
+            echo "Opening a new issue"
+            gh issue create \
+              --title "CI failing on unattended run (${TRIGGER})" \
+              --label ci-failure \
+              --body "$body"
+          fi
