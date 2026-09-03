@@ -72,6 +72,34 @@ When the source uses a primitive that is invisible to a happy-path assertion (`l
 
 Every domain ships a `config/{domain}.php`. Every test that overrides config in `defineEnvironment` is implicitly testing the *override*, not the shipped default. At least one test per domain should run with the shipped config untouched and exercise the documented default behavior — otherwise a regression in `config/*.php` lands silently.
 
+### The suite must pass on MySQL, not only on SQLite
+
+The suite runs on both drivers in CI, and the two are not interchangeable in the
+ways tests quietly depend on:
+
+- **In-memory SQLite gives every test a brand-new empty database. MySQL gives the
+  whole process one database.** Anything a test creates outside a transaction —
+  most of all schema — outlives that test on MySQL.
+- **MySQL DDL is not transactional.** `RefreshDatabase` wraps each test in a
+  transaction, and that transaction cannot roll back a `Schema::create`. So a
+  table built in `defineDatabaseMigrations()` (which runs for *every* test) is
+  still there for the next one, and the second run dies on 1050 "table already
+  exists".
+- **SQLite does not enforce `UNSIGNED`,** and has no strict mode. A negative
+  value written to an unsigned column is stored on SQLite and rejected outright
+  on MySQL under `STRICT_TRANS_TABLES`.
+- **SQLite-only introspection is not a test.** `sqlite_master` answers nothing
+  about the driver consumers actually run. Use `Schema::getIndexes()` /
+  `Schema::getColumns()`, which work on both.
+
+So: create test schema idempotently (`Schema::dropIfExists()` before
+`Schema::create()`), and when an assertion is about database behaviour rather
+than application behaviour, ask which driver it is really asserting against.
+
+This is not hypothetical bookkeeping. The MySQL leg silently ran SQLite from the
+day it was added until 2026-09-02, and behind it a category-count decrement that
+failed on *every* MySQL detach shipped green — see `MaintainCategoryCounts`.
+
 ---
 
 ## What not to do

@@ -27,7 +27,6 @@ use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\Relation;
-use Illuminate\Support\Facades\Schema;
 use PHPUnit\Framework\Attributes\Test;
 
 final class InitiatePaymentTest extends TestCase
@@ -303,12 +302,9 @@ final class InitiatePaymentTest extends TestCase
     {
         parent::defineDatabaseMigrations();
 
-        Schema::create('test_profileables', function ($table): void {
-            $table->id();
-            $table->string('name')->nullable();
-            $table->timestamps();
-        });
-
+        // The `test_profileables` table is a stub migration, not a Schema::create
+        // here: RefreshDatabase's migrate:fresh drops every table it finds, and a
+        // table created outside the migration set never comes back.
         Relation::morphMap(['test_profileable' => TestProfileable::class]);
     }
 }

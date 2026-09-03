@@ -57,9 +57,18 @@ trait InteractsWithTranslations
         $this->unsetRelation('translations');
     }
 
+    /**
+     * Eloquent permits a null key — `HasAttributes::getAttribute()` opens with
+     * `if (! $key) { return; }` — and callers rely on it. Filament's
+     * `Resource::getRecordTitle()` passes `static::$recordTitleAttribute`
+     * straight through, which is null on every resource that never set one, and
+     * falls back to the model label when it gets null back. Narrowing that
+     * contract here turned the delete-confirmation modal on a translatable
+     * record into a TypeError, so guard the key before the strict-typed check.
+     */
     public function getAttribute($key): mixed
     {
-        if ($this->isTranslatableField($key)) {
+        if ($key !== null && $this->isTranslatableField($key)) {
             return $this->translated($key);
         }
 
