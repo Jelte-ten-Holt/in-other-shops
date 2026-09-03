@@ -93,11 +93,27 @@ final class StatusColumnMacroTest extends TestCase
         );
     }
 
+    /**
+     * Driver-agnostic index lookup.
+     *
+     * This used to query `sqlite_master`, which meant the test asserting that
+     * the `status()` macro creates its index could only ever assert it on
+     * SQLite — the driver where indexes matter least, and not the one any
+     * consumer runs. On MySQL it did not fail loudly; it errored with 1146
+     * "table sqlite_master doesn't exist", and only once CI genuinely ran
+     * MySQL. `Schema::getIndexes()` answers the same question on both.
+     *
+     * Index names are compared case-insensitively: MySQL reports them as
+     * created, SQLite lowercases, and the assertion is about presence.
+     */
     private function hasIndex(string $table, string $index): bool
     {
-        return DB::selectOne(
-            "select name from sqlite_master where type = 'index' and tbl_name = ? and name = ?",
-            [$table, $index],
-        ) !== null;
+        foreach (Schema::getIndexes($table) as $existing) {
+            if (strcasecmp((string) ($existing['name'] ?? ''), $index) === 0) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }
