@@ -405,6 +405,18 @@ Files that exist in every consumer in roughly the same shape, wrapping package A
 
 When any of these is edited in one consumer, check whether the other needs the same change. When the underlying package API shifts, audit all rows.
 
+**Frontend (JS/Vue) — added 2026-09-04 with the media pipeline's consumer wiring (W3).** The package ships **no
+frontend** (ruled 2026-09-04, plan Q7): these are *copies*, not a shared dependency, and they exist in both consumers
+only because they wrap the same package data shape. `ImagePayload` deliberately stops at package data — `sizes` is a
+layout decision and the attribute string is assembled consumer-side — so a change to `ImagePayload`'s keys, or to
+`Media::srcset()`'s candidate shape, lands in **both** of these files.
+
+| Consumer file shape | Wraps | in-other-worlds path | bianka path |
+| --- | --- | --- | --- |
+| `media` Support module | `mediaSrcset` / `mediaSizes` / `mediaAttrs` over the `ImagePayload` shape. The `SIZES` preset table differs per consumer **by design** — it describes that shop's grid. | `resources/js/Support/media.js` | `resources/js/Support/media.js` |
+| `useLightbox` composable | module-level `reactive` singleton behind the D1 click rule (show-page images enlarge, index cards navigate). `open(images, index)` takes `ImagePayload` rows. | `resources/js/composables/useLightbox.js` | `resources/js/composables/useLightbox.js` |
+| `Lightbox` component | the one overlay, teleported to `body` from the app layout. Escape / ←→ / backdrop close; no focus trap, matching each app's existing overlay standard. The bianka copy is translated (`lightbox.*`); the IOW copy is English-only. | `resources/js/Components/Lightbox.vue` | `resources/js/Components/Lightbox.vue` |
+
 ### Logging actor surface (consumer-facing, unreleased)
 
 The audit-actor work makes a slice of the Logging domain consumer-facing: a consumer establishes the request actor so package-emitted audit rows aren't anonymous.
