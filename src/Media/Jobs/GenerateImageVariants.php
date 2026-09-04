@@ -277,7 +277,12 @@ final class GenerateImageVariants implements ShouldBeUnique, ShouldQueue
         $media->variants = [];
         $media->saveQuietly();
 
-        Log::info('media:variants skipped an image', [
+        // `warning`, not `info`: both consumers' staging and production run
+        // LOG_LEVEL=warning, so an `info` line is written nowhere and the
+        // `variants = {}` row is the only record a skip leaves. A skip is a
+        // decision the operator should be able to find in the log it
+        // actually reads — `media:variants --skipped` is the other half.
+        Log::warning('media:variants skipped an image', [
             'media_id' => $media->getKey(),
             'disk' => $this->disk,
             'path' => $this->path,

@@ -40,6 +40,12 @@ final class ImageOrientation
     /**
      * Returns the upright image. The input handle is consumed (destroyed)
      * whenever a new one is allocated, so callers keep only the return value.
+     *
+     * 5 and 7 are the mirrored quarter-turns (transpose and transverse), and
+     * both flip HORIZONTALLY after the rotation — a vertical flip there
+     * produces the *other* one's image, which is what v0.69.x shipped
+     * (`MediaOrientationGridTest` pins all eight against the spec's
+     * 0th-row/0th-column table so the pair cannot swap again).
      */
     public static function apply(GdImage $image, int $orientation): GdImage
     {
@@ -47,9 +53,9 @@ final class ImageOrientation
             2 => self::flip($image, IMG_FLIP_HORIZONTAL),
             3 => self::rotate($image, 180),
             4 => self::flip($image, IMG_FLIP_VERTICAL),
-            5 => self::flip(self::rotate($image, 270), IMG_FLIP_VERTICAL),
+            5 => self::flip(self::rotate($image, 270), IMG_FLIP_HORIZONTAL),
             6 => self::rotate($image, 270),
-            7 => self::flip(self::rotate($image, 90), IMG_FLIP_VERTICAL),
+            7 => self::flip(self::rotate($image, 90), IMG_FLIP_HORIZONTAL),
             8 => self::rotate($image, 90),
             default => $image,
         };

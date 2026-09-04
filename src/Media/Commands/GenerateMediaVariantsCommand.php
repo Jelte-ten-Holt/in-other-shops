@@ -26,6 +26,15 @@ use InOtherShops\Media\Models\Media;
  *
  * Also fills `width`/`height` on rows that predate the columns: a header
  * read, synchronous, no queue.
+ *
+ * `--skipped` is the other detection half (v0.70.0): it lists the rows a
+ * previous run RECORDED as skipped (`variants = {}` — attempted, nothing
+ * produced) and exits without dispatching anything. The default listing
+ * cannot show these, by design — `{}` is a decision, not a gap — so before
+ * this option a skip was visible only in the log, and both consumers run
+ * `LOG_LEVEL=warning`, where the job's line did not land until v0.70.0
+ * raised it. An oversize hero served as a 1.7 MB original is exactly the
+ * thing that hides here.
  */
 final class GenerateMediaVariantsCommand extends Command
 {
@@ -34,6 +43,7 @@ final class GenerateMediaVariantsCommand extends Command
     protected $signature = 'media:variants
         {--missing : Only image rows never attempted (variants IS NULL) — the default}
         {--all : Reset every image row and regenerate its ladder}
+        {--skipped : List image rows a previous run recorded as skipped (variants = {}) and exit}
         {--sync : Run the job inline instead of queueing it}
         {--limit= : Stop after this many rows}';
 
@@ -50,6 +60,10 @@ final class GenerateMediaVariantsCommand extends Command
             ->where('type', MediaType::Upload->value)
             ->whereNotNull('disk')
             ->whereNotNull('path');
+
+        if ($this->option('skipped')) {
+            return $this->listSkipped($uploads());
+        }
 
         $filled = $this->fillMissingDimensions($uploads());
 
@@ -91,6 +105,52 @@ final class GenerateMediaVariantsCommand extends Command
             $skipped,
             $filled > 0 ? ", filled dimensions on {$filled}" : '',
         ));
+
+        return self::SUCCESS;
+    }
+
+    /**
+     * The recorded-skip listing: rows whose `variants` is an EMPTY map.
+     *
+     * The emptiness test is done in PHP, not in SQL, and that is deliberate.
+     * The obvious `JSON_LENGTH(variants) = 0` is correct on MySQL, where it
+     * counts an object's keys — but Laravel's `whereJsonLength()` compiles to
+     * SQLite's `json_array_length()`, which returns **0 for any JSON value
+     * that is not an array**. A successful row (`{"400": {…}}`) is an object,
+     * so on SQLite that predicate lists every row that WORKED — precisely
+     * inverted, and silent. Production is MySQL and the suite runs both, so a
+     * driver-dependent listing would have been right where it is never read
+     * and wrong where it is tested. The row count here is an operator-scale
+     * listing (tens of rows), so a cursor costs nothing.
+     *
+     * Dimensions are shown because they are usually the reason — an oversize
+     * source is refused by the megapixel cap or the memory estimate, and a
+     * source narrower than the smallest rung has nothing to produce. Rows
+     * whose dimensions never got read print `—`, which is itself a signal.
+     */
+    private function listSkipped(Builder $uploads): int
+    {
+        $rows = [];
+
+        /** @var Media $media */
+        foreach ($uploads->where('mime_type', 'like', 'image/%')->whereNotNull('variants')->orderBy('id')->cursor() as $media) {
+            if ($media->variants !== []) {
+                continue;
+            }
+
+            $rows[] = [
+                $media->getKey(),
+                $media->disk,
+                $media->path,
+                $media->width !== null && $media->height !== null ? "{$media->width}×{$media->height}" : '—',
+            ];
+        }
+
+        $this->line(sprintf('%d image row(s) recorded as skipped (variants = {}).', count($rows)));
+
+        if ($rows !== []) {
+            $this->table(['ID', 'Disk', 'Path', 'Dimensions'], $rows);
+        }
 
         return self::SUCCESS;
     }

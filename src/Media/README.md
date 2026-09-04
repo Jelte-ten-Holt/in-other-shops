@@ -70,7 +70,7 @@ Every uploaded image carries its intrinsic `width`/`height`, read from the file 
 
 Resized copies are baked at ingest, not on demand. `saved` dispatches `Jobs\GenerateImageVariants` **after commit** when an image upload is created or re-pointed; the job decodes once with GD, applies the EXIF rotation, and writes one WebP per rung of `media.variants.widths` (default 400 / 800 / 1600) that is narrower than the source — never upscaled — as `{stem}-w{width}.webp` beside the original, alpha preserved. Then it writes the `variants` map with `saveQuietly()`. The dispatch guard (`wasRecentlyCreated || wasChanged('path')`) is the recursion breaker; the quiet save is belt and braces.
 
-Everything that stops the ladder is **recorded, not thrown**: non-image, missing file, non-local disk, no GD decoder for the mime, more than `media.variants.max_megapixels` (40), more pixels than the worker has memory free for (`pixels × media.variants.bytes_per_pixel` against what is left under `memory_limit` — on a 256M worker that is ~24 MP — the estimate of 8 bytes per pixel is measured, see `config/media.php`), not wider than the smallest rung — `variants = {}` plus one `Log::info` line with the reason. So `variants IS NULL` means exactly "never attempted", which is what `media:variants` lists.
+Everything that stops the ladder is **recorded, not thrown**: non-image, missing file, non-local disk, no GD decoder for the mime, more than `media.variants.max_megapixels` (40), more pixels than the worker has memory free for (`pixels × media.variants.bytes_per_pixel` against what is left under `memory_limit` — on a 256M worker that is ~24 MP — the estimate of 8 bytes per pixel is measured, see `config/media.php`), not wider than the smallest rung — `variants = {}` plus one `Log::warning` line with the reason. So `variants IS NULL` means exactly "never attempted", which is what `media:variants` lists, while `{}` means "attempted, nothing produced", which is what `media:variants --skipped` lists. The line is a **warning**, not an info: both consumers run `LOG_LEVEL=warning`, so until v0.70.0 an `info` line was written nowhere and the row was the only record a skip left.
 
 The job is unique on `disk:path` for two minutes, carries scalars rather than the model (a row deleted between dispatch and run bails quietly), and adopts rung files that already exist on disk without decoding — a reseed re-creates rows, not rungs. `$timeout` is 55 s, under the consumers' 60 s workers.
 
@@ -78,7 +78,7 @@ The replace invariant and `deleting` both cover the rungs: a `path` change reset
 
 **Rendering.** `Support\ImagePayload::for($media)` is the one payload — `['url','alt','description','width','height','srcset']` — same convention as `OrderSummary`. `url` is always the original (WebP-only rungs are safe because the original is the last-resort candidate; `og:image` stays the original too). `srcset` is `null` until rungs exist, else an ascending candidate list with the original as the widest. Consumers assemble the attribute string and choose `sizes`; the package emits no HTML.
 
-**Backfill.** `php artisan media:variants` once per environment after the v0.69.0 bump (queued; `--sync` runs inline when the queue is busy); it also fills `width`/`height` on rows that predate the columns. Run it again later: "Dispatched 0" is the done signal. `--all` regenerates after a ladder change.
+**Backfill.** `php artisan media:variants` once per environment after the v0.69.0 bump (queued; `--sync` runs inline when the queue is busy); it also fills `width`/`height` on rows that predate the columns. Run it again later: "Dispatched 0" is the done signal. `--all` regenerates after a ladder change. `--skipped` lists the rows a run recorded as skipped, with their dimensions — an oversize hero silently served as a 1.7 MB original shows up there and nowhere else.
 
 ### Mediable pivot model
 
@@ -154,7 +154,34 @@ interface HasMedia
 
 ### Commands
 
-- `media:variants {--missing} {--all} {--sync} {--limit=}` — registered, not scheduled. Backfill and detection surface for the ladder.
+- `media:variants {--missing} {--all} {--skipped} {--sync} {--limit=}` — registered, not scheduled. Backfill and detection surface for the ladder.
+- `media:prune {--force} {--min-age=6h} {--disk=} {--directory=}` — registered, not scheduled. See *Pruning orphaned files*.
+
+#### Pruning orphaned files
+
+Three things left files on disk with no row pointing at them: the replace no-op fixed in v0.68.0 (every replacement ever made), `DeleteVariant` detaching without deleting, and a Filament save that throws after the upload has already moved out of `livewire-tmp` — sharper on a panel running `->databaseTransactions()`, where a rollback leaves a moved file and no row. Nothing swept them up; on staging more than half the bytes under one consumer's `media/` were orphaned.
+
+`media:prune` is that sweep. It deletes files, so its promises are invariants with a test each, not documentation:
+
+1. **Never a referenced file.** The reference set is every `media.path` on the disk **∪** every variant path (`Media::variantFilePaths()` — the recorded map plus what the current ladder would name, so a rung whose job has not written back yet is still protected). It spans **every row on the disk regardless of directory**: bianka's rows point at `products/…` while the sweep runs over `media/`, and a reference set scoped to the swept directory would treat every rung it owns as unreferenced. Rows on another disk with the same path are not references.
+2. **Never outside `media.directory`.** One non-recursive `files($directory)` call — a nested directory is not swept either. That non-recursion is also what keeps Livewire's pending uploads safe: `livewire-tmp/` is a sibling directory, never a file in the swept one. Pointing the sweep *at* `livewire-tmp` is refused outright.
+3. **Never younger than `--min-age`** (default `6h`, by mtime). The window between Filament moving a file out of `livewire-tmp` and writing its row is milliseconds, but a sweep landing inside it destroys a live upload, and the threshold costs nothing.
+4. **Idempotent.** A second run after a forced one finds no orphans.
+5. **Dry run by default.** Nothing is deleted without `--force`.
+
+Output is a **per-file manifest**, not a "deleted N files" line — the operator decides, and cannot decide from a count. Each row carries size, mtime, the upload time decoded from the filename's ULID (rung files carry their original's ULID, so the `-w400` suffix is stripped before parsing), the nearest `media` row created within ±5 min of it, and a disposition:
+
+| Disposition | Meaning |
+| --- | --- |
+| `referenced` | a row points at it — never touched |
+| `young` | newer than `--min-age` — never touched |
+| `orphan` | unreferenced and old enough; a dry run stops here |
+| `deleted` | unreferenced, old enough, and `--force` removed it |
+| `blocked` | could not be stat-ed or deleted; recorded with the reason, run continues |
+
+The ULID column plus the nearest-row hint is the retroactive report for the pre-v0.68.0 replacements that failed silently: the file that was moved into place is dated, and the row it was probably meant for sits next to it. It is a hint — it never affects a disposition.
+
+A run with any `blocked` row exits non-zero, so a scheduled sweep surfaces it rather than failing quietly. `--disk=` and `--directory=` exist for a one-off, not for the schedule. The summary is counts and bytes per disposition and nothing else — it never grades itself.
 
 ## Future
 
