@@ -67,9 +67,13 @@ return [
     | `{stem}-w{width}.webp`. `<img src>` stays the original — WebP-only rungs
     | are safe because the original is always the last-resort candidate.
     |
-    | `max_megapixels` bounds the decode: GD needs roughly 5 bytes per pixel,
-    | so 40 MP is ~200 MB — at the edge of a 256M worker. A source above the
-    | cap is recorded as skipped (`variants = {}`), never decoded.
+    | `max_megapixels` bounds time and disk. Memory is bounded separately, at
+    | run time: the job estimates `pixels × bytes_per_pixel` (GD truecolor is
+    | 4 bytes per pixel; 5 leaves room for the decoder's buffers) against
+    | what is still free under the worker's `memory_limit` — a booted worker
+    | holds >100 MB before the first pixel, so on a 256M worker the practical
+    | ceiling is ~25–30 MP. Either bound records a skip (`variants = {}`);
+    | neither ever decodes.
     |
     | `enabled => false` stops the dispatch altogether — for a consumer with no
     | queue worker. Both consumers run one today.
@@ -81,6 +85,7 @@ return [
         'widths' => [400, 800, 1600],
         'quality' => 80,
         'max_megapixels' => 40,
+        'bytes_per_pixel' => 5,
     ],
 
     /*

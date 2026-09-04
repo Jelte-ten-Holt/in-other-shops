@@ -8,6 +8,21 @@ The format is loosely [Keep a Changelog](https://keepachangelog.com/); the
 package is pre-1.0, so minor versions may carry breaking changes (all consumers
 are pre-launch — single-release-window policy, no deprecation bridges).
 
+## v0.69.1 — 2026-09-04
+
+### Fixed
+- **`GenerateImageVariants` bounds memory at run time, not by megapixels
+  alone.** On staging a 7008×5088 photo (35.6 MP, under the 40 MP cap)
+  exhausted the 256M queue worker: decoding it needs ~140 MB, and a booted
+  worker already holds over 100 MB. An OOM is a fatal, so the worker died,
+  the container restarted on every attempt, the job landed in `failed_jobs`
+  and the row stayed `null` for every backfill to retry. The job now
+  estimates `pixels × media.variants.bytes_per_pixel` (new key, default 5)
+  against what is free under `memory_limit` in the running process and
+  records the skip (`variants = {}`, reason logged) like every other one.
+  On a 256M worker the practical ceiling is ~25–30 MP; the original keeps
+  serving as before.
+
 ## v0.69.0 — 2026-09-04
 
 Dimensions and the WebP variant ladder — Phase 2 of the media-pipeline build
