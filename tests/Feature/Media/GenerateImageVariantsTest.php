@@ -92,6 +92,23 @@ final class GenerateImageVariantsTest extends TestCase
         $this->assertSame(0, $opaque, 'the opaque half must stay opaque');
     }
 
+    /**
+     * A palette PNG carries transparency as an index, not a channel. Without
+     * the promotion to truecolor (and alpha carried, not blended) the
+     * transparent index scales into an opaque colour.
+     */
+    #[Test]
+    public function transparency_survives_from_a_palette_png(): void
+    {
+        $media = $this->upload('alpha-palette.png', 'media/badge.png', 'image/png');
+
+        $this->generate($media);
+
+        $variant = imagecreatefromwebp(Storage::disk('public')->path('media/badge-w400.webp'));
+        $this->assertSame(127, (imagecolorat($variant, 10, 10) >> 24) & 0x7F, 'the transparent index must become a transparent pixel');
+        $this->assertSame(0, (imagecolorat($variant, 390, 10) >> 24) & 0x7F);
+    }
+
     #[Test]
     public function an_oversize_source_is_recorded_as_skipped_without_being_decoded(): void
     {
