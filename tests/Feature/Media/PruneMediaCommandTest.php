@@ -323,6 +323,37 @@ final class PruneMediaCommandTest extends TestCase
         }
     }
 
+    /**
+     * Every timestamp in the manifest is rendered in the app's timezone.
+     * `Carbon::createFromTimestamp()` builds in UTC while `Carbon::now()` —
+     * and so the cutoff printed in the header — builds in the app's zone, so
+     * without an explicit conversion the manifest's own columns disagree by
+     * the offset. Both consumers run UTC today, which is exactly why this
+     * needs a test rather than an observation.
+     */
+    #[Test]
+    public function the_manifest_renders_timestamps_in_the_app_timezone(): void
+    {
+        $previous = date_default_timezone_get();
+        date_default_timezone_set('Europe/Berlin');
+
+        try {
+            $mtime = Carbon::parse('2026-05-06 09:00:00', 'UTC');
+            Storage::disk('public')->put('media/orphan.jpg', 'x');
+            touch(Storage::disk('public')->path('media/orphan.jpg'), $mtime->getTimestamp());
+            clearstatcache();
+
+            $output = $this->prune();
+
+            // 09:00 UTC is 11:00 in Berlin (CEST). The UTC rendering would
+            // print 09:00 next to a cutoff two hours ahead of it.
+            $this->assertStringContainsString('2026-05-06 11:00:00', $output);
+            $this->assertStringNotContainsString('2026-05-06 09:00:00', $output);
+        } finally {
+            date_default_timezone_set($previous);
+        }
+    }
+
     private function prune(string ...$options): string
     {
         return $this->pruneExpecting(0, ...$options);

@@ -198,7 +198,14 @@ final class PruneMediaCommand extends Command
         try {
             $row['bytes'] = (int) $storage->size($path);
             $row['size'] = $this->humanBytes($row['bytes']);
-            $modified = Carbon::createFromTimestamp((int) $storage->lastModified($path));
+            // Explicitly into the app timezone. `createFromTimestamp()` builds
+            // in UTC while `now()` (and so the cutoff line in the header)
+            // builds in the app's zone, and this manifest is the audit record
+            // of a destructive run that a human reads column by column — two
+            // of its timestamps silently hours apart is not something to
+            // leave to whether `app.timezone` happens to be UTC. Comparison
+            // is unaffected either way; Carbon compares instants.
+            $modified = Carbon::createFromTimestamp((int) $storage->lastModified($path))->setTimezone(date_default_timezone_get());
             $row['modified'] = $modified->toDateTimeString();
         } catch (Throwable $e) {
             // Blocked-handling: recorded, not repaired, not assumed young or
@@ -269,7 +276,7 @@ final class PruneMediaCommand extends Command
         }
 
         try {
-            return Carbon::instance(Ulid::fromString($stem)->getDateTime());
+            return Carbon::instance(Ulid::fromString($stem)->getDateTime())->setTimezone(date_default_timezone_get());
         } catch (Throwable) {
             return null;
         }
