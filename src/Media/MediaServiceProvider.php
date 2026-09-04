@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace InOtherShops\Media;
 
+use InOtherShops\Media\Commands\GenerateMediaVariantsCommand;
 use InOtherShops\Support\DomainServiceProvider;
 
 final class MediaServiceProvider extends DomainServiceProvider
@@ -18,5 +19,10 @@ final class MediaServiceProvider extends DomainServiceProvider
         return [
             'media' => Media::media(),
         ];
+    }
+
+    protected function domainCommands(): array
+    {
+        return [GenerateMediaVariantsCommand::class];
     }
 }

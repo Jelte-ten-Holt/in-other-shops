@@ -6,6 +6,8 @@ namespace InOtherShops\Media\Models;
 
 use InOtherShops\Media\Database\Factories\MediaFactory;
 use InOtherShops\Media\Enums\MediaType;
+use InOtherShops\Media\Jobs\GenerateImageVariants;
+use InOtherShops\Media\Support\ImageOrientation;
 use InOtherShops\Translation\Concerns\InteractsWithTranslations;
 use InOtherShops\Translation\Contracts\HasTranslations;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -55,11 +57,22 @@ class Media extends Model implements HasTranslations
      */
     private array $pendingTranslations = [];
 
+    /**
+     * The path this instance last queued a variant job for. `wasRecentlyCreated`
+     * stays true for the instance's whole life, so without this a second save
+     * on a just-created row (a translation, a pivot touch) would queue the job
+     * again. The unique lock would absorb it; better not to ask.
+     */
+    private ?string $variantsDispatchedFor = null;
+
     protected function casts(): array
     {
         return [
             'size' => 'integer',
             'type' => MediaType::class,
+            'width' => 'integer',
+            'height' => 'integer',
+            'variants' => 'array',
         ];
     }
 
@@ -67,19 +80,18 @@ class Media extends Model implements HasTranslations
     {
         self::saving(function (Media $media): void {
             $media->refreshFileMetadata();
+            $media->refreshDimensions();
         });
 
         self::deleting(function (Media $media): void {
-            if ($media->type === MediaType::Upload && $media->disk && $media->path && ! $media->fileIsShared()) {
-                Storage::disk($media->disk)->delete($media->path);
-            }
-
+            $media->deleteOwnFiles();
             $media->translations()->delete();
         });
 
         self::saved(function (Media $media): void {
             $media->flushPendingTranslations();
             $media->deleteReplacedFile();
+            $media->dispatchVariantGeneration();
         });
     }
 
@@ -123,14 +135,134 @@ class Media extends Model implements HasTranslations
     }
 
     /**
+     * Intrinsic dimensions, filled whenever `path` is dirty on an upload row —
+     * on create as well as on replace (D3). `getimagesize()` reads a header,
+     * not pixels: no decode, no memory shape, so it belongs in the request.
+     * EXIF orientations 5–8 transpose the pair (F9): a portrait phone photo
+     * stores landscape pixels and a rotation flag, and the browser shows it
+     * upright, so the row must describe what the browser shows.
+     *
+     * A path change also resets `variants`: the rungs described the old file.
+     * The job re-fills it after commit.
+     */
+    public function refreshDimensions(): void
+    {
+        if ($this->type !== MediaType::Upload || ! $this->isDirty('path')) {
+            return;
+        }
+
+        if ($this->exists) {
+            $this->variants = null;
+        }
+
+        $this->readDimensions();
+    }
+
+    /**
+     * Read `width`/`height` from the file on disk into the attributes (unsaved).
+     * Nulls them when there is nothing to read: not an image, not a local disk,
+     * file missing, header unreadable. Local only because `getimagesize()`
+     * needs a filesystem path; a remote disk would mean a download per save.
+     */
+    public function readDimensions(): void
+    {
+        $this->width = null;
+        $this->height = null;
+
+        if (! is_string($this->disk) || $this->disk === '' || ! is_string($this->path) || $this->path === '' || ! $this->isImage()) {
+            return;
+        }
+
+        if (config("filesystems.disks.{$this->disk}.driver") !== 'local') {
+            return;
+        }
+
+        $storage = Storage::disk($this->disk);
+
+        if (! $storage->exists($this->path)) {
+            return;
+        }
+
+        $file = $storage->path($this->path);
+        $info = @getimagesize($file);
+
+        if ($info === false) {
+            return;
+        }
+
+        [$width, $height] = $info;
+
+        if (ImageOrientation::transposes(ImageOrientation::read($file, $info['mime'] ?? $this->mime_type))) {
+            [$width, $height] = [$height, $width];
+        }
+
+        $this->width = $width;
+        $this->height = $height;
+    }
+
+    /**
+     * Queue the variant ladder for a new file — on create, or when `path`
+     * changed. That guard is the recursion breaker: the job's own write-back
+     * touches `variants` only (and saves quietly besides). After commit so a
+     * transactional panel cannot hand the worker a row that is not there yet.
+     *
+     * `type=Upload` is checked explicitly and not only `isImage()`: external
+     * rows are created with an image mime type and no file.
+     */
+    public function dispatchVariantGeneration(): void
+    {
+        if (! config('media.variants.enabled', true)) {
+            return;
+        }
+
+        if ($this->type !== MediaType::Upload || ! $this->isImage()) {
+            return;
+        }
+
+        if (! $this->wasRecentlyCreated && ! $this->wasChanged('path')) {
+            return;
+        }
+
+        if (! is_string($this->disk) || $this->disk === '' || ! is_string($this->path) || $this->path === '') {
+            return;
+        }
+
+        if ($this->variantsDispatchedFor === $this->path) {
+            return;
+        }
+
+        $this->variantsDispatchedFor = $this->path;
+
+        GenerateImageVariants::dispatch((int) $this->getKey(), $this->disk, $this->path)->afterCommit();
+    }
+
+    /**
+     * `deleting`: the file and its rungs go together, unless another row
+     * shares the file — the rungs are keyed off the original's path, so the
+     * same guard covers both.
+     */
+    public function deleteOwnFiles(): void
+    {
+        if ($this->type !== MediaType::Upload || ! $this->disk || ! $this->path || $this->fileIsShared()) {
+            return;
+        }
+
+        Storage::disk($this->disk)->delete([$this->path, ...$this->variantFilePaths()]);
+    }
+
+    /**
      * The replace invariant, second half: once the row points somewhere else,
-     * nothing references the old file and Filament never removes it. Drop it —
-     * unless another row still points at it, the same guard `deleting` uses.
+     * nothing references the old file and Filament never removes it. Drop it,
+     * and its rungs — unless another row still points at it, the same guard
+     * `deleting` uses.
      *
      * After commit, because bianka's panel runs `->databaseTransactions()`: a
      * rollback there would otherwise restore the row and leave the file it
      * points at deleted. Outside a transaction `DB::afterCommit()` runs the
      * callback immediately, so this is right on both consumers.
+     *
+     * The rung names come from the OLD path plus the old map, captured here
+     * rather than read from the column — `saving` has already reset it.
      */
     public function deleteReplacedFile(): void
     {
@@ -140,6 +272,7 @@ class Media extends Model implements HasTranslations
 
         $originalPath = $this->getOriginal('path');
         $originalDisk = $this->getOriginal('disk') ?? $this->disk;
+        $originalVariants = $this->getOriginal('variants');
 
         if (! is_string($originalPath) || $originalPath === '' || $originalPath === $this->path) {
             return;
@@ -149,13 +282,102 @@ class Media extends Model implements HasTranslations
             return;
         }
 
-        DB::afterCommit(function () use ($originalPath, $originalDisk): void {
+        $files = [$originalPath, ...$this->variantFilePaths($originalPath, is_array($originalVariants) ? $originalVariants : null)];
+
+        DB::afterCommit(function () use ($files, $originalPath, $originalDisk): void {
             if ($this->fileIsShared($originalPath, $originalDisk)) {
                 return;
             }
 
-            Storage::disk($originalDisk)->delete($originalPath);
+            Storage::disk($originalDisk)->delete($files);
         });
+    }
+
+    /**
+     * Where the rung for `$width` lives: beside the original, as
+     * `{stem}-w{width}.webp`. ULID stems make this collision-free.
+     */
+    public function variantPath(int $width): string
+    {
+        return self::variantPathFor((string) $this->path, $width);
+    }
+
+    public static function variantPathFor(string $path, int $width): string
+    {
+        $directory = pathinfo($path, PATHINFO_DIRNAME);
+        $stem = pathinfo($path, PATHINFO_FILENAME);
+        $prefix = $directory === '.' || $directory === '' ? '' : rtrim($directory, '/').'/';
+
+        return "{$prefix}{$stem}-w{$width}.webp";
+    }
+
+    /**
+     * Every rung file that could belong to `$path`: what the map records PLUS
+     * what the current ladder would name. The union, because the ladder may
+     * have changed since the map was written and a stale rung is still ours
+     * to remove.
+     *
+     * @param  array<int|string, mixed>|null  $variants
+     * @return list<string>
+     */
+    public function variantFilePaths(?string $path = null, ?array $variants = null): array
+    {
+        $path ??= $this->path;
+
+        if (! is_string($path) || $path === '') {
+            return [];
+        }
+
+        $paths = [];
+
+        foreach ($variants ?? (is_array($this->variants) ? $this->variants : []) as $variant) {
+            if (is_array($variant) && is_string($variant['path'] ?? null) && $variant['path'] !== '') {
+                $paths[] = $variant['path'];
+            }
+        }
+
+        foreach (GenerateImageVariants::ladder() as $width) {
+            $paths[] = self::variantPathFor($path, $width);
+        }
+
+        return array_values(array_unique($paths));
+    }
+
+    /**
+     * The srcset candidates (D8/D9): each rung, then the original as the
+     * widest — when its width is known — ascending. `null` while there are
+     * no rungs, so a consumer renders a plain `<img>` and nothing else.
+     *
+     * @return list<array{url: string, width: int}>|null
+     */
+    public function srcset(): ?array
+    {
+        if ($this->type !== MediaType::Upload || ! is_array($this->variants) || $this->variants === []) {
+            return null;
+        }
+
+        if (! is_string($this->disk) || $this->disk === '') {
+            return null;
+        }
+
+        $storage = Storage::disk($this->disk);
+        $candidates = [];
+
+        foreach ($this->variants as $variant) {
+            if (! is_array($variant) || ! is_string($variant['path'] ?? null) || ! isset($variant['width'])) {
+                continue;
+            }
+
+            $candidates[] = ['url' => $storage->url($variant['path']), 'width' => (int) $variant['width']];
+        }
+
+        if ($this->width !== null) {
+            $candidates[] = ['url' => $this->url(), 'width' => (int) $this->width];
+        }
+
+        usort($candidates, fn (array $a, array $b): int => $a['width'] <=> $b['width']);
+
+        return $candidates === [] ? null : $candidates;
     }
 
     /**
