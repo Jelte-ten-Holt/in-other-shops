@@ -89,7 +89,18 @@ final class StubColumns
 
     private static function localeGroup(Blueprint $table): void
     {
-        $table->foreignId('locale_group_id')->nullable()->constrained()->nullOnDelete();
+        // Column only — deliberately NOT ->constrained(). `locale_groups` is
+        // created by the package's own migrations, which Testbench runs only
+        // for test classes that use RefreshDatabase; the stub migrations run
+        // for every test. SQLite hides the gap twice over (a pristine
+        // in-memory DB per test, and no FK-target resolution at DDL time), but
+        // MySQL keeps one database for the whole process and rejects the ADD
+        // CONSTRAINT with 1824 whenever `executionOrder="random"` happens to
+        // schedule a non-RefreshDatabase test first. That took the MySQL leg
+        // red on v0.67.3 with 35 errors across tests/Unit/FlowChain. Nothing
+        // tests the nullOnDelete cascade on this fixture — the real FKs live
+        // in the package's own migrations, which the MySQL leg does exercise.
+        $table->foreignId('locale_group_id')->nullable();
         $table->string('locale', 10)->nullable();
         $table->unique(['locale_group_id', 'locale']);
     }
