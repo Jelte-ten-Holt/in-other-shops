@@ -85,6 +85,13 @@ ways tests quietly depend on:
   table built in `defineDatabaseMigrations()` (which runs for *every* test) is
   still there for the next one, and the second run dies on 1050 "table already
   exists".
+- **SQLite does not resolve foreign-key targets at DDL time.** It will happily
+  create a table whose FK points at a table that does not exist; MySQL rejects
+  the `ADD CONSTRAINT` with 1824. So a stub table may only reference another
+  stub table — never a table owned by the package's own migrations, which
+  Testbench runs *only* for classes using `RefreshDatabase` while the stub
+  migrations run for every test. With `executionOrder="random"`, that gap is a
+  coin flip rather than a reliable failure.
 - **SQLite does not enforce `UNSIGNED`,** and has no strict mode. A negative
   value written to an unsigned column is stored on SQLite and rejected outright
   on MySQL under `STRICT_TRANS_TABLES`.
@@ -99,6 +106,9 @@ than application behaviour, ask which driver it is really asserting against.
 This is not hypothetical bookkeeping. The MySQL leg silently ran SQLite from the
 day it was added until 2026-09-02, and behind it a category-count decrement that
 failed on *every* MySQL detach shipped green — see `MaintainCategoryCounts`.
+The moment the leg genuinely reached MySQL it went red on the v0.67.3 tag with
+35 errors, all from a stub fixture whose FK pointed at `locale_groups` — a table
+the non-`RefreshDatabase` unit tests never create.
 
 ---
 
