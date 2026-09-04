@@ -359,45 +359,66 @@ final class MediaSchema
         $keptIds = [];
 
         foreach (array_values($items) as $position => $item) {
-            if (! empty($item['media_id'])) {
-                self::updateExistingMedia($record, (int) $item['media_id'], $collection, $position, $item);
-                $keptIds[] = (int) $item['media_id'];
-            } else {
-                $media = self::createMedia($item);
+            $keptId = ! empty($item['media_id'])
+                ? self::updateExistingMedia($record, (int) $item['media_id'], $collection, $position, $item)
+                : self::createAndAttachMedia($record, $collection, $position, $item);
 
-                if ($media === null) {
-                    continue;
-                }
-
-                $record->media()->attach($media->id, [
-                    'collection' => $collection,
-                    'position' => $position,
-                    'is_cover' => ! empty($item['is_cover']),
-                ]);
-                $keptIds[] = $media->id;
+            if ($keptId !== null) {
+                $keptIds[] = $keptId;
             }
         }
 
         self::removeOrphanedMedia($record, $collection, $existingIds, $keptIds);
     }
 
+    /**
+     * @param  array<string, mixed>  $item
+     * @return int|null the media id that now occupies this row, or null if none
+     */
     private static function updateExistingMedia(
         Model&HasMedia $record,
         int $mediaId,
         string $collection,
         int $position,
         array $item,
-    ): void {
+    ): ?int {
         $media = Media::find($mediaId);
 
         if ($media === null) {
-            return;
+            return null;
         }
 
         $type = MediaType::tryFrom($item['type'] ?? '') ?? MediaType::Upload;
 
+        // A changed type is not an update. An upload row and an external row
+        // share no state worth carrying across — keeping the row would leave
+        // `type=upload` next to a `url`, and `url()` would go on serving the
+        // old file. Delete and recreate at the same position and cover flag;
+        // `Media::deleting` removes the upload's file as it goes.
+        if ($type !== $media->type) {
+            $record->media()->detach($mediaId);
+            $media->delete();
+
+            return self::createAndAttachMedia($record, $collection, $position, $item);
+        }
+
         if ($type === MediaType::External || $type === MediaType::Embed) {
             $media->forceFill(['url' => $item['url'] ?? null])->save();
+        }
+
+        // Swapping the file on an existing repeater row: `media_id` survives in
+        // its Hidden field, so this lands here rather than in `createMedia`,
+        // and until v0.68.0 `path` was simply never read — the new file was
+        // uploaded and then referenced by nothing while the site kept serving
+        // the old one. Writing `path` is all that is needed; the model refreshes
+        // the metadata and removes the replaced file (`Media::refreshFileMetadata`,
+        // `Media::deleteReplacedFile`).
+        if ($type === MediaType::Upload) {
+            $path = self::normalizeFileUploadPath($item['path'] ?? null);
+
+            if ($path !== null && $path !== $media->path) {
+                $media->forceFill(['path' => $path])->save();
+            }
         }
 
         self::syncTranslatableText($media, $item);
@@ -407,6 +428,33 @@ final class MediaSchema
             'position' => $position,
             'is_cover' => ! empty($item['is_cover']),
         ]);
+
+        return $mediaId;
+    }
+
+    /**
+     * @param  array<string, mixed>  $item
+     * @return int|null the new media id, or null when the item carries nothing storable
+     */
+    private static function createAndAttachMedia(
+        Model&HasMedia $record,
+        string $collection,
+        int $position,
+        array $item,
+    ): ?int {
+        $media = self::createMedia($item);
+
+        if ($media === null) {
+            return null;
+        }
+
+        $record->media()->attach($media->id, [
+            'collection' => $collection,
+            'position' => $position,
+            'is_cover' => ! empty($item['is_cover']),
+        ]);
+
+        return $media->id;
     }
 
     private static function createMedia(array $item): ?Media

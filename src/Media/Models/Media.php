@@ -10,6 +10,7 @@ use InOtherShops\Translation\Concerns\InteractsWithTranslations;
 use InOtherShops\Translation\Contracts\HasTranslations;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
 class Media extends Model implements HasTranslations
@@ -64,6 +65,10 @@ class Media extends Model implements HasTranslations
 
     protected static function booted(): void
     {
+        self::saving(function (Media $media): void {
+            $media->refreshFileMetadata();
+        });
+
         self::deleting(function (Media $media): void {
             if ($media->type === MediaType::Upload && $media->disk && $media->path && ! $media->fileIsShared()) {
                 Storage::disk($media->disk)->delete($media->path);
@@ -74,6 +79,82 @@ class Media extends Model implements HasTranslations
 
         self::saved(function (Media $media): void {
             $media->flushPendingTranslations();
+            $media->deleteReplacedFile();
+        });
+    }
+
+    /**
+     * The replace invariant, first half: a `path` that changes on an existing
+     * upload row means a *different file*, so the metadata describing the old
+     * one is now wrong. Refresh it from the disk rather than trusting whatever
+     * the caller happened to pass.
+     *
+     * This lives on the model, not in the admin form, because there are two
+     * upload surfaces (`MediaSchema`'s repeater and `MediaRelationManager`'s
+     * Edit action) and each had its own half of the bug: the repeater never
+     * wrote `path` at all, the relation manager wrote `path` but left
+     * `filename`/`mime_type`/`size` describing the replaced file. Anything that
+     * writes `path` gets the invariant, including a future third surface.
+     *
+     * Deliberately updates only — on an insert the creator owns the metadata
+     * (`StoreMedia` stores the *client's* original filename, which the path's
+     * ULID basename would otherwise clobber). A replacement has no client
+     * filename to recover, so it takes the stored basename.
+     */
+    public function refreshFileMetadata(): void
+    {
+        if (! $this->exists || $this->type !== MediaType::Upload || ! $this->isDirty('path')) {
+            return;
+        }
+
+        if (! is_string($this->disk) || $this->disk === '' || ! is_string($this->path) || $this->path === '') {
+            return;
+        }
+
+        $storage = Storage::disk($this->disk);
+
+        if (! $storage->exists($this->path)) {
+            return;
+        }
+
+        $this->filename = basename($this->path);
+        $this->mime_type = $storage->mimeType($this->path) ?: 'application/octet-stream';
+        $this->size = $storage->size($this->path) ?: 0;
+    }
+
+    /**
+     * The replace invariant, second half: once the row points somewhere else,
+     * nothing references the old file and Filament never removes it. Drop it —
+     * unless another row still points at it, the same guard `deleting` uses.
+     *
+     * After commit, because bianka's panel runs `->databaseTransactions()`: a
+     * rollback there would otherwise restore the row and leave the file it
+     * points at deleted. Outside a transaction `DB::afterCommit()` runs the
+     * callback immediately, so this is right on both consumers.
+     */
+    public function deleteReplacedFile(): void
+    {
+        if ($this->type !== MediaType::Upload || ! $this->wasChanged('path')) {
+            return;
+        }
+
+        $originalPath = $this->getOriginal('path');
+        $originalDisk = $this->getOriginal('disk') ?? $this->disk;
+
+        if (! is_string($originalPath) || $originalPath === '' || $originalPath === $this->path) {
+            return;
+        }
+
+        if (! is_string($originalDisk) || $originalDisk === '') {
+            return;
+        }
+
+        DB::afterCommit(function () use ($originalPath, $originalDisk): void {
+            if ($this->fileIsShared($originalPath, $originalDisk)) {
+                return;
+            }
+
+            Storage::disk($originalDisk)->delete($originalPath);
         });
     }
 
@@ -87,12 +168,12 @@ class Media extends Model implements HasTranslations
      * row pointing at nothing, silently. The row goes; the file stays as long
      * as anything else needs it.
      */
-    public function fileIsShared(): bool
+    public function fileIsShared(?string $path = null, ?string $disk = null): bool
     {
         return static::query()
             ->whereKeyNot($this->getKey())
-            ->where('disk', $this->disk)
-            ->where('path', $this->path)
+            ->where('disk', $disk ?? $this->disk)
+            ->where('path', $path ?? $this->path)
             ->exists();
     }
 
