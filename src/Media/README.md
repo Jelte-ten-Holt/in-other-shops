@@ -181,7 +181,7 @@ Output is a **per-file manifest**, not a "deleted N files" line — the operator
 
 The ULID column plus the nearest-row hint is the retroactive report for the pre-v0.68.0 replacements that failed silently: the file that was moved into place is dated, and the row it was probably meant for sits next to it. It is a hint — it never affects a disposition.
 
-A run with any `blocked` row exits non-zero, so a scheduled sweep surfaces it rather than failing quietly. `--disk=` and `--directory=` exist for a one-off, not for the schedule. The summary is counts and bytes per disposition and nothing else — it never grades itself.
+A run with any `blocked` row exits non-zero, so a scheduled sweep surfaces it rather than failing quietly. A forced run that deleted or blocked anything also writes one `Log::warning` with the counts: scheduled on a `schedule:work` container, the manifest goes nowhere, and once the backlog is swept the nightly run is silent — so a line appearing at all is worth reading. `--disk=` and `--directory=` exist for a one-off, not for the schedule. The summary is counts and bytes per disposition and nothing else — it never grades itself.
 
 ## Future
 

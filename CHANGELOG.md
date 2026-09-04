@@ -31,8 +31,11 @@ are pre-launch — single-release-window policy, no deprecation bridges).
   `young`, `orphan`, `deleted` or `blocked` — plus counts and bytes per
   disposition. It never prints a "done" or "clean" verdict. A file that
   cannot be stat-ed or deleted is recorded `blocked` and the run continues;
-  any `blocked` row exits non-zero so a scheduled sweep surfaces it.
-  Registered, **not** auto-scheduled.
+  any `blocked` row exits non-zero so a scheduled sweep surfaces it. A forced
+  run that deleted or blocked something also writes one `Log::warning` with
+  the counts — scheduled, the manifest goes to a stdout nobody reads, and
+  once the backlog is swept the nightly run is silent, so a line appearing at
+  all is the signal. Registered, **not** auto-scheduled.
 - **`media:variants --skipped`** — lists the image rows a previous run
   RECORDED as skipped (`variants = {}`), with their dimensions. The default
   listing cannot show these by design (`{}` is a decision, not a gap), so

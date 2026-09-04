@@ -7,6 +7,7 @@ namespace InOtherShops\Media\Commands;
 use Illuminate\Console\Command;
 use Illuminate\Contracts\Filesystem\Filesystem;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use InOtherShops\Logging\Concerns\RunsAsSystemActor;
@@ -140,6 +141,7 @@ final class PruneMediaCommand extends Command
 
         $this->manifest($manifest);
         $this->summary($counts, $bytes);
+        $this->record($force, $counts, $bytes);
 
         return $counts['blocked'] > 0 ? self::FAILURE : self::SUCCESS;
     }
@@ -358,6 +360,35 @@ final class PruneMediaCommand extends Command
         foreach (self::DISPOSITIONS as $disposition) {
             $this->line(sprintf('%-11s %4d  %s', $disposition, $counts[$disposition], $this->humanBytes($bytes[$disposition])));
         }
+    }
+
+    /**
+     * A scheduled sweep's manifest goes to stdout, which on a `schedule:work`
+     * container is nobody. So a forced run that actually changed something
+     * leaves one line in the log as well — at `warning`, the level both
+     * consumers actually run, which is the same lesson the variant job's
+     * skip line just cost us.
+     *
+     * Only when a forced run deleted or blocked something: a dry run changes
+     * nothing, and once the backlog is swept the nightly run is silent, so a
+     * line appearing at all is the signal.
+     *
+     * @param  array<string, int>  $counts
+     * @param  array<string, int>  $bytes
+     */
+    private function record(bool $force, array $counts, array $bytes): void
+    {
+        if (! $force || ($counts['deleted'] === 0 && $counts['blocked'] === 0)) {
+            return;
+        }
+
+        Log::warning('media:prune deleted orphaned files', [
+            'deleted' => $counts['deleted'],
+            'deleted_bytes' => $bytes['deleted'],
+            'blocked' => $counts['blocked'],
+            'referenced' => $counts['referenced'],
+            'young' => $counts['young'],
+        ]);
     }
 
     /** Seconds in `--min-age`, or null when it does not parse. */

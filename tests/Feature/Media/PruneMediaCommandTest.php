@@ -7,6 +7,7 @@ namespace InOtherShops\Tests\Feature\Media;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use InOtherShops\Media\Enums\MediaType;
 use InOtherShops\Media\Models\Media;
@@ -352,6 +353,49 @@ final class PruneMediaCommandTest extends TestCase
         } finally {
             date_default_timezone_set($previous);
         }
+    }
+
+    /**
+     * The nightly sweep runs unattended and its manifest goes to a stdout
+     * nobody reads, so a forced run that changed something leaves a line in
+     * the log — at `warning`, the level both consumers actually run at.
+     */
+    #[Test]
+    public function a_forced_run_that_deletes_something_records_it_in_the_log(): void
+    {
+        Log::spy();
+        $this->file('media/orphan.jpg', old: true);
+
+        $this->prune('--force');
+
+        Log::shouldHaveReceived('warning')
+            ->withArgs(fn (string $message, array $context): bool => str_contains($message, 'media:prune') && $context['deleted'] === 1)
+            ->once();
+    }
+
+    #[Test]
+    public function a_dry_run_logs_nothing(): void
+    {
+        Log::spy();
+        $this->file('media/orphan.jpg', old: true);
+
+        $this->prune();
+
+        Log::shouldNotHaveReceived('warning');
+        $this->assertTrue(Storage::disk('public')->exists('media/orphan.jpg'));
+    }
+
+    #[Test]
+    public function a_forced_run_with_nothing_to_do_logs_nothing(): void
+    {
+        $this->file('media/keep.jpg', old: true);
+        $this->row(['path' => 'media/keep.jpg']);
+
+        // Spy only around the run under test — the swept-clean nightly case.
+        Log::spy();
+        $this->prune('--force');
+
+        Log::shouldNotHaveReceived('warning');
     }
 
     private function prune(string ...$options): string
