@@ -8,6 +8,17 @@ The format is loosely [Keep a Changelog](https://keepachangelog.com/); the
 package is pre-1.0, so minor versions may carry breaking changes (all consumers
 are pre-launch — single-release-window policy, no deprecation bridges).
 
+## v0.69.2 — 2026-09-04
+
+### Fixed
+- **`media.variants.bytes_per_pixel` default 5 → 8.** v0.69.1's estimate let
+  the same 35.6 MP staging photo through — 170 MB estimated against 198 MB
+  free in the booted worker — and the worker exhausted 256M again. A bare
+  `php -r` decode of that file peaks at 140 MB, so the in-process cost is
+  above 5.5 bytes per pixel and the old default undercounted it. At 8, a
+  256M worker records a skip for anything past ~24 MP. Config default only;
+  no code change.
+
 ## v0.69.1 — 2026-09-04
 
 ### Fixed
