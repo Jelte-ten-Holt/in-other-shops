@@ -7,6 +7,7 @@ namespace InOtherShops\Media\Commands;
 use Illuminate\Console\Command;
 use Illuminate\Contracts\Filesystem\Filesystem;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -117,10 +118,10 @@ final class PruneMediaCommand extends Command
         $storage = Storage::disk($disk);
 
         $this->line(sprintf(
-            '%s · disk %s · directory %s/ · min-age %s (files modified after %s are left alone) · %d row(s) referencing %d path(s)',
+            '%s · disk %s · directory %s · min-age %s (files modified after %s are left alone) · %d row(s) referencing %d path(s)',
             $force ? 'FORCED RUN — orphans are deleted' : 'DRY RUN — nothing is deleted',
             $disk,
-            $directory,
+            $directory === '' ? '(disk root)' : $directory.'/',
             (string) $this->option('min-age'),
             $cutoff->toDateTimeString(),
             $rows->count(),
@@ -156,10 +157,10 @@ final class PruneMediaCommand extends Command
      * is protected even if the map has not been written back yet (the job is
      * queued, so there is always a window where it has not).
      *
-     * @param  \Illuminate\Support\Collection<int, Media>  $rows
+     * @param  Collection<int, Media>  $rows
      * @return array<string, true>
      */
-    private function referenceSet($rows): array
+    private function referenceSet(Collection $rows): array
     {
         $referenced = [];
 
@@ -179,10 +180,10 @@ final class PruneMediaCommand extends Command
      * deletion, and a stat failure is recorded rather than assumed away.
      *
      * @param  array<string, true>  $referenced
-     * @param  \Illuminate\Support\Collection<int, Media>  $rows
+     * @param  Collection<int, Media>  $rows
      * @return array{path: string, bytes: int, size: string, modified: string, uploaded_at: string, nearest_row: string, disposition: string, note: string}
      */
-    private function inspect(Filesystem $storage, string $path, array $referenced, Carbon $cutoff, bool $force, $rows): array
+    private function inspect(Filesystem $storage, string $path, array $referenced, Carbon $cutoff, bool $force, Collection $rows): array
     {
         $uploadedAt = $this->uploadedAt($path);
 
@@ -290,9 +291,9 @@ final class PruneMediaCommand extends Command
      * half of a replacement that silently failed before v0.68.0. A hint, not
      * a finding; it never affects a disposition.
      *
-     * @param  \Illuminate\Support\Collection<int, Media>  $rows
+     * @param  Collection<int, Media>  $rows
      */
-    private function nearestRow($rows, ?Carbon $uploadedAt): string
+    private function nearestRow(Collection $rows, ?Carbon $uploadedAt): string
     {
         if ($uploadedAt === null) {
             return '—';
