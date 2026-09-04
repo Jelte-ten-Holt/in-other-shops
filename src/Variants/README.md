@@ -100,8 +100,12 @@ provider registers the morph aliases `option`, `option_value`, `variant`.
 - `CreateDefaultVariant` — flat-owner migration: one default variant carrying
   the owner's current price and stock (the latter via `AdjustStock`, so it hits
   the audit ledger). No-op when the owner already has variants.
-- `DeleteVariant` — deletes the variant and its owned price/stock/media rows;
-  the cart-deletion guard fires first (blocks if a live cart references it).
+- `DeleteVariant` — deletes the variant and its owned price/stock rows, and
+  detaches its media, deleting every `media` row no `mediables` row still
+  references (v0.68.0; it used to detach only, so every variant deletion left
+  its images on disk with nothing pointing at them). A media row shared with
+  another parent survives. The cart-deletion guard fires first (blocks if a
+  live cart references the variant).
 
 ## Dependencies
 

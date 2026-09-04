@@ -8,6 +8,46 @@ The format is loosely [Keep a Changelog](https://keepachangelog.com/); the
 package is pre-1.0, so minor versions may carry breaking changes (all consumers
 are pre-launch — single-release-window policy, no deprecation bridges).
 
+## v0.68.0 — 2026-09-04
+
+The media replace invariant, and the two other sources of orphaned files on
+disk. Phase 1 of the media-pipeline build plan; ships alone, no migration, no
+consumer code change.
+
+### Fixed
+- **Replacing an image on an existing media row now takes effect.**
+  `MediaSchema::updateExistingMedia` refreshed the url, the translations and
+  the pivot, but never read `$item['path']` — and `media_id` survives in a
+  Hidden field, so swapping the file on a repeater row uploaded the new file,
+  orphaned it, and left the site serving the old image with no error anywhere.
+  The repeater now writes `path`; everything else is the model's job.
+- **Replaced files leave the disk, and their metadata stops lying.** Two new
+  `Media` boot hooks carry the invariant: `saving` re-reads `filename`,
+  `mime_type` and `size` from storage when `path` changes on an existing
+  upload row, and `saved` deletes the replaced file inside `DB::afterCommit()`
+  unless another row shares it. It lives on the model because there were two
+  admin surfaces with two halves of the same bug — `MediaRelationManager`'s
+  Edit action did write `path`, but left the metadata describing the replaced
+  file and the file itself on disk. Both surfaces are covered, and so is any
+  future one.
+- **Switching a repeater row's type** (upload ↔ external ↔ embed) is now a
+  delete-and-recreate at the same position and cover flag. It used to be
+  ignored, leaving `type=upload` beside a `url` while `url()` went on serving
+  the old file.
+- **`Variants\Actions\DeleteVariant`** deletes the media rows nothing else
+  references instead of only detaching them. Every variant deletion used to
+  leave its images behind permanently. A media row shared with another parent
+  survives.
+
+### Changed
+- **`Media::fileIsShared()`** takes two optional arguments,
+  `(?string $path = null, ?string $disk = null)`, so the invariant can ask
+  about the *old* path. Existing no-arg callers are unaffected.
+
+### Consumers
+- No code change. Bump to `^0.68`. The only new visible behaviour is that
+  replaced and variant-owned files now actually leave the disk.
+
 ## v0.67.0 — 2026-09-01
 
 Form state after a Filament save, and two smaller admin-correctness fixes,
