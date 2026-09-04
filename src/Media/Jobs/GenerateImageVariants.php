@@ -130,6 +130,26 @@ final class GenerateImageVariants implements ShouldBeUnique, ShouldQueue
             return;
         }
 
+        // The megapixel cap bounds time and disk; memory is bounded here, from
+        // what is actually free in THIS process. A booted queue worker holds
+        // well over 100 MB before the first pixel, so a 35 MP photo that
+        // decodes fine in a bare `php -r` (169 MB peak) exhausts a 256M
+        // worker — and an OOM is a fatal, not an exception: the worker dies,
+        // the container restarts, the job burns its attempts and the row
+        // stays `null` for every backfill to retry. Measured on staging
+        // 2026-09-04. Recorded instead, like every other reason.
+        $bytesNeeded = (int) ceil($width * $height * (float) config('media.variants.bytes_per_pixel', 5));
+        $bytesFree = self::memoryHeadroom();
+
+        if ($bytesFree !== null && $bytesNeeded > $bytesFree) {
+            $this->skip($media, sprintf(
+                'decoding %d×%d needs ~%d MB; %d MB free under memory_limit %s',
+                $width, $height, intdiv($bytesNeeded, 1_048_576), intdiv($bytesFree, 1_048_576), (string) ini_get('memory_limit'),
+            ));
+
+            return;
+        }
+
         $targets = array_values(array_filter(self::ladder(), fn (int $rung): bool => $rung < $width));
 
         if ($targets === []) {
@@ -263,6 +283,29 @@ final class GenerateImageVariants implements ShouldBeUnique, ShouldQueue
             'path' => $this->path,
             'reason' => $reason,
         ]);
+    }
+
+    /**
+     * Bytes still allocatable under `memory_limit`, or null when unlimited.
+     */
+    public static function memoryHeadroom(): ?int
+    {
+        $limit = trim((string) ini_get('memory_limit'));
+
+        if ($limit === '' || $limit === '-1') {
+            return null;
+        }
+
+        $unit = strtolower(substr($limit, -1));
+        $value = (float) $limit;
+        $bytes = match ($unit) {
+            'g' => $value * 1_073_741_824,
+            'm' => $value * 1_048_576,
+            'k' => $value * 1_024,
+            default => $value,
+        };
+
+        return max(0, (int) $bytes - memory_get_usage(true));
     }
 
     /** @return list<int> ascending, de-duplicated, positive */

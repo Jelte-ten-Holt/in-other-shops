@@ -124,6 +124,53 @@ final class GenerateImageVariantsTest extends TestCase
         Log::shouldHaveReceived('info')->withArgs(fn (string $message, array $context): bool => str_contains($context['reason'] ?? '', 'megapixel'))->once();
     }
 
+    /**
+     * Staging, 2026-09-04: a 7008×5088 photo (35.6 MP, under the 40 MP cap)
+     * exhausted the 256M worker three times over, restarting the container
+     * each time, and its row stayed `null` for every backfill to retry.
+     * Memory is bounded from what is free in this process, not from a number.
+     */
+    #[Test]
+    public function a_source_that_would_not_fit_the_free_memory_is_recorded_as_skipped(): void
+    {
+        // The test runner may run unlimited; the guard only bites under a finite limit.
+        $original = ini_get('memory_limit');
+        ini_set('memory_limit', '1G');
+        config(['media.variants.bytes_per_pixel' => 1_000_000]);
+        Log::spy();
+
+        try {
+            $media = $this->upload('landscape-1200.jpg', 'media/huge.jpg');
+
+            $this->generate($media);
+        } finally {
+            ini_set('memory_limit', (string) $original);
+        }
+
+        $this->assertSame([], $media->fresh()->variants);
+        $this->assertSame([], $this->rungFiles());
+        Log::shouldHaveReceived('info')->withArgs(fn (string $m, array $c): bool => str_contains($c['reason'] ?? '', 'free under memory_limit'))->once();
+    }
+
+    #[Test]
+    public function memory_headroom_is_null_when_unlimited_and_positive_otherwise(): void
+    {
+        $original = ini_get('memory_limit');
+
+        try {
+            ini_set('memory_limit', '-1');
+            $this->assertNull(GenerateImageVariants::memoryHeadroom());
+
+            ini_set('memory_limit', '2G');
+            $headroom = GenerateImageVariants::memoryHeadroom();
+            $this->assertNotNull($headroom);
+            $this->assertGreaterThan(0, $headroom);
+            $this->assertLessThan(2 * 1_073_741_824, $headroom);
+        } finally {
+            ini_set('memory_limit', (string) $original);
+        }
+    }
+
     #[Test]
     public function a_source_not_wider_than_the_smallest_rung_is_recorded_as_skipped(): void
     {
