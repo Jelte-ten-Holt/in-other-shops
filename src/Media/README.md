@@ -18,6 +18,8 @@ Uses `morphToMany` with an explicit **`Mediable` pivot model**. The `media` tabl
 | `filename` | string | original filename |
 | `mime_type` | string | MIME type |
 | `size` | unsigned int | file size in bytes |
+| `width`, `height` | unsigned int, nullable | intrinsic pixel dimensions, EXIF-orientation-corrected; filled at save from the file header (uploads on local disks only) |
+| `variants` | json, nullable | the WebP ladder: `null` = never attempted, `{}` = attempted and nothing produced (reason logged), else `{"400": {path, width, height}, …}` |
 | `alt` | string, nullable | alt text for images |
 | `type` | string | `upload`, `embed`, `external` (see Media Types) |
 | `url` | string, nullable | source URL for `embed`/`external` types |
@@ -61,6 +63,22 @@ Two deliberate edges:
 `fileIsShared(?string $path = null, ?string $disk = null)` answers the shared-file question for an arbitrary path; called with no arguments it asks about the row's current one, which is what `deleting` does.
 
 **Changing a row's `type`** (upload ↔ external ↔ embed) in the repeater is not an update — an upload row and an external row share no state worth carrying across, and keeping the row would leave `type=upload` beside a `url` while `url()` went on serving the old file. `MediaSchema` deletes the row and creates a fresh one at the same position and cover flag; `deleting` removes the upload's file on the way out.
+
+#### Dimensions and variants
+
+Every uploaded image carries its intrinsic `width`/`height`, read from the file header in the `saving` hook whenever `path` is dirty — on create and on replace. No decode: `getimagesize()` is a header read, so it belongs in the request. EXIF orientations 5–8 transpose the pair, so a portrait phone photo (stored landscape, rotated by a flag the browser honours and GD does not) records the portrait pair the browser shows.
+
+Resized copies are baked at ingest, not on demand. `saved` dispatches `Jobs\GenerateImageVariants` **after commit** when an image upload is created or re-pointed; the job decodes once with GD, applies the EXIF rotation, and writes one WebP per rung of `media.variants.widths` (default 400 / 800 / 1600) that is narrower than the source — never upscaled — as `{stem}-w{width}.webp` beside the original, alpha preserved. Then it writes the `variants` map with `saveQuietly()`. The dispatch guard (`wasRecentlyCreated || wasChanged('path')`) is the recursion breaker; the quiet save is belt and braces.
+
+Everything that stops the ladder is **recorded, not thrown**: non-image, missing file, non-local disk, no GD decoder for the mime, more than `media.variants.max_megapixels` (40), not wider than the smallest rung — `variants = {}` plus one `Log::info` line with the reason. So `variants IS NULL` means exactly "never attempted", which is what `media:variants` lists.
+
+The job is unique on `disk:path` for two minutes, carries scalars rather than the model (a row deleted between dispatch and run bails quietly), and adopts rung files that already exist on disk without decoding — a reseed re-creates rows, not rungs. `$timeout` is 55 s, under the consumers' 60 s workers.
+
+The replace invariant and `deleting` both cover the rungs: a `path` change resets `variants` and removes the old file's rungs with it after commit; deleting a row removes its rungs with the file. Both keep the shared-file guard.
+
+**Rendering.** `Support\ImagePayload::for($media)` is the one payload — `['url','alt','description','width','height','srcset']` — same convention as `OrderSummary`. `url` is always the original (WebP-only rungs are safe because the original is the last-resort candidate; `og:image` stays the original too). `srcset` is `null` until rungs exist, else an ascending candidate list with the original as the widest. Consumers assemble the attribute string and choose `sizes`; the package emits no HTML.
+
+**Backfill.** `php artisan media:variants` once per environment after the v0.69.0 bump (queued; `--sync` runs inline when the queue is busy); it also fills `width`/`height` on rows that predate the columns. Run it again later: "Dispatched 0" is the done signal. `--all` regenerates after a ladder change.
 
 ### Mediable pivot model
 
@@ -129,6 +147,14 @@ interface HasMedia
 
 - **`MediaStored`** — dispatched when a file is stored and attached. Carries the `Media` model and the collection name.
 - **`MediaDeleted`** — dispatched after a media record is deleted. Carries primitives (`mediaId`, `filename`, `MediaType`) since the model no longer exists.
+
+### Jobs
+
+- `Jobs\GenerateImageVariants` — the WebP ladder for one upload. `ShouldQueue`, `ShouldBeUnique` on `disk:path`; see *Dimensions and variants*.
+
+### Commands
+
+- `media:variants {--missing} {--all} {--sync} {--limit=}` — registered, not scheduled. Backfill and detection surface for the ladder.
 
 ## Future
 

@@ -8,6 +8,57 @@ The format is loosely [Keep a Changelog](https://keepachangelog.com/); the
 package is pre-1.0, so minor versions may carry breaking changes (all consumers
 are pre-launch — single-release-window policy, no deprecation bridges).
 
+## v0.69.0 — 2026-09-04
+
+Dimensions and the WebP variant ladder — Phase 2 of the media-pipeline build
+plan. One additive migration, the package's first queued job, a presenter and
+a backfill command. Nothing renders differently until a consumer adopts the
+presenter (Phase 3); on bump, the migration runs and the backfill is one
+command.
+
+### Added
+- **`width`/`height` on every uploaded image**, read from the file header in
+  the `saving` hook whenever `path` is dirty — on create and on replace — and
+  EXIF-orientation-corrected: an orientation-6 phone photo stores the
+  portrait pair the browser shows, not the landscape pair the pixels are
+  stored as (F9). Header only, no decode; local disks only.
+- **`Media\Jobs\GenerateImageVariants`** — dispatched from `saved` after
+  commit when an image upload is created or re-pointed; unique on
+  `disk:path` for 120 s; 55 s timeout, 2 tries; carries scalars, not the
+  model. Decodes once with GD, applies the EXIF rotation, writes one WebP per
+  rung of `media.variants.widths` (400/800/1600) that is narrower than the
+  source as `{stem}-w{width}.webp` beside the original, alpha preserved
+  (palette PNGs promoted to truecolor first). Every reason not to produce
+  rungs — non-image, missing file, non-local disk, no GD decoder for the
+  mime, above `media.variants.max_megapixels` (40), not wider than the
+  smallest rung — is recorded as `variants = {}` with one log line, never
+  thrown. Rung files already on disk are adopted without a decode, so a
+  reseed (bianka's staging, every boot) re-creates rows but regenerates
+  nothing.
+- **`Media\Support\ImagePayload::for(Media)`** — the one image payload
+  (`url`, `alt`, `description`, `width`, `height`, `srcset`), same
+  convention as `OrderSummary::for()`. `srcset` is `null` until rungs exist,
+  else the ascending candidate list with the original as the widest.
+  `Media::srcset()` backs it; `url` stays the original (D9).
+- **`media:variants`** (`--missing` default, `--all`, `--sync`, `--limit=`)
+  — backfill and detection surface; also fills `width`/`height` on rows that
+  predate the columns. Registered, not scheduled. "Dispatched 0" on a re-run
+  is the done signal.
+- Config: `media.variants.{enabled,widths,quality,max_megapixels}`.
+- `ext-gd` is now a composer requirement (both consumers ship it); `exif`
+  stays optional and guarded. Package CI installs `exif` alongside `gd`.
+
+### Changed
+- The replace invariant (v0.68.0) now covers the rungs: a `path` change
+  resets `variants`, and the old file's rungs are removed with it after
+  commit; `deleting` removes the rungs with the file. Both keep the
+  shared-file guard.
+
+### Migration
+- `2026_09_04_000001_add_dimensions_and_variants_to_media_table` — three
+  nullable columns, additive. After the bump, once per environment:
+  `php artisan media:variants` (queued) or `--sync`.
+
 ## v0.68.0 — 2026-09-04
 
 The media replace invariant, and the two other sources of orphaned files on
