@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace InOtherShops\Tests\Feature\Media;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use InOtherShops\Media\Enums\MediaType;
@@ -105,6 +106,54 @@ final class GenerateMediaVariantsCommandTest extends TestCase
         $this->artisan('media:variants --sync')->assertSuccessful();
 
         $this->artisan('media:variants')->expectsOutputToContain('Dispatched 0')->assertSuccessful();
+
+        Queue::assertNothingPushed();
+    }
+
+    #[Test]
+    public function skipped_lists_the_rows_a_previous_run_recorded_as_skipped(): void
+    {
+        $oversize = $this->row(['variants' => [], 'path' => 'media/hero.jpg', 'width' => 7008, 'height' => 5088]);
+        $unread = $this->row(['variants' => [], 'path' => 'media/no-dims.jpg', 'width' => null, 'height' => null]);
+        $this->row(['variants' => null, 'path' => 'media/never.jpg']);
+        $this->row(['variants' => ['400' => ['path' => 'x', 'width' => 400, 'height' => 300]], 'path' => 'media/done.jpg']);
+        $this->row(['variants' => [], 'mime_type' => 'application/pdf', 'path' => 'media/doc.pdf']);
+
+        // Output is read from the buffer rather than through
+        // `expectsOutputToContain`: a table row is ONE write, and the
+        // expectation mock consumes that write on its first matching
+        // substring, so path and dimensions cannot both be asserted that way.
+        $this->assertSame(0, Artisan::call('media:variants', ['--skipped' => true]));
+        $output = Artisan::output();
+
+        $this->assertStringContainsString('2 image row(s) recorded as skipped', $output);
+        $this->assertStringContainsString('media/hero.jpg', $output);
+        $this->assertStringContainsString('7008×5088', $output);
+        $this->assertStringContainsString('media/no-dims.jpg', $output);
+        $this->assertStringContainsString('—', $output, 'a row whose dimensions were never read shows a dash');
+
+        // A row that produced rungs is an object, not an empty array. On
+        // SQLite `json_array_length()` calls that 0 too, so a SQL-side length
+        // test would list it here — the exact inversion this listing must not
+        // have.
+        $this->assertStringNotContainsString('media/done.jpg', $output);
+        $this->assertStringNotContainsString('media/never.jpg', $output, 'null is "never attempted", not a skip');
+        $this->assertStringNotContainsString('media/doc.pdf', $output, 'non-images are not part of the ladder');
+
+        Queue::assertNothingPushed();
+        $this->assertSame([], $oversize->fresh()->variants, 'the listing is read-only');
+        $this->assertSame([], $unread->fresh()->variants);
+    }
+
+    #[Test]
+    public function skipped_reports_a_count_of_zero_when_nothing_was_skipped(): void
+    {
+        $this->row(['variants' => null, 'path' => 'media/never.jpg']);
+        $this->row(['variants' => ['400' => ['path' => 'x', 'width' => 400, 'height' => 300]], 'path' => 'media/done.jpg']);
+
+        $this->artisan('media:variants --skipped')
+            ->expectsOutputToContain('0 image row(s) recorded as skipped')
+            ->assertSuccessful();
 
         Queue::assertNothingPushed();
     }

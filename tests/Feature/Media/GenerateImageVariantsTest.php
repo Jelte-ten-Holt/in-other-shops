@@ -121,7 +121,7 @@ final class GenerateImageVariantsTest extends TestCase
 
         $this->assertSame([], $media->variants, '{} = attempted, nothing produced');
         $this->assertFalse(Storage::disk('public')->exists('media/big-w400.webp'));
-        Log::shouldHaveReceived('info')->withArgs(fn (string $message, array $context): bool => str_contains($context['reason'] ?? '', 'megapixel'))->once();
+        Log::shouldHaveReceived('warning')->withArgs(fn (string $message, array $context): bool => str_contains($context['reason'] ?? '', 'megapixel'))->once();
     }
 
     /**
@@ -149,7 +149,7 @@ final class GenerateImageVariantsTest extends TestCase
 
         $this->assertSame([], $media->fresh()->variants);
         $this->assertSame([], $this->rungFiles());
-        Log::shouldHaveReceived('info')->withArgs(fn (string $m, array $c): bool => str_contains($c['reason'] ?? '', 'free under memory_limit'))->once();
+        Log::shouldHaveReceived('warning')->withArgs(fn (string $m, array $c): bool => str_contains($c['reason'] ?? '', 'free under memory_limit'))->once();
     }
 
     #[Test]

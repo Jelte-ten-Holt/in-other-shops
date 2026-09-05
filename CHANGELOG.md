@@ -8,6 +8,60 @@ The format is loosely [Keep a Changelog](https://keepachangelog.com/); the
 package is pre-1.0, so minor versions may carry breaking changes (all consumers
 are pre-launch — single-release-window policy, no deprecation bridges).
 
+## v0.70.0 — 2026-09-04
+
+### Added
+- **`media:prune`** — deletes files under `media.directory` that no `media`
+  row references. Orphans accumulated from three sources: the replace no-op
+  fixed in v0.68.0, `DeleteVariant` detaching without deleting, and a
+  Filament save that throws after the upload has moved out of `livewire-tmp`.
+  On staging, more than half the bytes under one consumer's `media/` were
+  orphaned and nothing had ever swept them.
+
+  It deletes files, so its promises are invariants with a test each: never a
+  referenced original or rung (the reference set spans **every** row on the
+  disk regardless of directory — one consumer's rows live under `products/`
+  while the sweep runs over `media/`); never outside `media.directory` (one
+  **non-recursive** `files()` call, which is also what keeps `livewire-tmp`
+  out of reach — sweeping it directly is refused); never younger than
+  `--min-age` (default `6h`); idempotent; and **dry run by default**.
+
+  Output is a per-file manifest — size, mtime, ULID-derived upload time, the
+  nearest `media` row within ±5 min, and a disposition of `referenced`,
+  `young`, `orphan`, `deleted` or `blocked` — plus counts and bytes per
+  disposition. It never prints a "done" or "clean" verdict. A file that
+  cannot be stat-ed or deleted is recorded `blocked` and the run continues;
+  any `blocked` row exits non-zero so a scheduled sweep surfaces it. A forced
+  run that deleted or blocked something also writes one `Log::warning` with
+  the counts — scheduled, the manifest goes to a stdout nobody reads, and
+  once the backlog is swept the nightly run is silent, so a line appearing at
+  all is the signal. Registered, **not** auto-scheduled.
+- **`media:variants --skipped`** — lists the image rows a previous run
+  RECORDED as skipped (`variants = {}`), with their dimensions. The default
+  listing cannot show these by design (`{}` is a decision, not a gap), so
+  before this the only record of an oversize hero silently served as a 1.7 MB
+  original was a log line that staging's `LOG_LEVEL=warning` discarded.
+
+  The emptiness test runs in PHP, not SQL, deliberately: the obvious
+  `JSON_LENGTH(variants) = 0` is right on MySQL, but Laravel compiles
+  `whereJsonLength()` to SQLite's `json_array_length()`, which returns 0 for
+  any JSON value that is **not an array** — so on SQLite that predicate lists
+  every row that *succeeded*. Inverted, and silent.
+
+### Fixed
+- **`ImageOrientation::apply` no longer swaps EXIF 5 and 7.** Both mirrored
+  quarter-turns flipped `IMG_FLIP_VERTICAL` after their rotation; both need
+  `IMG_FLIP_HORIZONTAL`. A vertical flip there produces the *other*
+  orientation's image exactly — the pair round-trips into each other, both
+  keep the transposed shape, and no dimension assertion can tell them apart.
+  All eight orientations are now pinned by a 3×2 pixel-grid test derived from
+  the EXIF spec's own 0th-row/0th-column table. Low real-world impact: 5 and
+  7 are mirror-plus-rotate, which cameras do not emit.
+- **The variant job's skip line is a `Log::warning`, not `Log::info`.** Both
+  consumers run `LOG_LEVEL=warning` on staging and production, so every skip
+  reason the job recorded was written nowhere and the `variants = {}` row was
+  the only trace.
+
 ## v0.69.2 — 2026-09-04
 
 ### Fixed
