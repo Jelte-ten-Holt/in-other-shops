@@ -10,7 +10,6 @@ return [
     'model' => 'categoría',
     'model_plural' => 'categorías',
     'nav' => 'Categorías',
-    'relation_title' => 'Categorías',
 
     'section' => [
         'details' => 'Detalles de la categoría',

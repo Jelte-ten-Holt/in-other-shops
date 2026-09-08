@@ -124,7 +124,7 @@ final class MediaReplaceTest extends TestCase
     }
 
     /**
-     * `StoreMedia` records the *client's* original filename, which the stored
+     * An uploader records the *client's* original filename, which the stored
      * path's generated basename would destroy. The metadata refresh is an
      * update-only rule for that reason.
      */

@@ -12,7 +12,6 @@ return [
         'succeeded' => 'Exitoso',
         'failed' => 'Fallido',
         'cancelled' => 'Cancelado',
-        'expired' => 'Expirado',
         'refunded' => 'Reembolsado',
         'partially_refunded' => 'Reembolsado parcialmente',
     ],

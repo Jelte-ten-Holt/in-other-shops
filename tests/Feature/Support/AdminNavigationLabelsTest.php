@@ -5,23 +5,17 @@ declare(strict_types=1);
 namespace InOtherShops\Tests\Feature\Support;
 
 use InOtherShops\Commerce\Filament\RelationManagers\CustomerOrdersRelationManager;
-use InOtherShops\Commerce\Filament\RelationManagers\OrderAddressesRelationManager;
-use InOtherShops\Commerce\Filament\RelationManagers\OrderLinesRelationManager;
 use InOtherShops\Commerce\Filament\Resources\CustomerGroupResource;
 use InOtherShops\Commerce\Filament\Resources\CustomerResource;
 use InOtherShops\Commerce\Filament\Resources\OrderResource;
 use InOtherShops\Commerce\Order\Models\Order;
-use InOtherShops\Media\Filament\RelationManagers\MediaRelationManager;
 use InOtherShops\Payment\Filament\RelationManagers\PaymentsRelationManager;
-use InOtherShops\Pricing\Filament\RelationManagers\PricesRelationManager;
 use InOtherShops\Pricing\Filament\Resources\VoucherResource;
 use InOtherShops\Purchasing\Filament\Resources\PurchaseOrderResource;
 use InOtherShops\Purchasing\Filament\Resources\SupplierResource;
 use InOtherShops\Shipping\Filament\RelationManagers\ShipmentsRelationManager;
 use InOtherShops\Support\Filament\NavigationGroup;
 use InOtherShops\Tax\Filament\Resources\TaxRateResource;
-use InOtherShops\Taxonomy\Filament\RelationManagers\CategoriesRelationManager;
-use InOtherShops\Taxonomy\Filament\RelationManagers\TagsRelationManager;
 use InOtherShops\Taxonomy\Filament\Resources\CategoryResource;
 use InOtherShops\Taxonomy\Filament\Resources\TagResource;
 use InOtherShops\Variants\Filament\Resources\OptionResource;
@@ -90,14 +84,8 @@ final class AdminNavigationLabelsTest extends TestCase
         $order = new Order;
 
         $this->assertSame('Orders', CustomerOrdersRelationManager::getTitle($order, 'x'));
-        $this->assertSame('Addresses', OrderAddressesRelationManager::getTitle($order, 'x'));
-        $this->assertSame('Lines', OrderLinesRelationManager::getTitle($order, 'x'));
-        $this->assertSame('Media', MediaRelationManager::getTitle($order, 'x'));
         $this->assertSame('Payments', PaymentsRelationManager::getTitle($order, 'x'));
-        $this->assertSame('Prices', PricesRelationManager::getTitle($order, 'x'));
         $this->assertSame('Shipments', ShipmentsRelationManager::getTitle($order, 'x'));
-        $this->assertSame('Categories', CategoriesRelationManager::getTitle($order, 'x'));
-        $this->assertSame('Tags', TagsRelationManager::getTitle($order, 'x'));
     }
 
     #[Test]

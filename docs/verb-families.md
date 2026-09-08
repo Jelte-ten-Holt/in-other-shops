@@ -74,7 +74,7 @@ Current actions: `AttachCategory`, `DetachCategory`, `AttachTag`, `DetachTag`. �
 - Future: `Browse` is acceptable when filtering+pagination is the point (a `BrowsableResource` already exists, so `Browse*` would mirror it).
 - Banned: `Get`, `Find`, `Fetch` — pick `Show` (single) or `List` (many) and stick to it. The Agent tool layer also follows `show_*` / `browse_*` / `list_*` per `agent-tool-conventions.md`.
 
-Current actions: `ShowBrowsable`, `ListBrowsables`, `ListCategoryBrowsables`. ✅ Compliant.
+Current actions: `ShowBrowsable`, `ListBrowsables`. ✅ Compliant.
 
 ### Tax
 
@@ -104,7 +104,7 @@ Current actions: `InitiatePayment`, `RefundPayment`, `RetrievePaymentSession`, `
 - Future: `UpdateMedia` is permitted for metadata edits (alt text, collection rename) — those ARE CRUD-on-record operations. `Store` stays for content writes.
 - Banned: `Upload` (use `Store`); `Save` (too generic).
 
-Current actions: `StoreMedia`, `DeleteMedia`. ✅ Compliant.
+Current actions: none — the domain ships no Actions today (`StoreMedia`/`DeleteMedia` were deleted unused in v0.71.0). The family stands for whatever lands next.
 
 ### Shipping
 
@@ -131,9 +131,9 @@ Current actions: `AddToCart`, `RemoveFromCart`, `ClearCart`, `UpdateCartItemQuan
 
 ### Commerce/Customer
 
-**Primary family: CRUD.** `Create`, `Update`. Clean.
+**Primary family: CRUD.** `Create`, `Update`.
 
-Current actions: `CreateCustomer`, `UpdateCustomer`. ✅ Compliant.
+Current actions: none — `CreateCustomer`/`UpdateCustomer` were deleted unused in v0.71.0 (both consumers write `Customer` rows directly). The family stands for whatever lands next.
 
 ### Commerce/Order
 

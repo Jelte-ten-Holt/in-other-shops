@@ -34,16 +34,4 @@ class Address extends Model
     {
         return trim("{$this->first_name} {$this->last_name}");
     }
-
-    public function oneLine(): string
-    {
-        return collect([
-            $this->line_1,
-            $this->line_2,
-            $this->city,
-            $this->state,
-            $this->postal_code,
-            $this->country_code,
-        ])->filter()->implode(', ');
-    }
 }

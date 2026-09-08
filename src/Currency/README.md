@@ -10,7 +10,6 @@ Backed string enum with cases for each supported currency (EUR, USD, GBP).
 
 **Methods:**
 
-- `symbol()` — returns the currency symbol (`€`, `$`, `£`)
 - `decimals()` — returns decimal places (all currently 2)
 - `format(int $amount, ?string $locale = null)` — formats a cents-based integer into a human-readable string using the display locale's CLDR conventions (separators **and** symbol placement): `'en'` → `€12.50`, `'de'`/`'es'` → `12,50 €`. With no argument the locale resolves ambiently (see Display locale below). Pass an explicit locale in any non-request context — queued mail formats with the order's stored `locale`, never the worker's ambient locale.
 - `enabled()` — returns only currencies listed in `config('currency.enabled')`, or all cases if unconfigured

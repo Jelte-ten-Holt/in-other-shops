@@ -11,8 +11,6 @@ return [
     'model_plural' => 'pedidos',
     'nav' => 'Pedidos',
     'relation_title' => 'Pedidos',
-    'addresses_title' => 'Direcciones',
-    'lines_title' => 'Líneas',
 
     'tabs' => [
         'details' => 'Detalles',
@@ -63,16 +61,5 @@ return [
         'refund_refused' => 'Reembolso rechazado',
         'refund_failed' => 'Error en el reembolso',
         'refund_issued' => 'Reembolso emitido',
-    ],
-    'address' => [
-        'first_name' => 'Nombre',
-        'last_name' => 'Apellido',
-        'line_1' => 'Dirección línea 1',
-        'line_2' => 'Dirección línea 2',
-        'city' => 'Ciudad',
-        'state' => 'Estado',
-        'postal_code' => 'Código postal',
-        'phone' => 'Teléfono',
-        'address' => 'Dirección',
     ],
 ];

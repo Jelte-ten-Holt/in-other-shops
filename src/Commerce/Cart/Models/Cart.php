@@ -60,15 +60,11 @@ class Cart extends Model
     }
 
     /**
-     * The API default cart currency. The home for the
-     * `commerce.cart.api.default_currency` literal on the cart path — with
-     * one known exception: Variants/Filament/VariantsSchema reads the config
-     * key directly (admin price fields, outside the cart object graph). A
-     * future move to a `currency.default` home (T-D3) must repoint BOTH.
+     * The default cart currency, read from the shop-wide `currency.default`.
      */
     public static function defaultCurrency(): Currency
     {
-        return Currency::from(config('commerce.cart.api.default_currency', 'EUR'));
+        return Currency::from(config('currency.default', 'EUR'));
     }
 
     /**

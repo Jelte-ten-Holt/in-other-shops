@@ -6,7 +6,6 @@ namespace InOtherShops\Media\Commands;
 
 use Illuminate\Console\Command;
 use Illuminate\Database\Eloquent\Builder;
-use InOtherShops\Logging\Concerns\RunsAsSystemActor;
 use InOtherShops\Media\Enums\MediaType;
 use InOtherShops\Media\Jobs\GenerateImageVariants;
 use InOtherShops\Media\Media as MediaRegistry;
@@ -38,8 +37,6 @@ use InOtherShops\Media\Models\Media;
  */
 final class GenerateMediaVariantsCommand extends Command
 {
-    use RunsAsSystemActor;
-
     protected $signature = 'media:variants
         {--missing : Only image rows never attempted (variants IS NULL) — the default}
         {--all : Reset every image row and regenerate its ladder}
@@ -51,8 +48,6 @@ final class GenerateMediaVariantsCommand extends Command
 
     public function handle(): int
     {
-        $this->beginSystemAuditActor();
-
         $limit = $this->option('limit') !== null ? max(0, (int) $this->option('limit')) : null;
         $model = MediaRegistry::media();
 

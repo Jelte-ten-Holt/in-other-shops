@@ -11,7 +11,6 @@ return [
     'model' => 'category',
     'model_plural' => 'categories',
     'nav' => 'Categories',
-    'relation_title' => 'Categories',
 
     'section' => [
         'details' => 'Category Details',

@@ -33,7 +33,7 @@ Unique constraint on `[priceable_type, priceable_id, price_list_id, currency, mi
 
 Groupings for segmented pricing (wholesale, VIP, seasonal).
 
-**Backend-only for now:** there is no admin resource to manage price lists, and `priceListSelect()` is deliberately excluded from the default schemas (`priceRepeater()` / `PricesRelationManager`) — without a way to create lists, the select only offers assigning a price to a list no storefront resolves, making it silently invisible. Lists are created programmatically (consumer seeders create the `is_default` one). When segmented pricing becomes a real feature, ship a `PriceListResource` and compose the select back in.
+**Backend-only for now:** there is no admin resource to manage price lists, and `priceListSelect()` is deliberately excluded from the default schema (`priceRepeater()`) — without a way to create lists, the select only offers assigning a price to a list no storefront resolves, making it silently invisible. Lists are created programmatically (consumer seeders create the `is_default` one). When segmented pricing becomes a real feature, ship a `PriceListResource` and compose the select back in.
 
 **`price_lists` table:**
 
@@ -91,7 +91,7 @@ interface HasPrices
 
 ### Filament Integration
 
-**`PricingSchema`** — reusable form components. Per-field factories are the single source of truth, so `priceRepeater()` and `PricesRelationManager` render identically:
+**`PricingSchema`** — reusable form components. Per-field factories are the single source of truth, so every surface composed from them renders identically:
 
 - `priceRepeater(relationship)` — a Repeater bound to the `prices` relationship, composed from the field factories below
 - `currencySelect(name)` — a currency Select that auto-hides when only one currency is enabled
@@ -102,8 +102,6 @@ interface HasPrices
 - `compareAtAmountRule(?Model $record)` — Guard B as a standalone, unit-testable closure: blocks a strikethrough on create (no price history) and rejects one above the price already on record. A heuristic, so it lives in the form layer, not on the model.
 
 The `compareAtAmountField()` also carries an Omnibus-Directive warning tooltip.
-
-**`PricesRelationManager`** — full tabbed UI for managing prices on edit pages.
 
 ### Configuration
 

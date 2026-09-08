@@ -53,11 +53,11 @@ A single `Media` record can be attached to multiple parents via separate pivot r
 - `saving` — when the row already exists, `type` is `upload`, `path` is dirty and the file is on the disk, `filename`, `mime_type` and `size` are re-read from storage. Anything stale about the replaced file is gone before the row is written.
 - `saved` — the *replaced* file is deleted, inside `DB::afterCommit()`, unless another `media` row points at the same `disk` + `path`.
 
-It lives here rather than in the admin form because there are two upload surfaces and each had its own half of the same bug. `MediaSchema`'s repeater kept `media_id` in a hidden field and then never read `$item['path']`, so a swap uploaded the new file, orphaned it, and left the site serving the old image — silently, with no error anywhere. `MediaRelationManager`'s Edit action did write `path`, but `enrichFormData` only runs on Create, so the metadata went on describing the replaced file and the old file stayed on disk. One rule on the model covers both, and any third surface that ever writes `path`.
+It lives here rather than in the admin form because two upload surfaces each had their own half of the same bug. `MediaSchema`'s repeater kept `media_id` in a hidden field and then never read `$item['path']`, so a swap uploaded the new file, orphaned it, and left the site serving the old image — silently, with no error anywhere. The since-deleted media relation manager's Edit action did write `path`, but `enrichFormData` only ran on Create, so the metadata went on describing the replaced file and the old file stayed on disk. One rule on the model covers both, and any third surface that ever writes `path`.
 
 Two deliberate edges:
 
-- **Updates only.** On an insert the creator owns the metadata — `StoreMedia` records the *client's* original filename, which the stored path's generated basename would destroy. A replacement has no client filename to recover, so it takes the stored basename.
+- **Updates only.** On an insert the creator owns the metadata — an uploader records the *client's* original filename, which the stored path's generated basename would destroy. A replacement has no client filename to recover, so it takes the stored basename.
 - **After commit.** A consumer panel may run `->databaseTransactions()` (bianka's does). Deleting the old file before the commit would leave a rolled-back row pointing at a file that is already gone. `DB::afterCommit()` runs the callback immediately when there is no transaction, so the same code is right on both consumers.
 
 `fileIsShared(?string $path = null, ?string $disk = null)` answers the shared-file question for an arbitrary path; called with no arguments it asks about the row's current one, which is what `deleting` does.
@@ -135,18 +135,6 @@ interface HasMedia
 - `mediaRepeater(collection)` — returns a Repeater at state path `_media.{collection}`
 - `fillFormData(record, data)` — loads media into form state (call from `mutateFormDataBeforeFill`)
 - `saveFormData(record, data)` — syncs form state back to database (call from `afterCreate`/`afterSave`)
-
-**`MediaRelationManager`** — full tabbed UI for managing media on edit pages.
-
-### Actions
-
-- **`StoreMedia`** — stores a file on disk, creates a `Media` record, attaches via pivot
-- **`DeleteMedia`** — deletes the `Media` record (cascade handles pivot, `deleting` hook handles file for uploads)
-
-### Events
-
-- **`MediaStored`** — dispatched when a file is stored and attached. Carries the `Media` model and the collection name.
-- **`MediaDeleted`** — dispatched after a media record is deleted. Carries primitives (`mediaId`, `filename`, `MediaType`) since the model no longer exists.
 
 ### Jobs
 

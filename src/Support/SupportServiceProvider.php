@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace InOtherShops\Support;
 
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\ServiceProvider;
 
@@ -19,7 +20,8 @@ use Illuminate\Support\ServiceProvider;
  * Pass `index: false` for a column that carries its own composite index.
  *
  * Also registers the package-wide `shops` config (admin locale) — a
- * cross-cutting setting that belongs to no single domain.
+ * cross-cutting setting that belongs to no single domain — and turns on
+ * `Relation::requireMorphMap()` for the whole application.
  */
 final class SupportServiceProvider extends ServiceProvider
 {
@@ -41,6 +43,14 @@ final class SupportServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        // Require explicit morph-map aliases across the application so missing
+        // aliases fail loudly instead of writing FQCNs into morph columns. Each
+        // domain registers its aliases in its own service provider boot(); this
+        // call makes the enforcement global. It lives here, in the package-wide
+        // provider that boots first, rather than hiding a global side effect in
+        // a leaf domain's provider.
+        Relation::requireMorphMap();
+
         // Cross-domain admin strings (field labels repeated across resources —
         // Name, Status, Created at, …) live under `shops-common::` so they are
         // translated once, not per domain. Per-domain strings stay in each

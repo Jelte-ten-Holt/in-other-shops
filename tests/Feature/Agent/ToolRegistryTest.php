@@ -6,6 +6,8 @@ namespace InOtherShops\Tests\Feature\Agent;
 
 use InOtherShops\Agent\AgentTool;
 use InOtherShops\Agent\Support\ToolRegistry;
+use InOtherShops\Agent\Tools\AdjustStock;
+use InOtherShops\Agent\Tools\GetRecentProblems;
 use InOtherShops\Agent\Tools\Ping;
 use InOtherShops\Tests\TestCase;
 use PHPUnit\Framework\Attributes\Test;
@@ -13,16 +15,16 @@ use PHPUnit\Framework\Attributes\Test;
 final class ToolRegistryTest extends TestCase
 {
     #[Test]
-    public function it_registers_package_tools_with_empty_consumer_config(): void
+    public function it_lists_package_tools_with_empty_consumer_config(): void
     {
         config()->set('agent.tools', []);
 
-        $registry = new ToolRegistry($this->app);
+        $classes = ToolRegistry::classes();
 
-        $this->assertNotNull($registry->find('ping'));
-        $this->assertNotNull($registry->find('adjust_stock'));
-        $this->assertNotNull($registry->find('get_recent_problems'));
-        $this->assertSame(11, $registry->all()->count());
+        $this->assertContains(Ping::class, $classes);
+        $this->assertContains(AdjustStock::class, $classes);
+        $this->assertContains(GetRecentProblems::class, $classes);
+        $this->assertCount(11, $classes);
     }
 
     #[Test]
@@ -30,11 +32,11 @@ final class ToolRegistryTest extends TestCase
     {
         config()->set('agent.tools', [FakeConsumerTool::class]);
 
-        $registry = new ToolRegistry($this->app);
+        $classes = ToolRegistry::classes();
 
-        $this->assertNotNull($registry->find('ping'), 'Package tools must survive a consumer publishing its own config/agent.php.');
-        $this->assertNotNull($registry->find('fake_consumer_tool'));
-        $this->assertSame(12, $registry->all()->count());
+        $this->assertContains(Ping::class, $classes, 'Package tools must survive a consumer publishing its own config/agent.php.');
+        $this->assertContains(FakeConsumerTool::class, $classes);
+        $this->assertCount(12, $classes);
     }
 
     #[Test]
@@ -42,10 +44,27 @@ final class ToolRegistryTest extends TestCase
     {
         config()->set('agent.tools', [FakeConsumerTool::class]);
 
-        $classes = (new ToolRegistry($this->app))->classes();
+        $classes = ToolRegistry::classes();
 
         $this->assertSame(Ping::class, $classes[0]);
         $this->assertSame(FakeConsumerTool::class, end($classes));
+    }
+
+    #[Test]
+    public function listing_the_tools_resolves_nothing_out_of_the_container(): void
+    {
+        // The registry used to `app->make()` every tool up front, on every
+        // request that registered the MCP route. Class names only now.
+        $resolved = [];
+        $this->app->resolving(function (mixed $object) use (&$resolved): void {
+            if ($object instanceof AgentTool) {
+                $resolved[] = $object::class;
+            }
+        });
+
+        ToolRegistry::classes();
+
+        $this->assertSame([], $resolved);
     }
 }
 

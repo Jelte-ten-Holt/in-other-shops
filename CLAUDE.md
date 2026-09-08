@@ -51,13 +51,13 @@ Middle band — depend only on leaves:
 
 Shop core — one unit; moves together if ever split; internal coupling is expected, not drift:
   Commerce ────── depends on Currency, Location, Payment, Pricing, Shipping, Tax, FlowChain (registers AddToCartChain); Inventory contracts + InsufficientStockException
-  Shipping ────── depends on Currency, Location; hard-dep on Commerce (OrderLine in ShipmentItem) — cycle with Commerce, ACCEPTED within shop core. The Shippable-polymorphism fix is only needed if a non-order shipment use case appears (warehouse transfer, B2B sample, returns)
+  Shipping ────── depends on Currency; hard-dep on Commerce (OrderLine in ShipmentItem) — cycle with Commerce, ACCEPTED within shop core. The Shippable-polymorphism fix is only needed if a non-order shipment use case appears (warehouse transfer, B2B sample, returns)
   Purchasing ──── depends on Inventory (AdjustStock action, StockMovementReason enum), Tax (TaxCategory enum)
   Tracking ────── depends on Commerce (CartItem/OrderLine via the Commerce registry; AddToCartPayload), FlowChain (AbstractFlowStep). Both attribution tables FK into Commerce tables, so it moves with the shop core
 
 Integration tier — not extractable by design:
-  Storefront ──── depends on Currency, Inventory, Media, Pricing, Taxonomy, Translation
-  Variants ────── depends on Commerce (package Variant implements HasCart), Inventory, Media, Pricing, Translation; also READS commerce.cart.api.default_currency config. No cycle — Commerce does not depend on Variants. Adopted only by consumers with variant catalogs (bianka), not in-other-worlds (flat SKUs)
+  Storefront ──── depends on Currency, Inventory, Pricing, Taxonomy, Translation
+  Variants ────── depends on Commerce (package Variant implements HasCart), Inventory, Media, Pricing, Translation; also READS currency.default config. No cycle — Commerce does not depend on Variants. Adopted only by consumers with variant catalogs (bianka), not in-other-worlds (flat SKUs)
   Agent ────────── depends on Commerce, Inventory, Storefront, Taxonomy — top of the graph
 ```
 

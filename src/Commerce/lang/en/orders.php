@@ -12,8 +12,6 @@ return [
     'model_plural' => 'orders',
     'nav' => 'Orders',
     'relation_title' => 'Orders',
-    'addresses_title' => 'Addresses',
-    'lines_title' => 'Lines',
 
     'tabs' => [
         'details' => 'Details',
@@ -64,16 +62,5 @@ return [
         'refund_refused' => 'Refund refused',
         'refund_failed' => 'Refund failed',
         'refund_issued' => 'Refund issued',
-    ],
-    'address' => [
-        'first_name' => 'First name',
-        'last_name' => 'Last name',
-        'line_1' => 'Address line 1',
-        'line_2' => 'Address line 2',
-        'city' => 'City',
-        'state' => 'State',
-        'postal_code' => 'Postal code',
-        'phone' => 'Phone',
-        'address' => 'Address',
     ],
 ];

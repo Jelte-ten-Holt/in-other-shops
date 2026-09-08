@@ -34,4 +34,20 @@ return [
 
     'display_locale' => null,
 
+    /*
+    |--------------------------------------------------------------------------
+    | Default currency
+    |--------------------------------------------------------------------------
+    |
+    | The shop-wide fallback currency, used wherever a currency is needed but
+    | none is carried by the row at hand (a cart with no stamped currency, an
+    | admin price field on a model with no prices yet). ISO 4217 code.
+    |
+    | Moved here from `commerce.cart.api.default_currency` in v0.71.0 — a
+    | shop-wide default belongs to Currency, not under the cart's HTTP API.
+    |
+    */
+
+    'default' => env('SHOP_DEFAULT_CURRENCY', 'EUR'),
+
 ];

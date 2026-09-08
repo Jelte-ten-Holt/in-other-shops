@@ -13,15 +13,6 @@ enum Currency: string
     case USD = 'USD';
     case GBP = 'GBP';
 
-    public function symbol(): string
-    {
-        return match ($this) {
-            self::EUR => '€',
-            self::USD => '$',
-            self::GBP => '£',
-        };
-    }
-
     public function decimals(): int
     {
         return match ($this) {

@@ -55,7 +55,6 @@ interface HasAddresses
 ### Helper Methods
 
 - `fullName()` — returns `"first_name last_name"`
-- `oneLine()` — returns comma-separated address string
 
 ## Dependencies
 

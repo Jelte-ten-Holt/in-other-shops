@@ -14,7 +14,6 @@ enum PaymentStatus: string
     case Succeeded = 'succeeded';
     case Failed = 'failed';
     case Cancelled = 'cancelled';
-    case Expired = 'expired';
     case Refunded = 'refunded';
     case PartiallyRefunded = 'partially_refunded';
 
@@ -25,7 +24,6 @@ enum PaymentStatus: string
             self::Succeeded => 'success',
             self::Failed => 'danger',
             self::Cancelled => 'warning',
-            self::Expired => 'gray',
             self::Refunded => 'danger',
             self::PartiallyRefunded => 'warning',
         };
