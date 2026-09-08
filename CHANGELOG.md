@@ -8,6 +8,70 @@ The format is loosely [Keep a Changelog](https://keepachangelog.com/); the
 package is pre-1.0, so minor versions may carry breaking changes (all consumers
 are pre-launch — single-release-window policy, no deprecation bridges).
 
+## v0.71.0 — 2026-09-08
+
+Release 1 of the complexity-audit cleanup (`docs/audits/2026-09-07/complexity-audit.md`,
+plan in `docs/briefs/complexity-cheap-effective-brief.md`). No migration. Nothing a
+shopper can observe changes; three admin pages get faster and one contradiction in the
+conventions doc is resolved.
+
+### Removed
+- Surface no consumer or package caller reached, verified by grep across `src/`,
+  `tests/` and both consumers: six never-mounted relation managers (`Prices`,
+  `Categories`, `Tags`, `OrderLines`, `OrderAddresses`, `Media`), `StoreMedia` /
+  `DeleteMedia` and their two events, `CreateCustomer` / `UpdateCustomer` and their
+  two events (the package's own `CustomerResource` pages now use Filament's default
+  record write), `ListCategoryBrowsables`, `ResolveShippingZoneForAddress` (Shipping
+  no longer depends on Location), `PaymentStatus::Expired` (never assigned; zero rows
+  on both production databases at the time of release), and a handful of accessors
+  with no callers. About 1,660 lines. Six further candidates from the audit were
+  **kept** because their only callers were tests — a test-only caller is still a
+  caller.
+- The three cart handlers on `CommerceLogSubscriber` and the `Started` / `Completed`
+  handlers on `FlowChainLogSubscriber`: the highest-volume, lowest-value rows in
+  `domain_logs`. The events themselves are untouched.
+
+### Changed
+- `ToolRegistry::classes()` is static and the class no longer instantiates every
+  tool on every request (35 container resolutions per request on a consumer with
+  24 tools). `AgentToolContract::identifier()` stays static — opgginc's
+  `ToolInterface::name()` needs it.
+- `commerce.cart.api.default_currency` → `currency.default`. Same value; a
+  consumer that restated the old key should delete it on bump.
+- `Relation::requireMorphMap()` is set by `SupportServiceProvider` (first in the
+  provider list) rather than hiding in Currency's.
+- `stripe/stripe-php` dev constraint `^20.0` — both consumers already run 20, so the
+  suite was testing a major nobody ships. `ext-exif` added to `suggest`.
+- `CLAUDE.md` conventions rewritten where the audit found them producing dead code:
+  no new `models.*` registry keys; an event is dispatched only when a second listener
+  exists, a brief names one, or it is documented consumer surface; a `Has*` contract
+  nothing type-hints is cargo-culting; structure follows consumers; a reconcile
+  command exists for a locked denormalisation the package relies on, not for a
+  derived counter it could compute; every domain will honour `{key}.enabled`
+  (marked as not yet implemented — release 2 builds it).
+
+### Fixed
+- **Categories tree N+1.** `Category`, `Tag`, `Option` and `OptionValue` now eager-load
+  `translations`; a real categories page went from 100–300 queries to one. Deliberately
+  all locales, because the fallback lookup searches the same loaded collection.
+- **Fallback-locale names on the storefront read API.** The eager load constrained
+  translations to the current locale only, so an item translated only in the fallback
+  locale listed with `name = null`. Now `[current, fallback]`.
+- **Orders admin table** ran one `SUM(refunds)` per row. Now `withSum`, read by attribute
+  presence (not `??` — the aggregate is `NULL` for an unrefunded order, so a null-coalesce
+  would have fallen through to the per-row query on nearly every row).
+- **`inventory:reconcile` was scheduled by neither consumer** — a tripwire with infinite
+  detection latency. The package now schedules it under the existing
+  `inventory.schedule.enabled` switch (`inventory.schedule.reconcile`, daily) and
+  `ReconcileStock` dispatches `InventoryDriftDetected` on a dirty report so a consumer
+  can alert on it.
+- `GenerateImageVariants` throws a named exception when GD lacks `imagewebp` instead of
+  fataling mid-job.
+- The `commerce.order.abandon_after_minutes` comment had the reservation-TTL invariant
+  backwards (reported upstream 2026-07-17). The TTL must **exceed** the abandon window.
+  The shipped defaults (60 vs 30) still violate it; both consumers override the TTL to
+  90. Correcting the default is a behaviour change and lands in release 2.
+
 ## v0.70.0 — 2026-09-04
 
 ### Added
