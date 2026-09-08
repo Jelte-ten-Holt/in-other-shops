@@ -8,6 +8,17 @@ The format is loosely [Keep a Changelog](https://keepachangelog.com/); the
 package is pre-1.0, so minor versions may carry breaking changes (all consumers
 are pre-launch — single-release-window policy, no deprecation bridges).
 
+## v0.71.1 — 2026-09-08
+
+Test-only. v0.71.0's tag was the first run of the MySQL CI leg on the release-1
+code, and one new test failed there: the categories-tree query-count guard
+matched `from "translations"` literally, which only SQLite emits. The guard now
+accepts either quoting. Shipped code is identical to v0.71.0; consumers floor at
+`^0.71.1` so the version they resolve is the one with a green tag record.
+
+Lesson recorded in the release brief: the MySQL leg runs only on tags, nightly
+and manual dispatch — dispatch it on the release commit **before** tagging.
+
 ## v0.71.0 — 2026-09-08
 
 Release 1 of the complexity-audit cleanup (`docs/audits/2026-09-07/complexity-audit.md`,
