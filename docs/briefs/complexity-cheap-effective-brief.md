@@ -103,6 +103,7 @@ Consumer work, release 1: bump both; periphery status lines; periphery external-
 - `'enabled' => true` in every `DomainServiceProvider` config; `docs/adding-a-new-domain.md` updated. **Δ** `tracking.php`'s "ships no settings" header rewritten.
 - **Δ** Tracking steps early-return when disabled.
 - Tests: disabled domain loads no migrations, subscribes nothing, schedules nothing, registers no child extras.
+- **Δ X6b (decided):** `inventory.reservation_ttl` default 30 → 120; `CommerceServiceProvider::bootDomain()` throws a named exception at boot when `config('inventory.reservation_ttl') <= config('commerce.order.abandon_after_minutes')` (Commerce already reads Inventory config — a config-key coupling, noted in the dep graph). Test: mis-ordered values refuse to boot; equal values refuse; default values boot. Periphery: new boot-time assertion in all three repos. Consumers keep their explicit 90; neither changes behaviour.
 - Consumer work: bianka `config/purchasing.php` + `config/tracking.php` with `'enabled' => false` (tables stay; bianka never runs `migrate:fresh`); Tracking README bianka sentence fixed.
 
 **PR 8 · D10/D12 domain edges**
@@ -153,7 +154,9 @@ Consumer work, release 2 (total): IOW — 5 pricing test files, `CheckoutControl
 | 6 Cadence | Three releases; release 3 is a two-consumer sweep, not a day |
 | 7 `ToolRegistry` | Survives; contract stays static |
 
-**Still open for Jelte:** (d) **Δ from Release 1:** the package's shipped defaults `commerce.order.abandon_after_minutes = 60` vs `inventory.reservation_ttl = 30` violate the very invariant X6's comment now states — a fresh consumer taking both defaults releases stock while the gateway intent is live, on every checkout. Both current consumers override the TTL to 90 so no live shop is exposed. Changing a default is behaviour: lean = raise the reservation TTL default to 120 in release 2 and add a boot-time assertion that abandon > TTL. (a) whether Bianka uses the ready-then-dispatch two-step deliberately — production has zero `ready` rows, so the data step is a no-op either way; if she wants the two-step, PR 9 drops out; (b) whether `InventoryDriftDetected` + a consumer alert listener is in scope now or a follow-up (lean: event now, one class; listeners when each shop wants one); (c) whether the PR 6 orphan cleanup should also delete the *orders'* stale reservations or leave that to the existing expiry path (lean: shipments only — reservations already have an owner).
+**Decided 2026-09-07 — X6b, reservation TTL default.** The package ships `inventory.reservation_ttl = 30` and `commerce.order.abandon_after_minutes = 60`, the inverse of the invariant X6's comment states (**the TTL must exceed the abandon window**, or stock is released while the gateway intent is still live — bianka's F14 path as a scheduled certainty). Both current consumers override the TTL to 90, so no live shop is exposed. Agreed: raise the package default to 120 and fail closed at boot when `inventory.reservation_ttl <= commerce.order.abandon_after_minutes` (precedent: `CanonicalUrl::assertConfiguredForOauth()`). Lands in release 2, PR 7 (see below). Bianka's `tests/Feature/Config/ReservationTtlInvariantTest` becomes redundant once the package asserts it — keep or drop on bump.
+
+**Still open for Jelte:** (a) whether Bianka uses the ready-then-dispatch two-step deliberately — production has zero `ready` rows, so the data step is a no-op either way; if she wants the two-step, PR 9 drops out; (b) whether `InventoryDriftDetected` + a consumer alert listener is in scope now or a follow-up (lean: event now, one class; listeners when each shop wants one); (c) whether the PR 6 orphan cleanup should also delete the *orders'* stale reservations or leave that to the existing expiry path (lean: shipments only — reservations already have an owner).
 
 ## 7. Disposition manifest
 
@@ -194,6 +197,7 @@ Consumer work, release 2 (total): IOW — 5 pricing test files, `CheckoutControl
 | X2 shipment timing | 6 | pending | `OrderStatusChanged`; 6 tests; orphan cleanup; IOW `CheckoutControllerTest` |
 | X7 Commerce README drift | 6 | pending | free rider |
 | D7/D8 domain gate | 7 | pending | `bootDomain()` refactor across all child providers |
+| X6b TTL default 120 + boot assertion | 7 | pending | decided 2026-09-07; TTL must exceed abandon window |
 | D10 Tax string | 8 | pending | 2 steps + 2 tests |
 | D12 `tax_category` cast | 8 | pending | |
 | C23 `Ready` step 1 | 9 | pending | production `ready` rows = 0 on both shops (2026-09-07); IOW `ListOrdersController:88` |
