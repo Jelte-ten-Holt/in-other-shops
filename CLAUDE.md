@@ -134,7 +134,7 @@ How to write tests for this package — trust principles, what each Action/Liste
 
 ## Commands
 
-The package does not ship application-level CLI commands. Exceptions: inventory housekeeping (`inventory:release-expired`, gated behind config), cart cleanup (`commerce:prune-carts`, prunes expired guest carts), and webhook ledger pruning (`payment:prune-webhook-events`, retention via `payment.webhook_retention_days`, default 90). The full catalog of commands, their schedule state, and every other periphery actor this package contributes to consumers lives in [docs/periphery.md](docs/periphery.md).
+The package does not ship application-level CLI commands. Exceptions: inventory housekeeping (`inventory:release-expired` and the read-only tripwire `inventory:reconcile`, both gated behind `inventory.schedule.enabled`), cart cleanup (`commerce:prune-carts`, prunes expired guest carts), and webhook ledger pruning (`payment:prune-webhook-events`, retention via `payment.webhook_retention_days`, default 90). The full catalog of commands, their schedule state, and every other periphery actor this package contributes to consumers lives in [docs/periphery.md](docs/periphery.md).
 
 ## Periphery
 

@@ -6,6 +6,7 @@ namespace InOtherShops\Inventory\Actions;
 
 use InOtherShops\Inventory\DTOs\StockReconciliationReport;
 use InOtherShops\Inventory\Enums\ReservationStatus;
+use InOtherShops\Inventory\Events\InventoryDriftDetected;
 use InOtherShops\Inventory\Inventory;
 use Illuminate\Support\Carbon;
 
@@ -18,16 +19,27 @@ use Illuminate\Support\Carbon;
  * and the only sanctioned writer ({@see AdjustStock}) keeps the two in lockstep,
  * so any divergence is by definition a bug elsewhere — surfaced here rather than
  * left to quietly mis-state availability.
+ *
+ * Dispatches {@see InventoryDriftDetected} when the report is dirty — that event
+ * is what turns a scheduled run into detection rather than a log line.
  */
 final class ReconcileStock
 {
     public function __invoke(): StockReconciliationReport
     {
-        return new StockReconciliationReport(
+        $report = new StockReconciliationReport(
             levelMismatches: $this->findLevelMismatches(),
             nullTtlPendingReservationIds: $this->findNullTtlPendingReservationIds(),
             overduePendingReservationIds: $this->findOverduePendingReservationIds(),
         );
+
+        // A dirty report is the whole product of this action, so it says so out
+        // loud rather than leaving the caller to check. Clean runs stay silent.
+        if (! $report->isClean()) {
+            InventoryDriftDetected::dispatch($report);
+        }
+
+        return $report;
     }
 
     /**

@@ -372,38 +372,18 @@ final class LogSubscriberMappingTest extends TestCase
     // ─────────────────────────────────────────────────────────────────
 
     #[Test]
-    public function cart_updated_routes_to_commerce_channel_at_info(): void
+    public function cart_events_write_no_audit_row(): void
     {
+        // Dropped in v0.71.0: a row plus a COUNT per cart mutation, guest carts
+        // included, that nothing ever read. The events still dispatch — this
+        // pins that the subscriber no longer answers them.
         $cart = Cart::factory()->create();
 
         CartUpdated::dispatch($cart);
-
-        $entry = $this->assertSingleEntry('commerce', LogLevel::Info, 'Cart updated');
-        $this->assertSame($cart->id, $entry->context['cart_id']);
-        $this->assertArrayHasKey('item_count', $entry->context);
-    }
-
-    #[Test]
-    public function cart_claimed_routes_to_commerce_channel_at_info_with_new_owner(): void
-    {
-        $cart = Cart::factory()->create();
-        $customer = Customer::factory()->create();
-
-        CartClaimed::dispatch($cart, $customer);
-
-        $entry = $this->assertSingleEntry('commerce', LogLevel::Info, 'Cart claimed');
-        $this->assertSame($customer->getKey(), $entry->context['new_owner_id']);
-        $this->assertSame($customer->getMorphClass(), $entry->context['new_owner_type']);
-    }
-
-    #[Test]
-    public function cart_cleared_routes_to_commerce_channel_at_info(): void
-    {
-        $cart = Cart::factory()->create();
-
         CartCleared::dispatch($cart);
+        CartClaimed::dispatch($cart, Customer::factory()->create());
 
-        $this->assertSingleEntry('commerce', LogLevel::Info, 'Cart cleared');
+        $this->assertSame([], $this->recorder()->entries(), 'The cart events must write no audit row.');
     }
 
     #[Test]
@@ -538,17 +518,11 @@ final class LogSubscriberMappingTest extends TestCase
     // ─────────────────────────────────────────────────────────────────
 
     #[Test]
-    public function flowchain_started_routes_to_flowchain_at_info(): void
+    public function flowchain_start_and_completion_write_no_audit_row(): void
     {
-        FlowChainStarted::dispatch('checkout', new LogTestPayload);
-
-        $entry = $this->assertSingleEntry('flowchain', LogLevel::Info, 'FlowChain started: checkout');
-        $this->assertSame('checkout', $entry->context['flow']);
-    }
-
-    #[Test]
-    public function flowchain_completed_routes_to_flowchain_at_info(): void
-    {
+        // Dropped in v0.71.0: two Info rows per add-to-cart and per checkout on
+        // a consumer routing `flowchain` at the database handler. Failures still
+        // log — see the two cases below.
         $result = new FlowChainResult(
             status: FlowChainStatus::Completed,
             payload: new LogTestPayload,
@@ -556,11 +530,10 @@ final class LogSubscriberMappingTest extends TestCase
             durationMs: 12.5,
         );
 
+        FlowChainStarted::dispatch('checkout', new LogTestPayload);
         FlowChainCompleted::dispatch('checkout', $result);
 
-        $entry = $this->assertSingleEntry('flowchain', LogLevel::Info, 'FlowChain completed: checkout');
-        $this->assertSame('completed', $entry->context['status']);
-        $this->assertSame(12.5, $entry->context['duration_ms']);
+        $this->assertSame([], $this->recorder()->entries(), 'Chain start/completion must write no audit row.');
     }
 
     #[Test]

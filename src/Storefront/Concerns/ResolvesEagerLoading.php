@@ -32,10 +32,18 @@ trait ResolvesEagerLoading
     private function resolveRelations(string $modelClass): array
     {
         $relations = [];
-        $locale = app()->getLocale();
+
+        // Both the current locale AND the fallback: `findFallbackTranslation`
+        // searches this same eager-loaded collection, so constraining it to the
+        // current locale alone hid the fallback row and listed an item
+        // translated only in the fallback locale with `name = null` (X4).
+        $locales = array_values(array_unique(array_filter([
+            app()->getLocale(),
+            config('translation.fallback'),
+        ])));
 
         if (is_subclass_of($modelClass, HasTranslations::class)) {
-            $relations['translations'] = fn ($q) => $q->where('locale', $locale);
+            $relations['translations'] = fn ($q) => $q->whereIn('locale', $locales);
         }
 
         if (is_subclass_of($modelClass, HasPrices::class)) {
@@ -45,11 +53,11 @@ trait ResolvesEagerLoading
         if (is_subclass_of($modelClass, HasCategories::class)) {
             // The nested `categories.translations` already eager-loads the
             // `categories` relation itself — a bare 'categories' key is redundant.
-            $relations['categories.translations'] = fn ($q) => $q->where('locale', $locale);
+            $relations['categories.translations'] = fn ($q) => $q->whereIn('locale', $locales);
         }
 
         if (is_subclass_of($modelClass, HasTags::class)) {
-            $relations['tags.translations'] = fn ($q) => $q->where('locale', $locale);
+            $relations['tags.translations'] = fn ($q) => $q->whereIn('locale', $locales);
         }
 
         if (is_subclass_of($modelClass, HasStock::class)) {

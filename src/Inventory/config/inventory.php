@@ -39,14 +39,18 @@ return [
     | Scheduled Commands
     |--------------------------------------------------------------------------
     |
-    | When enabled, the package registers `inventory:release-expired` on the
-    | Laravel scheduler (every 5 minutes). Disable this if you prefer to
-    | manage scheduling yourself.
+    | When enabled, the package registers two commands on the Laravel
+    | scheduler: `inventory:release-expired` (every 5 minutes, fixed) and the
+    | read-only tripwire `inventory:reconcile` (cron below, daily by default).
+    | The tripwire dispatches `InventoryDriftDetected` when it finds drift —
+    | subscribe to that if you want an alert. One switch turns both off if you
+    | prefer to manage scheduling yourself.
     |
     */
 
     'schedule' => [
         'enabled' => env('INVENTORY_SCHEDULE_ENABLED', true),
+        'reconcile' => env('INVENTORY_RECONCILE_CRON', '0 3 * * *'),
     ],
 
     /*

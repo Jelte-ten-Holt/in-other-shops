@@ -30,6 +30,7 @@ use InOtherShops\Payment\Filament\RelationManagers\PaymentsRelationManager;
 use InOtherShops\Shipping\Filament\RelationManagers\ShipmentsRelationManager;
 use InOtherShops\Support\Filament\BackedEnumState;
 use InOtherShops\Support\Filament\MoneyFields;
+use Illuminate\Database\Eloquent\Builder;
 
 class OrderResource extends PackageResource
 {
@@ -74,6 +75,11 @@ class OrderResource extends PackageResource
     public static function table(Table $table): Table
     {
         return $table
+            // One aggregate for the whole page instead of a SUM per row on the
+            // most-visited admin list (S1 of the 2026-09-07 audit). A consumer
+            // that overrides this callback loses the aggregate, not the column:
+            // the refund cell falls back to the per-row query.
+            ->modifyQueryUsing(fn (Builder $query): Builder => $query->withSum('refunds', 'amount'))
             ->columns([
                 Tables\Columns\TextColumn::make('order_number')
                     ->label(__('shops-commerce::orders.fields.order_number'))
@@ -93,9 +99,17 @@ class OrderResource extends PackageResource
                     ->badge()
                     ->color('danger')
                     ->getStateUsing(function (Order $record): ?string {
-                        // One sum query per row instead of the two the
-                        // isRefunded()/isPartiallyRefunded() pair would fire.
-                        $refunded = $record->refundedTotal();
+                        // Prefer the table's page-wide aggregate; degrade to the
+                        // per-row sum (never to "unrefunded") if a consumer has
+                        // replaced modifyQueryUsing.
+                        //
+                        // Keyed on the attribute's PRESENCE, not on null: withSum
+                        // returns NULL for an order with no refunds, so a `??`
+                        // here would fall through to the per-row query on every
+                        // unrefunded row — which is nearly every row.
+                        $refunded = array_key_exists('refunds_sum_amount', $record->getAttributes())
+                            ? (int) $record->refunds_sum_amount
+                            : $record->refundedTotal();
 
                         return match (true) {
                             $refunded > 0 && $refunded >= $record->total => __('shops-commerce::orders.refund_state.refunded'),

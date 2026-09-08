@@ -150,6 +150,49 @@ final class ListBrowsablesSearchAndSortTest extends TestCase
      * @param  class-string  $modelClass
      * @param  array<string, string>  $query
      */
+    /**
+     * X4 of the 2026-09-07 complexity audit. The eager load constrained
+     * `translations` to the current locale, and `findFallbackTranslation`
+     * searches that same already-loaded collection — so an item translated only
+     * in the fallback locale listed with `name = null`, silently, on every page
+     * where a translation was missing. The loader now takes both locales.
+     */
+    #[Test]
+    public function an_item_translated_only_in_the_fallback_locale_still_lists_its_name(): void
+    {
+        config()->set('translation.fallback', 'en');
+
+        $item = TestTranslatableBrowsable::factory()->create(['slug' => 'fallback-only']);
+        $item->setTranslation('name', 'en', 'English only');
+        $item->save();
+
+        app()->setLocale('de');
+
+        $results = $this->list(TestTranslatableBrowsable::class, []);
+
+        $this->assertCount(1, $results);
+        $this->assertSame(
+            'English only',
+            $results->first()->name,
+            'A row translated only in the fallback locale must not list with a null name.',
+        );
+    }
+
+    #[Test]
+    public function the_current_locale_still_wins_over_the_fallback(): void
+    {
+        config()->set('translation.fallback', 'en');
+
+        $item = TestTranslatableBrowsable::factory()->create(['slug' => 'both']);
+        $item->setTranslation('name', 'en', 'English');
+        $item->setTranslation('name', 'de', 'Deutsch');
+        $item->save();
+
+        app()->setLocale('de');
+
+        $this->assertSame('Deutsch', $this->list(TestTranslatableBrowsable::class, [])->first()->name);
+    }
+
     private function list(string $modelClass, array $query): \Illuminate\Support\Collection
     {
         $paginator = app(ListBrowsables::class)($modelClass, Request::create('/', 'GET', $query));

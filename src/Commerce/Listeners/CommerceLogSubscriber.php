@@ -4,9 +4,6 @@ declare(strict_types=1);
 
 namespace InOtherShops\Commerce\Listeners;
 
-use InOtherShops\Commerce\Cart\Events\CartClaimed;
-use InOtherShops\Commerce\Cart\Events\CartCleared;
-use InOtherShops\Commerce\Cart\Events\CartUpdated;
 use InOtherShops\Commerce\Order\Events\OrderConfirmationBlocked;
 use InOtherShops\Commerce\Order\Events\OrderCreated;
 use InOtherShops\Commerce\Order\Events\OrderStatusChanged;
@@ -18,6 +15,14 @@ use InOtherShops\Logging\Enums\LogLevel;
 use InOtherShops\Logging\LogSubscriberBase;
 use Illuminate\Contracts\Events\Dispatcher;
 
+/**
+ * Order and refund audit only. The three cart events (`CartUpdated`,
+ * `CartClaimed`, `CartCleared`) are deliberately NOT handled: they are the
+ * highest-volume, lowest-value rows in `domain_logs` — one row plus a COUNT
+ * per cart mutation, guest carts included — and nothing ever read them. The
+ * events still dispatch; a consumer that wants cart telemetry subscribes to
+ * them itself.
+ */
 final class CommerceLogSubscriber extends LogSubscriberBase
 {
     protected const string CHANNEL = 'commerce';
@@ -26,9 +31,6 @@ final class CommerceLogSubscriber extends LogSubscriberBase
     public function subscribe(Dispatcher $events): array
     {
         return [
-            CartUpdated::class => 'handleCartUpdated',
-            CartClaimed::class => 'handleCartClaimed',
-            CartCleared::class => 'handleCartCleared',
             OrderCreated::class => 'handleOrderCreated',
             OrderStatusChanged::class => 'handleOrderStatusChanged',
             OrderConfirmationBlocked::class => 'handleOrderConfirmationBlocked',
@@ -85,25 +87,6 @@ final class CommerceLogSubscriber extends LogSubscriberBase
         };
     }
 
-    public function handleCartUpdated(CartUpdated $event): void
-    {
-        $this->log(LogLevel::Info, 'Cart updated.', $this->cartContext($event->cart));
-    }
-
-    public function handleCartClaimed(CartClaimed $event): void
-    {
-        $this->log(LogLevel::Info, 'Cart claimed.', [
-                ...$this->cartContext($event->cart),
-                'new_owner_type' => $event->owner->getMorphClass(),
-                'new_owner_id' => $event->owner->getKey(),
-            ]);
-    }
-
-    public function handleCartCleared(CartCleared $event): void
-    {
-        $this->log(LogLevel::Info, 'Cart cleared.', $this->cartContext($event->cart));
-    }
-
     public function handleOrderCreated(OrderCreated $event): void
     {
         $this->log(LogLevel::Info, "Order {$event->order->order_number} created.", [
@@ -123,16 +106,5 @@ final class CommerceLogSubscriber extends LogSubscriberBase
                 'from' => $event->from->value,
                 'to' => $event->to->value,
             ]);
-    }
-
-    /** @return array<string, mixed> */
-    private function cartContext(\InOtherShops\Commerce\Cart\Models\Cart $cart): array
-    {
-        return [
-            'cart_id' => $cart->id,
-            'owner_type' => $cart->owner_type,
-            'owner_id' => $cart->owner_id,
-            'item_count' => $cart->items()->count(),
-        ];
     }
 }
