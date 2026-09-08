@@ -7,7 +7,6 @@ namespace InOtherShops\Commerce\Database\Factories;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use InOtherShops\Commerce\Commerce;
 use InOtherShops\Commerce\Customer\Models\Customer;
-use InOtherShops\Commerce\Customer\Models\CustomerGroup;
 use InOtherShops\Commerce\Database\Factories\Concerns\CreatesAddressPair;
 
 /**
@@ -29,12 +28,5 @@ final class CustomerFactory extends Factory
             'email' => fake()->unique()->safeEmail(),
             'phone' => null,
         ];
-    }
-
-    public function forGroup(?CustomerGroup $group = null): static
-    {
-        return $this->state(fn (): array => [
-            'customer_group_id' => $group?->id,
-        ]);
     }
 }

@@ -16,9 +16,9 @@ use InOtherShops\Support\Filament\MoneyFields;
 
 /**
  * Reusable Filament form fragments for the Pricing domain. Field factories are
- * the single source of truth — both {@see priceRepeater()} and the
- * PricesRelationManager compose from them, so money fields render in
- * euros/pounds (and store cents) identically everywhere.
+ * the single source of truth — {@see priceRepeater()} and any consumer surface
+ * compose from them, so money fields render in euros/pounds (and store cents)
+ * identically everywhere.
  */
 final class PricingSchema
 {
@@ -129,7 +129,7 @@ final class PricingSchema
     }
 
     /**
-     * Not part of the default schemas (priceRepeater / PricesRelationManager):
+     * Not part of the default schema (priceRepeater):
      * price lists have a full backend (PriceList model, ResolvePrice fallback)
      * but no admin resource to manage them, so exposing the select only offers
      * a footgun — a price assigned to a non-default list is invisible to the

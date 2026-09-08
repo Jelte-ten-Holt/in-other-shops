@@ -57,7 +57,6 @@ This prevents N+1 queries without the storefront knowing which domains a model u
 ### Actions
 
 - **`ListBrowsables`** — lists items with filtering (category, tag, search), sorting (`name`, `created_at`, `published_at`, prefix with `-` for desc), and pagination. Returns `LengthAwarePaginator` of model instances; the consumer formats them.
-- **`ListCategoryBrowsables`** — collects all browsable items across configured models that belong to a category. In-memory pagination.
 - **`ShowBrowsable`** — retrieves a single item by slug.
 
 ### JSON Resources

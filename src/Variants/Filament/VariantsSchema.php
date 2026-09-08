@@ -183,6 +183,6 @@ final class VariantsSchema
 
     private static function editingCurrency(): Currency
     {
-        return Currency::from(config('commerce.cart.api.default_currency', 'EUR'));
+        return Currency::from(config('currency.default', 'EUR'));
     }
 }

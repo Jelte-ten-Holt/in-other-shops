@@ -11,7 +11,6 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
-use InOtherShops\Logging\Concerns\RunsAsSystemActor;
 use InOtherShops\Media\Media as MediaRegistry;
 use InOtherShops\Media\Models\Media;
 use Symfony\Component\Uid\Ulid;
@@ -63,8 +62,6 @@ use Throwable;
  */
 final class PruneMediaCommand extends Command
 {
-    use RunsAsSystemActor;
-
     /** Dispositions, in the order the summary prints them. */
     private const array DISPOSITIONS = ['referenced', 'young', 'orphan', 'deleted', 'blocked'];
 
@@ -81,8 +78,6 @@ final class PruneMediaCommand extends Command
 
     public function handle(): int
     {
-        $this->beginSystemAuditActor();
-
         $disk = (string) ($this->option('disk') ?? config('media.disk', 'public'));
         $directory = trim((string) ($this->option('directory') ?? config('media.directory', 'media')), '/');
 
@@ -260,8 +255,8 @@ final class PruneMediaCommand extends Command
     }
 
     /**
-     * When the file was uploaded, read out of its own name: `StoreMedia`
-     * names files with a ULID, and a ULID's first 48 bits are its
+     * When the file was uploaded, read out of its own name: uploads are
+     * named with a ULID, and a ULID's first 48 bits are its
      * millisecond timestamp. A rung file (`{ulid}-w400.webp`) carries its
      * original's ULID, so the suffix is stripped before parsing — a rung
      * orphan should date to the upload that produced it.

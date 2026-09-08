@@ -101,15 +101,15 @@ class Media extends Model implements HasTranslations
      * one is now wrong. Refresh it from the disk rather than trusting whatever
      * the caller happened to pass.
      *
-     * This lives on the model, not in the admin form, because there are two
-     * upload surfaces (`MediaSchema`'s repeater and `MediaRelationManager`'s
-     * Edit action) and each had its own half of the bug: the repeater never
-     * wrote `path` at all, the relation manager wrote `path` but left
-     * `filename`/`mime_type`/`size` describing the replaced file. Anything that
-     * writes `path` gets the invariant, including a future third surface.
+     * This lives on the model, not in the admin form, because two upload
+     * surfaces each had their own half of the bug (`MediaSchema`'s repeater
+     * never wrote `path` at all; the since-deleted media relation manager
+     * wrote `path` but left `filename`/`mime_type`/`size` describing the
+     * replaced file). Anything that writes `path` gets the invariant,
+     * including a future third surface.
      *
      * Deliberately updates only — on an insert the creator owns the metadata
-     * (`StoreMedia` stores the *client's* original filename, which the path's
+     * (an uploader records the *client's* original filename, which the path's
      * ULID basename would otherwise clobber). A replacement has no client
      * filename to recover, so it takes the stored basename.
      */

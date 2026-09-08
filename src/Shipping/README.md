@@ -113,7 +113,6 @@ interface HasShipment
 ### Actions
 
 - **`ResolveShippingZoneForCountry(string $countryCode): ?ShippingZone`** — looks up which zone a country belongs to. Returns `null` if the country isn't shipped to.
-- **`ResolveShippingZoneForAddress(Address $address): ?ShippingZone`** — convenience wrapper around the country resolver.
 - **`ListAvailableShippingMethods(?ShippingZone $zone = null): array<ShippingMethod>`** — active methods, sorted. When a zone is provided, methods without a rate for that zone are filtered out.
 - **`CalculateShippingCost(ShippingMethod $method, ShippingZone $zone, ?int $subtotalCents = null): int`** — returns the rate in cents. Throws `MethodNotAvailableInZoneException` if the method has no rate for the zone. Returns `0` when `subtotalCents` is provided and meets/exceeds the zone's free-shipping threshold.
 - **`CreateShipment(Model $order, ShippingMethod $method, ?Collection $orderLines = null): Shipment`** — creates a `Pending` Shipment with one `ShipmentItem` per included `OrderLine`. `orderLines` defaults to all of the order's lines. Dispatches `ShipmentCreated`.
@@ -199,7 +198,6 @@ app(MarkShipmentDelivered::class)($shipment);
 ## Dependencies
 
 - `Currency` — for the `Currency` enum used in zone definitions.
-- `Location` — for the `Address` model accepted by `ResolveShippingZoneForAddress`.
 - `Logging` — `ShipmentLogSubscriber` routes events to the `shipping` log channel.
 
 ## Future

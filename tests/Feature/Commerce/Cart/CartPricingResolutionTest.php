@@ -61,7 +61,7 @@ final class CartPricingResolutionTest extends TestCase
 
         // A cart with no stamped currency (the persisted column is NOT NULL, so
         // this is the in-memory/pre-persist guard) falls back to the shipped
-        // config default (commerce.cart.api.default_currency = EUR), untouched.
+        // config default (currency.default = EUR), untouched.
         $this->assertSame(Currency::EUR, (new Cart)->effectiveCurrency());
     }
 

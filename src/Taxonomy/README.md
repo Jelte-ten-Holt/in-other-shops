@@ -92,8 +92,6 @@ This is **denormalized state, not a cache** — there is no TTL, and reads trust
 
 **`CategoryResource`** / **`TagResource`** — full Filament resources with CRUD pages. Categories use `TranslationSchema` for locale-tabbed name/description fields. Tags use `TranslationSchema` for locale-tabbed name. Category delete is disabled when children exist; when attached items exist, the delete confirmation modal names the count so the action isn't blind.
 
-**`CategoriesRelationManager`** / **`TagsRelationManager`** — attach/detach UIs for edit pages. Support both attaching existing records and creating new ones inline. Not `final` — subclassable for project customization.
-
 ## Usage
 
 ### Attaching and detaching categories
@@ -109,8 +107,6 @@ use InOtherShops\Taxonomy\Actions\DetachCategory;
 ```
 
 The actions dispatch `CategoryAttached` / `CategoryDetached`, which `MaintainCategoryCounts` listens for to keep `category_morph_counts` accurate. Raw pivot writes (`attach`/`detach`/`sync`/`syncWithoutDetaching` on the relation, raw `DB::table('categorizables')` inserts, `Categorizable` factories in seeders) bypass the events and silently desync the counts table. The recovery command can rebuild after the fact, but it's a recovery — not the workflow.
-
-Filament's `CategoriesRelationManager` dispatches the events from its `->after()` hooks rather than routing through the actions. Functionally equivalent for the counts invariant — but note that `CategoryDetached` will fire even on a UI-driven detach where the pivot row didn't exist (rare; the table only shows already-attached rows). The `DetachCategory` action gates dispatch on the affected row count; the relation manager does not.
 
 ### Registering the morph alias
 

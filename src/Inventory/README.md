@@ -50,12 +50,11 @@ Unique constraint on `[stockable_type, stockable_id]`.
 
 Indexes: `unique(reserve_movement_id)`, `(status, reserved_until)` for the expiry sweep.
 
-Helper: `StockReservation::isExpired()` — `status = Pending && reserved_until < now`.
 
 ### Enums
 
 - **`StockMovementReason`** — `received`, `restock`, `sold`, `reserved`, `released`, `adjusted`.
-- **`ReservationStatus`** — `pending`, `confirmed`, `released`. `isResolved()` returns true for non-pending.
+- **`ReservationStatus`** — `pending`, `confirmed`, `released`.
 
 ### Contract & Trait
 

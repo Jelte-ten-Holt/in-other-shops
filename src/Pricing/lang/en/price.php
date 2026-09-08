@@ -7,7 +7,6 @@ declare(strict_types=1);
  * recurring field labels (Currency) come from `shops-common::fields.*`.
  */
 return [
-    'title' => 'Prices',
 
     'amount' => 'Amount',
     'minimum_quantity' => 'Minimum quantity',
@@ -18,5 +17,4 @@ return [
     'compare_at_too_high' => 'The strikethrough price cannot be higher than what this item is currently priced at. Use a price it was actually sold at before.',
     'compare_at_until' => 'Strikethrough ends',
     'compare_at_until_help' => 'When this passes, the strikethrough price becomes the actual price and the strikethrough is cleared. Times are in the shop’s configured timezone (:timezone).',
-    'strikethrough' => 'Strikethrough',
 ];

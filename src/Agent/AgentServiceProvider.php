@@ -11,15 +11,12 @@ use InOtherShops\Agent\Http\Middleware\AuthenticateAgent;
 use InOtherShops\Agent\Http\Middleware\EnforceResourceParameter;
 use InOtherShops\Agent\Listeners\AgentLogSubscriber;
 use InOtherShops\Agent\Support\CanonicalUrl;
-use InOtherShops\Agent\Support\ToolRegistry;
 
 final class AgentServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
         $this->mergeConfigFrom(__DIR__.'/config/agent.php', 'agent');
-
-        $this->app->singleton(ToolRegistry::class);
 
         if ((bool) config('agent.auth.oauth.enabled', false)) {
             // Attach our RFC 8707 resource-parameter validator to every

@@ -13,7 +13,6 @@ return [
         'succeeded' => 'Succeeded',
         'failed' => 'Failed',
         'cancelled' => 'Cancelled',
-        'expired' => 'Expired',
         'refunded' => 'Refunded',
         'partially_refunded' => 'Partially refunded',
     ],

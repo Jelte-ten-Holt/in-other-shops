@@ -52,11 +52,4 @@ class StockReservation extends Model
     {
         return $this->morphTo();
     }
-
-    public function isExpired(): bool
-    {
-        return $this->status === ReservationStatus::Pending
-            && $this->reserved_until !== null
-            && $this->reserved_until->isPast();
-    }
 }

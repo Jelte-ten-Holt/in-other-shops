@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace InOtherShops\Agent\Support;
 
-use Illuminate\Contracts\Foundation\Application;
-use Illuminate\Support\Collection;
 use InOtherShops\Agent\Contracts\AgentToolContract;
 use InOtherShops\Agent\Tools\AdjustStock;
 use InOtherShops\Agent\Tools\BrowseCatalog;
@@ -44,31 +42,14 @@ final class ToolRegistry
         GetRecentProblems::class,
     ];
 
-    /** @var array<string, AgentToolContract> */
-    private array $tools = [];
-
-    public function __construct(
-        private readonly Application $app,
-    ) {
-        foreach ($this->classes() as $class) {
-            $instance = $this->app->make($class);
-            $this->tools[$class::identifier()] = $instance;
-        }
-    }
-
-    /** @return Collection<string, AgentToolContract> */
-    public function all(): Collection
-    {
-        return collect($this->tools);
-    }
-
-    public function find(string $identifier): ?AgentToolContract
-    {
-        return $this->tools[$identifier] ?? null;
-    }
-
-    /** @return array<int, class-string<AgentToolContract>> */
-    public function classes(): array
+    /**
+     * The tool class list handed to the MCP server. Deliberately class names
+     * only — the transport instantiates the one tool an invocation names, so
+     * nothing here resolves 35 tools out of the container per request.
+     *
+     * @return array<int, class-string<AgentToolContract>>
+     */
+    public static function classes(): array
     {
         /** @var array<int, class-string<AgentToolContract>> $consumerTools */
         $consumerTools = config('agent.tools', []);

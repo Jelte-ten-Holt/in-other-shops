@@ -13,5 +13,5 @@ Route::middleware('throttle:'.config('agent.route.throttle', '60,1'))->group(fun
             version: config('agent.server.version'),
         )
         ->setProtocolVersion(ProtocolVersion::V2025_11_25)
-        ->tools(app(ToolRegistry::class)->classes());
+        ->tools(ToolRegistry::classes());
 });

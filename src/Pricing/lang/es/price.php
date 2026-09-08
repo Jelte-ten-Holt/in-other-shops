@@ -7,7 +7,6 @@ declare(strict_types=1);
  * en/price.php exactly.
  */
 return [
-    'title' => 'Precios',
 
     'amount' => 'Monto',
     'minimum_quantity' => 'Cantidad mínima',
@@ -18,5 +17,4 @@ return [
     'compare_at_too_high' => 'El precio tachado no puede ser mayor que el precio actual de este artículo. Usa un precio al que se haya vendido realmente antes.',
     'compare_at_until' => 'Fin del precio tachado',
     'compare_at_until_help' => 'Cuando esto pase, el precio tachado se convierte en el precio real y el tachado se elimina. Las horas están en la zona horaria configurada de la tienda (:timezone).',
-    'strikethrough' => 'Tachado',
 ];

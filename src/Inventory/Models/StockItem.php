@@ -37,13 +37,4 @@ class StockItem extends Model
     {
         return $this->hasMany(Inventory::stockMovement());
     }
-
-    public function isLowStock(): bool
-    {
-        if ($this->low_stock_threshold === null) {
-            return false;
-        }
-
-        return $this->stock_level <= $this->low_stock_threshold;
-    }
 }

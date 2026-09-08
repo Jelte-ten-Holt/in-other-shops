@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace InOtherShops\Storefront\Concerns;
 
 use InOtherShops\Inventory\Contracts\HasStock;
-use InOtherShops\Media\Contracts\HasMedia;
 use InOtherShops\Pricing\Contracts\HasPrices;
 use InOtherShops\Taxonomy\Contracts\HasCategories;
 use InOtherShops\Taxonomy\Contracts\HasTags;
@@ -51,10 +50,6 @@ trait ResolvesEagerLoading
 
         if (is_subclass_of($modelClass, HasTags::class)) {
             $relations['tags.translations'] = fn ($q) => $q->where('locale', $locale);
-        }
-
-        if (is_subclass_of($modelClass, HasMedia::class)) {
-            $relations[] = 'media';
         }
 
         if (is_subclass_of($modelClass, HasStock::class)) {

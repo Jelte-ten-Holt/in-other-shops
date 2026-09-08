@@ -13,9 +13,4 @@ enum ReservationStatus: string
     case Pending = 'pending';
     case Confirmed = 'confirmed';
     case Released = 'released';
-
-    public function isResolved(): bool
-    {
-        return $this !== self::Pending;
-    }
 }

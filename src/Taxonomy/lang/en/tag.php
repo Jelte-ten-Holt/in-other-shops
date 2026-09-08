@@ -11,7 +11,6 @@ return [
     'model' => 'tag',
     'model_plural' => 'tags',
     'nav' => 'Tags',
-    'relation_title' => 'Tags',
 
     'section' => [
         'details' => 'Tag Details',

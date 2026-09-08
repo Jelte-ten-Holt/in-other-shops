@@ -32,14 +32,4 @@ class Mediable extends MorphPivot
     {
         return $this->belongsTo(MediaRegistry::media()::class);
     }
-
-    public function isImage(): bool
-    {
-        return $this->media->isImage();
-    }
-
-    public function url(): string
-    {
-        return $this->media->url();
-    }
 }
