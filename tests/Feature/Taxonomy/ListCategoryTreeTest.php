@@ -197,7 +197,8 @@ final class ListCategoryTreeTest extends TestCase
 
         $translationQueries = array_values(array_filter(
             DB::connection()->getQueryLog(),
-            fn (array $q): bool => str_contains($q['query'], 'from "translations"'),
+            // Quote-agnostic: SQLite emits `from "translations"`, MySQL `from `translations``.
+            fn (array $q): bool => (bool) preg_match('/from ["`]translations["`]/', $q['query']),
         ));
 
         DB::connection()->disableQueryLog();
