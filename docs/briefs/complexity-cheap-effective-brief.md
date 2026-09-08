@@ -1,6 +1,6 @@
 # Brief — complexity audit, cheap-and-effective quadrant
 
-Status: **draft 2 (rebrief after adversarial pass)**, 2026-09-07. Source: `docs/audits/2026-09-07/complexity-audit.md` §10, top-left quadrant only. Draft 1 was attacked by a design reviewer (missed references, the seven leans, sequencing, convention wording) and a pathology reviewer (concurrency, transactions, migrations, deploy windows); every finding is folded in below. Changes from draft 1 are marked **Δ**.
+Status: **draft 2 + Release 1 reconciled** (2026-09-07). Release 1 PRs open: [#24 conventions](https://github.com/Jelte-ten-Holt/in-other-shops/pull/24), [#25 deletions](https://github.com/Jelte-ten-Holt/in-other-shops/pull/25), [#26 query shape](https://github.com/Jelte-ten-Holt/in-other-shops/pull/26) (#26 is stacked on #25 — merge #25, retarget #26, then #24). Not tagged. Source: `docs/audits/2026-09-07/complexity-audit.md` §10, top-left quadrant only. Draft 1 was attacked by a design reviewer (missed references, the seven leans, sequencing, convention wording) and a pathology reviewer (concurrency, transactions, migrations, deploy windows); every finding is folded in below. Changes from draft 1 are marked **Δ**.
 
 ## 1. Goal
 
@@ -153,37 +153,42 @@ Consumer work, release 2 (total): IOW — 5 pricing test files, `CheckoutControl
 | 6 Cadence | Three releases; release 3 is a two-consumer sweep, not a day |
 | 7 `ToolRegistry` | Survives; contract stays static |
 
-**Still open for Jelte:** (a) whether Bianka uses the ready-then-dispatch two-step deliberately — if yes, PR 9 drops out entirely; (b) whether `InventoryDriftDetected` + a consumer alert listener is in scope now or a follow-up (lean: event now, one class; listeners when each shop wants one); (c) whether the PR 6 orphan cleanup should also delete the *orders'* stale reservations or leave that to the existing expiry path (lean: shipments only — reservations already have an owner).
+**Still open for Jelte:** (d) **Δ from Release 1:** the package's shipped defaults `commerce.order.abandon_after_minutes = 60` vs `inventory.reservation_ttl = 30` violate the very invariant X6's comment now states — a fresh consumer taking both defaults releases stock while the gateway intent is live, on every checkout. Both current consumers override the TTL to 90 so no live shop is exposed. Changing a default is behaviour: lean = raise the reservation TTL default to 120 in release 2 and add a boot-time assertion that abandon > TTL. (a) whether Bianka uses the ready-then-dispatch two-step deliberately — production has zero `ready` rows, so the data step is a no-op either way; if she wants the two-step, PR 9 drops out; (b) whether `InventoryDriftDetected` + a consumer alert listener is in scope now or a follow-up (lean: event now, one class; listeners when each shop wants one); (c) whether the PR 6 orphan cleanup should also delete the *orders'* stale reservations or leave that to the existing expiry path (lean: shipments only — reservations already have an owner).
 
 ## 7. Disposition manifest
 
 | Item | PR | Disposition | Note |
 |---|---|---|---|
-| Convention rewrites | 1 | pending | wording per §4 PR 1 |
+| Convention rewrites | 1 | **done** (#24) | gate rule carries a "not implemented until PR 7" marker; CLAUDE.md dep-graph lines fixed in the PRs that falsified them |
 | `priceFor()`-only architecture test | — | **deferred** | no package-side way to test consumers; consumer test each, later |
-| C7 relation managers ×6 | 2 | pending | |
-| C8 Media dead actions/events | 2 | pending | |
-| C9 Customer actions/events | 2 | pending | incl. package Filament page overrides |
-| C10 `ListCategoryBrowsables` | 2 | pending | |
-| C11 `ResolveShippingZoneForAddress` | 2 | pending | |
-| C14 dead API | 2 | pending | contract members → periphery ×3; `expired` row count first |
+| C7 relation managers ×6 | 2 | **done** (#25) | 4 tests deleted, rules covered elsewhere |
+| C8 Media dead actions/events | 2 | **done** (#25) | |
+| C9 Customer actions/events | 2 | **done** (#25) | incl. the package Filament page overrides |
+| C10 `ListCategoryBrowsables` | 2 | **done** (#25) | |
+| C11 `ResolveShippingZoneForAddress` | 2 | **done** (#25) | Shipping→Location edge gone |
+| C14 `PaymentStatus::Expired`, `isExpired/isResolved/isLowStock`, `Address::oneLine()`, `Currency::symbol()`, `CustomerFactory::forGroup()` | 2 | **done** (#25) | `Expired`: production count = 0 on both shops (2026-09-07), tag gate clear |
+| C14 `HasStock::stockMovements()` | 2 | **dropped** | ledger assertion helper in `ReceiveItemsTest:64`; the audit's "0 callers" ignored `tests/` |
+| C14 `HasLocaleGroup::inLocale()` + `forLocale/monolingual` scopes | 2 | **dropped** | live in IOW `ContentLocaleGroupTest:62-84`; only `locale()` is truly dead — opportunistic, release 2 |
+| C14 `setTranslations()` | 2 | **dropped** | test fixture helper in ~20 package tests; not worth the churn |
+| C14 `Refund::actor()` | 2 | **dropped** | has its own model test (`RefundModelTest:84-92`) — tested API, not dead |
+| C14 `OrderFactory::status()` | 2 | **dropped** | factory state used by 2 test files |
 | C13 `FakePaymentGateway` → tests | — | **dropped** | consumed by both consumers' suites; audit premise false |
-| D13 Storefront→Media | 2 | pending | |
-| D14 `HasAvailability` | 2 | pending | free rider |
-| D16 Media system-actor imports | 2 | pending | verified sound |
-| D18 `default_currency` home | 2 | pending | free rider |
-| D19 `requireMorphMap()` | 2 | pending | |
-| C22 `ToolRegistry` | 2 | pending | contract stays static |
-| S6 unread media eager load | 2 | pending | |
-| S1+S2 translations `$with` | 3 | pending | no constrained `with()` in tree |
-| X4 fallback locale in Storefront | 3 | pending | |
-| S3 orders `withSum` | 3 | pending | null-coalesce to `refundedTotal()` |
-| S7 cart log handlers | 3 | pending | |
-| S8 FlowChain Info rows | 3 | pending | |
-| S16 schedule `inventory:reconcile` + drift event | 3 | pending | Q(b) |
-| D2 `imagewebp` guard + `ext-exif` | 3 | pending | |
-| D4 Stripe `^20` | 3 | pending | |
-| X6 inverted TTL comment | 3 | pending | |
+| D13 Storefront→Media | 2 | **done** (#25) | |
+| D14 `HasAvailability` | 2 → **8** | **moved to release 2** | IOW `app/Contracts/Purchasable.php:15` extends it — one consumer line, goes with PR 8's consumer edits |
+| D16 Media system-actor imports | 2 | **done** (#25) | |
+| D18 `default_currency` home | 2 | **done** (#25) | `currency.default` had to be **created**; bianka `config/commerce.php:82` restates the old key (same value) — delete on bump |
+| D19 `requireMorphMap()` | 2 | **done** (#25) | now fires from Support (first provider) — strictly earlier |
+| C22 `ToolRegistry` | 2 | **done** (#25) | contract stays static |
+| S6 unread media eager load | 2 | **done** (#25) | |
+| S1+S2 translations `$with` | 3 | **done** (#26) | query-count test verified failing at 3 queries without `$with` |
+| X4 fallback locale in Storefront | 3 | **done** (#26) | `whereIn([current, fallback])`; test verified failing (`null`) against the old `where` |
+| S3 orders `withSum` | 3 | **done** (#26) | **brief's line was a no-op** — `withSum` yields `NULL` for no refunds so `??` fell through to the per-row query on nearly every row; keyed on `array_key_exists('refunds_sum_amount', getAttributes())` instead. New `OrderResourceRefundColumnTest` with a minimal `HasTable` host — first Filament table harness in the suite |
+| S7 cart log handlers | 3 | **done** (#26) | |
+| S8 FlowChain Info rows | 3 | **done** (#26) | |
+| S16 schedule `inventory:reconcile` + drift event | 3 | **done** (#26) | `inventory.schedule.reconcile` cron, `InventoryDriftDetected` dispatched from the action on a dirty report; 4 tests |
+| D2 `imagewebp` guard + `ext-exif` | 3 | **done** (#26) | |
+| D4 Stripe `^20` | 3 | **done** (#26) | suite green on 20.3.1, no source change; `composer.lock` is gitignored so it resolves on next install |
+| X6 inverted TTL comment | 3 | **done** (#26) | **but the shipped defaults violate the invariant** (abandon 60 min vs reservation TTL 30 min) — see §6 open (d) |
 | C5 Variants `Variant` half | 4 | pending | alias-precondition migration |
 | X1 pricing write path | 5 | pending | + IOW 5 test files |
 | X2 shipment timing | 6 | pending | `OrderStatusChanged`; 6 tests; orphan cleanup; IOW `CheckoutControllerTest` |
@@ -191,7 +196,7 @@ Consumer work, release 2 (total): IOW — 5 pricing test files, `CheckoutControl
 | D7/D8 domain gate | 7 | pending | `bootDomain()` refactor across all child providers |
 | D10 Tax string | 8 | pending | 2 steps + 2 tests |
 | D12 `tax_category` cast | 8 | pending | |
-| C23 `Ready` step 1 | 9 | pending | Q(a); IOW `ListOrdersController:88` |
+| C23 `Ready` step 1 | 9 | pending | production `ready` rows = 0 on both shops (2026-09-07); IOW `ListOrdersController:88` |
 | C23 `Ready` step 2 (enum case) | 11 | pending | |
 | C2 price lists | 10 | pending | dedupe keeps list row; MySQL-tested with collision |
 | C4 customer groups | 10 | pending | IOW policy + bianka policy loop |
@@ -202,3 +207,15 @@ Consumer work, release 2 (total): IOW — 5 pricing test files, `CheckoutControl
 ## 8. Rough effort — **Δ revised**
 
 Release 1 ≈ 1 day. Release 2 ≈ 3 days (the `bootDomain()` refactor across every child provider, six listener tests, and the consumer test rewrites are the bulk). Release 3 ≈ 2 days (19 call sites + 27 test files + two seeders + the collision-safe migration on MySQL). About six working days end to end.
+
+## 9. Release 1 close-out (2026-09-07)
+
+Three PRs open, stacked #25 → #26 → #24; suite 1297 → 1294 (#25) → 1303 (#26). No consumer edited, nothing tagged.
+
+**Where the brief was wrong, recorded so the pattern stops:** five C14 symbols and D14 had callers the audit's "0 callers" missed — four in the package's own `tests/`, two in IOW. The audit grepped `src/` and consumer `app/`; every future "dead" claim greps `tests/` too. PR 2 and PR 3 were not file-disjoint (`ResolvesEagerLoading.php`). "Two `AdminNavigationLabelsTest` assertions" were six. S3's prescribed line would have shipped doing nothing.
+
+**Pre-tag gate — taken 2026-09-07 via SSH + `docker exec` on both app containers:** `payments.status = 'expired'` = **0** (IOW) / **0** (Mayangna); `shipments.status = 'ready'` = **0** / **0**. Tag gate clear; release 2's data step is a no-op on both.
+
+**Consumer bump for v0.71.0 (both, same sitting):** `^0.71.0`; periphery status lines (bianka's says v0.68.0); periphery external-surface: `InventoryDriftDetected`, the two schedule entries, the removed cart/FlowChain handlers; bianka: delete `config/commerce.php:82` (`default_currency`, now inert); IOW: `routes/console.php:32` comment (cites inventory as the "consumer opts in" precedent, now inverted). Both suites green. Pushing a consumer's main deploys it.
+
+**Carried forward from the Release 1 report:** `Cart::defaultCurrency()` duplicates `VariantsSchema::editingCurrency()` — becomes a `Currency::default()` accessor when PR 4 deletes the schema. The `OrderTableHost` harness in `OrderResourceRefundColumnTest` is the pattern for W1/X3 — promote to `tests/Support/` when a second user appears. `PaymentsRelationManager`/`ShipmentsRelationManager` remain outside the default-deny base (periphery "known gap", now 3 managers not 8).
