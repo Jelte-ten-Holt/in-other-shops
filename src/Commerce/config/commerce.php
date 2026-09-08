@@ -51,8 +51,27 @@ return [
 
         // How long a Pending (unpaid) order is held before `commerce:expire-orders`
         // cancels it — releasing its reservations and cancelling the gateway
-        // intent so a late payment can't land on it (F14). Must comfortably
-        // exceed the reservation TTL plus a real payment window.
+        // intent so a late payment can't land on it (F14).
+        //
+        // Must be SHORTER than `inventory.reservation_ttl`, not longer. The
+        // reservation has to outlive the window in which the order can still be
+        // paid: get it the other way round and every checkout gets an interval
+        // where `inventory:release-expired` has already returned the stock while
+        // the gateway intent is still live — a late payment is captured,
+        // ConfirmOrder rejects it for missing stock, and `commerce:expire-orders`
+        // then refuses to cancel an order that has a succeeded payment. Money
+        // taken, order Pending forever. With the invariant held,
+        // `commerce:expire-orders` is the single actor that ends a Pending order
+        // and the reservation never lapses on its own.
+        //
+        // (This comment said the opposite until v0.71.0; bianka reported it
+        // 2026-07-17 and pins the real invariant in ReservationTtlInvariantTest.)
+        //
+        // ⚠ The package's own SHIPPED DEFAULTS violate this: 60 here against an
+        // `inventory.reservation_ttl` default of 30. Both consumers override the
+        // TTL to 90, so no live shop is exposed — but a fresh consumer taking
+        // both defaults is. Correcting the default is a behaviour change and is
+        // deliberately not part of this release.
         'abandon_after_minutes' => (int) env('ORDER_ABANDON_AFTER_MINUTES', 60),
     ],
 

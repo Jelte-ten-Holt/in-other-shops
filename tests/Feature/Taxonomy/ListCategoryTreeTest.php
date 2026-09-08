@@ -161,4 +161,77 @@ final class ListCategoryTreeTest extends TestCase
 
         $this->assertSame(['a', 'b'], $tree->first()->children->pluck('slug')->all());
     }
+    /**
+     * S1/S2 of the 2026-09-07 complexity audit: every tree render read a name
+     * per category, one lazy `translations` query at a time — 100–300 queries on
+     * a real categories page. `Category::$with` collapses that to one query for
+     * the whole tree, at any depth.
+     */
+    #[Test]
+    public function the_whole_tree_loads_its_translations_in_one_query(): void
+    {
+        $root = Category::factory()->create(['slug' => 'root']);
+        $mid = Category::factory()->create(['slug' => 'mid', 'parent_id' => $root->id]);
+        $leaf = Category::factory()->create(['slug' => 'leaf', 'parent_id' => $mid->id]);
+
+        foreach ([$root, $mid, $leaf] as $i => $category) {
+            $category->setTranslation('name', 'en', "Name {$i}");
+            $category->save();
+            ($this->attach)(TestTaxonomized::factory()->create(), $category);
+        }
+
+        DB::connection()->enableQueryLog();
+        DB::connection()->flushQueryLog();
+
+        $tree = ($this->list)(['test_taxonomized']);
+
+        // Force every name to resolve — the lazy loads would fire here.
+        $names = [];
+        $walk = function ($nodes) use (&$walk, &$names): void {
+            foreach ($nodes as $node) {
+                $names[] = $node->name;
+                $walk($node->children);
+            }
+        };
+        $walk($tree);
+
+        $translationQueries = array_values(array_filter(
+            DB::connection()->getQueryLog(),
+            fn (array $q): bool => str_contains($q['query'], 'from "translations"'),
+        ));
+
+        DB::connection()->disableQueryLog();
+
+        $this->assertCount(3, $names);
+        $this->assertCount(
+            1,
+            $translationQueries,
+            'Expected one translations query for the whole tree, got '.count($translationQueries).'.',
+        );
+    }
+
+    /**
+     * The other half of collapsing S1 and S2 into one change: `$with` is
+     * deliberately NOT constrained to the current locale. A locale filter would
+     * make `findFallbackTranslation` search a collection the fallback row was
+     * already excluded from, and a category translated only in the fallback
+     * would render with no name at all.
+     */
+    #[Test]
+    public function a_category_translated_only_in_the_fallback_locale_still_resolves_its_name(): void
+    {
+        config()->set('translation.fallback', 'en');
+
+        $category = Category::factory()->create(['slug' => 'fallback-only']);
+        $category->setTranslation('name', 'en', 'English only');
+        $category->save();
+
+        ($this->attach)(TestTaxonomized::factory()->create(), $category);
+
+        app()->setLocale('de');
+
+        $tree = ($this->list)(['test_taxonomized']);
+
+        $this->assertSame('English only', $tree->first()->name);
+    }
 }

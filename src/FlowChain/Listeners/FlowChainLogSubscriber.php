@@ -4,14 +4,18 @@ declare(strict_types=1);
 
 namespace InOtherShops\FlowChain\Listeners;
 
-use InOtherShops\FlowChain\Events\FlowChainCompleted;
 use InOtherShops\FlowChain\Events\FlowChainFailed;
-use InOtherShops\FlowChain\Events\FlowChainStarted;
 use InOtherShops\FlowChain\Events\FlowChainStepFailed;
 use InOtherShops\Logging\Enums\LogLevel;
 use InOtherShops\Logging\LogSubscriberBase;
 use Illuminate\Contracts\Events\Dispatcher;
 
+/**
+ * Failures only. `FlowChainStarted`/`FlowChainCompleted` used to log at Info,
+ * which on a consumer routing `flowchain` at the database handler meant two
+ * rows for every add-to-cart and every checkout — pure volume, no signal. The
+ * events still dispatch.
+ */
 final class FlowChainLogSubscriber extends LogSubscriberBase
 {
     protected const string CHANNEL = 'flowchain';
@@ -20,28 +24,9 @@ final class FlowChainLogSubscriber extends LogSubscriberBase
     public function subscribe(Dispatcher $events): array
     {
         return [
-            FlowChainStarted::class => 'handleStarted',
-            FlowChainCompleted::class => 'handleCompleted',
             FlowChainFailed::class => 'handleFailed',
             FlowChainStepFailed::class => 'handleStepFailed',
         ];
-    }
-
-    public function handleStarted(FlowChainStarted $event): void
-    {
-        $this->log(LogLevel::Info, "FlowChain started: {$event->flowName}.", [
-                'flow' => $event->flowName,
-            ]);
-    }
-
-    public function handleCompleted(FlowChainCompleted $event): void
-    {
-        $this->log(LogLevel::Info, "FlowChain completed: {$event->flowName}.", [
-                'flow' => $event->flowName,
-                'status' => $event->result->status->value,
-                'steps' => count($event->result->steps),
-                'duration_ms' => $event->result->durationMs,
-            ]);
     }
 
     public function handleFailed(FlowChainFailed $event): void

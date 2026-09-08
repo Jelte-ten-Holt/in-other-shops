@@ -36,10 +36,11 @@
         "phpunit/phpunit": "^11.0 || ^12.0",
         "mockery/mockery": "^1.6",
         "laravel/passport": "^13.0",
-        "stripe/stripe-php": "^15.0 || ^16.0"
+        "stripe/stripe-php": "^20.0"
     },
     "suggest": {
-        "stripe/stripe-php": "Install to enable the Stripe payment gateway driver (^15.0 || ^16.0).",
+        "ext-exif": "Enables EXIF orientation correction on uploaded JPEG/TIFF images. Without it every upload is treated as already upright, and a phone photo taken sideways stays sideways in every generated variant.",
+        "stripe/stripe-php": "Install to enable the Stripe payment gateway driver (^20.0 — the major both consumers run; the package suite tests against it).",
         "laravel/passport": "Required when agent.auth.oauth.enabled is true \u2014 powers the Passport authorization server that backs the MCP connector's OAuth flow (^13.0)."
     },
     "autoload": {

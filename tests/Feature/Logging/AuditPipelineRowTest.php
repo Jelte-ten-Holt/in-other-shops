@@ -11,6 +11,7 @@ use InOtherShops\Commerce\Commerce;
 use InOtherShops\Commerce\Order\Actions\UpdateOrderStatus;
 use InOtherShops\Commerce\Order\Enums\OrderStatus;
 use InOtherShops\Currency\Enums\Currency;
+use InOtherShops\FlowChain\AbstractFlowStep;
 use InOtherShops\FlowChain\Contracts\FlowPayload;
 use InOtherShops\FlowChain\FlowChain;
 use InOtherShops\Inventory\Actions\AdjustStock;
@@ -206,13 +207,31 @@ final class AuditPipelineRowTest extends TestCase
     }
 
     #[Test]
-    public function running_a_flow_chain_writes_a_flowchain_audit_row(): void
+    public function a_failing_flow_chain_writes_a_flowchain_audit_row(): void
     {
-        FlowChain::make()->name('audit-pipeline-probe')->run(new AuditProbePayload);
+        // The flowchain channel now carries failures only — Started/Completed
+        // stopped logging in v0.71.0 (two Info rows per add-to-cart on a
+        // consumer routing this channel at the database handler). A failing run
+        // is what has to reach the table, so that is what this pins.
+        FlowChain::make()
+            ->name('audit-pipeline-probe')
+            ->step(AuditProbeFailingStep::class)
+            ->run(new AuditProbePayload);
 
         $row = DB::table('domain_logs')->where('channel', 'flowchain')->latest('id')->first();
 
-        $this->assertNotNull($row, 'No flowchain audit row was written for the chain run.');
+        $this->assertNotNull($row, 'No flowchain audit row was written for the failed chain run.');
+    }
+
+    #[Test]
+    public function a_successful_flow_chain_writes_no_flowchain_audit_row(): void
+    {
+        FlowChain::make()->name('audit-pipeline-probe')->run(new AuditProbePayload);
+
+        $this->assertNull(
+            DB::table('domain_logs')->where('channel', 'flowchain')->first(),
+            'A clean chain run must not write an audit row.',
+        );
     }
 
     #[Test]
@@ -259,3 +278,11 @@ final class AuditPipelineRowTest extends TestCase
  * contract, so an empty implementation is all a chain run needs.
  */
 final class AuditProbePayload implements FlowPayload {}
+
+final class AuditProbeFailingStep extends AbstractFlowStep
+{
+    public function handle(FlowPayload $payload): void
+    {
+        throw new \RuntimeException('audit pipeline probe');
+    }
+}

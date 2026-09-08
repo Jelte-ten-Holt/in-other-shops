@@ -53,6 +53,13 @@ final class InventoryServiceProvider extends DomainServiceProvider
 
         $this->scheduleWhenEnabled(function (Schedule $schedule): void {
             $schedule->command('inventory:release-expired')->everyFiveMinutes();
+
+            // The package schedules its own tripwire. `inventory:reconcile` is
+            // read-only and dispatches InventoryDriftDetected when it finds
+            // drift; leaving it to consumers meant neither scheduled it and the
+            // detection latency was infinite.
+            $schedule->command('inventory:reconcile')
+                ->cron((string) config('inventory.schedule.reconcile', '0 3 * * *'));
         });
     }
 }
