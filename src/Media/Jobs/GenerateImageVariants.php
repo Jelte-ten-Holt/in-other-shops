@@ -67,6 +67,18 @@ final class GenerateImageVariants implements ShouldBeUnique, ShouldQueue
 
     public function handle(): void
     {
+        // GD is a hard requirement (`ext-gd`), but WebP support is a build-time
+        // option within it — a GD without libwebp simply has no `imagewebp`, and
+        // calling it fatals mid-job with an undefined-function error rather than
+        // anything a reader can act on. Fail fast and say what to install.
+        if (! function_exists('imagewebp')) {
+            throw new \RuntimeException(
+                'ext-gd is installed without WebP support, so the variant ladder cannot be written. '
+                .'Rebuild GD against libwebp (or disable media.variants) — every rung this package '
+                .'generates is WebP.'
+            );
+        }
+
         /** @var Media|null $media */
         $media = MediaRegistry::media()::query()->find($this->mediaId);
 

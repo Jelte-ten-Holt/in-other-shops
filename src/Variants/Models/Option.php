@@ -25,6 +25,19 @@ class Option extends Model implements HasTranslations
 
     protected $guarded = [];
 
+    /**
+     * Every read of a translated field goes through the `translations`
+     * relation, and every surface that lists these rows (the admin tables,
+     * `ListCategoryTree`, a consumer's filter UI) reads a name per row. One
+     * query per batch beats a lazy load per row. Deliberately unconstrained by
+     * locale: `findFallbackTranslation` searches this same collection, so a
+     * locale filter here would hide the fallback row and resolve a name-less
+     * item to null.
+     *
+     * @var list<string>
+     */
+    protected $with = ['translations'];
+
     protected static string $factory = OptionFactory::class;
 
     protected function casts(): array

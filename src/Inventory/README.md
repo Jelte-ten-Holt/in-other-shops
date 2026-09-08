@@ -86,12 +86,14 @@ interface HasStock
 ### Commands
 
 - **`inventory:release-expired`** — runs `ReleaseExpiredReservations`. Scheduled every 5 minutes via the service provider.
+- **`inventory:reconcile`** — read-only tripwire. Reports (never repairs) three drift signals: a `stock_level` that no longer equals the sum of its movement ledger, pending reservations with no `reserved_until` (invisible to the expiry sweep), and pending reservations already past theirs. Exits non-zero on drift, logs a warning summary, and dispatches `InventoryDriftDetected`. **Scheduled daily by the package** under the same `inventory.schedule.enabled` switch as the expiry sweep; the cron lives at `inventory.schedule.reconcile` (default `0 3 * * *`). It writes nothing, so scheduling it is safe by construction — and leaving it to consumers meant neither scheduled it and the detection latency was infinite.
 
 ### Events
 
 - **`StockAdjusted`** — every stock delta. Carries the `StockMovement` and updated `StockItem`. Fires from `AdjustStock`.
 - **`StockReleased`** — a reservation was released (the ledger side). Carries the `StockReservation` and the new release `StockMovement`.
 - **`ReservationCreated`** / **`ReservationConfirmed`** / **`ReservationReleased`** — reservation lifecycle transitions. Each carries the `StockReservation`.
+- **`InventoryDriftDetected`** — the reconciliation pass found drift. Carries the `StockReconciliationReport`. The package ships no listener: scheduling a tripwire only cuts detection latency if something downstream reacts, and what "react" means (email, Slack, a dashboard badge) is each shop's call. Subscribe to it in the consumer.
 
 ### Config
 
@@ -103,6 +105,9 @@ interface HasStock
     'import' => 'Import',
 ],
 'reservation_ttl' => env('INVENTORY_RESERVATION_TTL', 30),  // minutes
+// ⚠ must EXCEED commerce.order.abandon_after_minutes (default 60) — a
+// reservation has to outlive the window in which its order can still be
+// paid. Both consumers set 90. The shipped defaults do not satisfy this.
 'models' => [
     'stock_item' => InOtherShops\Inventory\Models\StockItem::class,
     'stock_movement' => InOtherShops\Inventory\Models\StockMovement::class,
