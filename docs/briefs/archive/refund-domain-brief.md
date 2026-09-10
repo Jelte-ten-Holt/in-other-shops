@@ -250,6 +250,6 @@ subscriber (invariant #7 was unbuildable); two explicit actions + pick-reservati
 order_line_id); dropped `restocked_lines`; backfill forward-only; README/periphery fixes. Continuation
 handles: pathology `a738c9c6e93e1342a`, tax `a19b2c17a65704acc`, API `a3f065a85096723b8`.
 
-Audit F27–F34 in [silent-correctness-audit.md](../../../silent-correctness-audit.md) + round-2 Pass 6 in
-[silent-correctness-audit-round2.md](../../../silent-correctness-audit-round2.md). VAT shape:
+Audit F27–F34 in [silent-correctness-audit.md](../../../../silent-correctness-audit.md) + round-2 Pass 6 in
+[silent-correctness-audit-round2.md](../../../../silent-correctness-audit-round2.md). VAT shape:
 `vat-gross-inclusive-brief.md`. Inventory: `SyncInventoryOnOrderStatusChange`, `ReleaseReservation`.

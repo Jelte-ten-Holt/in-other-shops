@@ -10,15 +10,15 @@ Package-level work, typically surfaced by consuming projects. Completed items ha
 
 - **No undo for a mis-marked `Delivered` shipment** (surfaced by the bianka reviews design critique, C16, 2026-08-25). `Shipping/Enums/ShipmentStatus::allowedTransitions()` returns `[]` for `Delivered`, `UpdateShipmentStatus` enforces `canTransitionTo`, and `ShipmentsRelationManager` hides every action on the same check — so a fat-fingered "Entregado" on a parcel still in the post is permanent through every sanctioned surface. Manual delivery marking is the norm (nothing automates it), which makes the slip likely, and consumers are starting to hang behavior off `delivered_at` (bianka's review-invite sweep). Decision needed on the shape: reopen `Delivered → InTransit` as an allowed transition (clearing `delivered_at`, dispatching a `ShipmentDeliveryReverted` event so listeners can react), vs. a narrower "correct" action outside the transition table. Lean: the transition, since it keeps the same mechanic and lets the enum stay the single source of truth. **Not fortified against in bianka's reviews build** — the sweep re-reads state at send time, so once the undo exists it works without consumer changes. Flagged, not scheduled.
 
-## Recently shipped, awaiting release
+## Recently shipped
 
 - **Movement-history modal body — the view never existed** (2026-08-25, root cause of in-other-worlds Cowork finding F-13). `Inventory\Filament\InventorySchema::viewMovementsAction()` rendered `view('domains.inventory.stock-movements-modal', …)`, and no such view shipped anywhere: the package had **no Blade views at all** and registered **no view namespace**, so every consumer's "Movement history" button threw `View [...] not found` on click. The `inventory-stock-movements-table` Livewire component behind it was complete and correct the whole time — only its modal body was missing.
   - Fix: `src/Inventory/resources/views/stock-movements-modal.blade.php` mounts the registered Livewire component, and the action points at `shops-inventory::stock-movements-modal`.
   - **New convention, flagged:** `DomainServiceProvider` now calls `loadViewsFrom($this->domainDir().'/resources/views', $this->translationNamespace())` when that directory exists — so a domain *may* ship admin Blade views under the same `shops-{key}::` namespace its lang files already use. Guarded on existence, so the other ten domains register nothing. This is the package's first Blade view; it is an **admin** view, which is not what "no frontend assets" in CLAUDE.md rules out (that bars *storefront* components — Filament is the package's own admin surface). Say if you'd rather the namespace were views-only (`shops-{key}-views`) or the modal built its body in PHP instead.
   - Pinned by `tests/Feature/Inventory/StockMovementsModalTest.php` (view resolves; action passes the right record; the body mounts the registered component alias). Verified failing without the view.
-  - **Consumers see no change until a release + bump.**
+  - **RELEASED** in v0.63.0 (see CHANGELOG: "the stock-movement history modal now renders the body it was pointing at (`adfef28`)"). Smoke it in both consumers if it has not been clicked since.
 
-_(v0.62.0 tagged 2026-08-23; both consumers on `^0.62`.)_
+_(v0.71.1 tagged 2026-09-08; both consumers on `^0.71.1`.)_
 
 ### Shipped history
 
