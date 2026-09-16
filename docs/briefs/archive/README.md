@@ -16,4 +16,4 @@ references in `docs/periphery.md` were repointed in the same pass.
 
 ## What stayed in `docs/briefs/`
 
-- `complexity-cheap-effective-brief.md` — Release 1 shipped as v0.71.1 (PRs #24/#25/#26/#27); **Release 2 is next** (§4), with two open questions in §6.
+- `complexity-cheap-effective-brief.md` — Release 1 shipped as v0.71.1 (PRs #24/#25/#26/#27); **Release 2 is next** (§4), with **three** open questions in §6 (ready-then-dispatch deliberate?, `InventoryDriftDetected` alert now or later, PR 6 stale-reservation purge) — corrected 2026-09-16.
