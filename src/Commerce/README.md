@@ -117,11 +117,11 @@ Represents completed purchases. Orders snapshot all pricing and product data at 
 
 ### Enums
 
-- **`OrderStatus`** — pending, confirmed, processing, shipped, delivered, cancelled, refunded.
+- **`OrderStatus`** — pending, confirmed, cancelled. Fulfilment progress lives on `Shipment`, refund state is derived from `Order::refunds` — neither is an order status.
 
 ### Actions
 
-- **`UpdateOrderStatus`** — transitions an order to a new status. Locks and re-reads the row inside a transaction, then validates the transition against `OrderStatus::allowedTransitions()` (throws `InvalidOrderStatusTransitionException` if invalid). Dispatches `OrderStatusChanged` on success. The status write, the event, and its synchronous listeners commit or roll back together. Transitioning to the status the order already holds is an idempotent no-op (no event) so concurrent callers — a retried webhook, an admin double-submit — fire the cascade exactly once.
+- **`UpdateOrderStatus`** — transitions an order to a new status. Locks and re-reads the row inside a transaction, then validates the transition against `OrderStatus::allowedTransitions()` (throws `InvalidOrderStatusTransitionException` if invalid). Pending → Confirmed is also refused when `Order::hasReleasedStock()` — a reservation for the order was released, so confirming would ship against stock no longer held for it (audit F14). The payment path reaches this through `ConfirmOrder`, which checks first and returns `StockUnavailable` plus `OrderConfirmationBlocked` instead of throwing. Dispatches `OrderStatusChanged` on success. The status write, the event, and its synchronous listeners commit or roll back together. Transitioning to the status the order already holds is an idempotent no-op (no event) so concurrent callers — a retried webhook, an admin double-submit — fire the cascade exactly once.
 
 ### Status Transitions
 
@@ -129,12 +129,8 @@ Represents completed purchases. Orders snapshot all pricing and product data at 
 
 ```
 Pending    → Confirmed, Cancelled
-Confirmed  → Processing, Cancelled, Refunded
-Processing → Shipped, Cancelled, Refunded
-Shipped    → Delivered, Refunded
-Delivered  → Refunded
+Confirmed  → Cancelled
 Cancelled  → (terminal)
-Refunded   → (terminal)
 ```
 
 All status changes should go through `UpdateOrderStatus` to ensure transition validation and event dispatch.

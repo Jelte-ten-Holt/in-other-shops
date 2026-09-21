@@ -33,6 +33,12 @@ final class UpdateOrderStatus
      * double-firing side effects. See audit finding C-2. (The webhook path is
      * already idempotent at the Payment layer via the `webhook_events` ledger;
      * this guards every other caller.)
+     *
+     * Pending → Confirmed is also refused when stock held for the order has
+     * been released (audit F14): every path that confirms an order — the
+     * payment handler via {@see ConfirmOrder}, the admin status action, any
+     * future caller — passes through here, so the rule holds for all of them
+     * rather than for the one caller that remembered to check.
      */
     public function __invoke(Order $order, OrderStatus $newStatus): Order
     {
@@ -51,7 +57,7 @@ final class UpdateOrderStatus
                 return $order;
             }
 
-            $this->validateTransition($currentStatus, $newStatus);
+            $this->validateTransition($locked, $newStatus);
 
             $locked->update(['status' => $newStatus]);
             $order->setRawAttributes($locked->getAttributes(), true);
@@ -62,10 +68,14 @@ final class UpdateOrderStatus
         });
     }
 
-    private function validateTransition(OrderStatus $currentStatus, OrderStatus $newStatus): void
+    private function validateTransition(Order $order, OrderStatus $newStatus): void
     {
-        if (! $currentStatus->canTransitionTo($newStatus)) {
-            throw InvalidOrderStatusTransitionException::between($currentStatus, $newStatus);
+        if (! $order->status->canTransitionTo($newStatus)) {
+            throw InvalidOrderStatusTransitionException::between($order->status, $newStatus);
+        }
+
+        if ($newStatus === OrderStatus::Confirmed && $order->hasReleasedStock()) {
+            throw InvalidOrderStatusTransitionException::stockReleased($order);
         }
     }
 }

@@ -67,6 +67,43 @@ final class UpdateOrderStatusTest extends TestCase
     }
 
     #[Test]
+    public function it_refuses_to_confirm_an_order_whose_held_stock_was_released(): void
+    {
+        // F14 on the admin path: "Update status → Confirmed" reaches here
+        // without ConfirmOrder's check. Confirming would advance the order and
+        // confirm zero reservations, so the goods ship against stock the ledger
+        // already handed back.
+        Event::fake([OrderStatusChanged::class]);
+        $order = $this->orderWithStatus(OrderStatus::Pending);
+        $reservation = (new ReserveStock(new AdjustStock))($this->stockableWithLevel(10), quantity: 2, reference: $order);
+        $reservation->update(['status' => ReservationStatus::Released]);
+
+        try {
+            (new UpdateOrderStatus)($order, OrderStatus::Confirmed);
+            $this->fail('Expected the confirm to be refused.');
+        } catch (InvalidOrderStatusTransitionException $e) {
+            $this->assertStringContainsString($order->order_number, $e->getMessage());
+        }
+
+        $this->assertSame(OrderStatus::Pending, $order->fresh()->status);
+        Event::assertNotDispatched(OrderStatusChanged::class);
+    }
+
+    #[Test]
+    public function the_released_stock_guard_does_not_stand_in_the_way_of_cancelling(): void
+    {
+        // Refund-or-cancel is the way out for such an order, so the guard is
+        // on Confirmed only.
+        $order = $this->orderWithStatus(OrderStatus::Pending);
+        $reservation = (new ReserveStock(new AdjustStock))($this->stockableWithLevel(10), quantity: 2, reference: $order);
+        $reservation->update(['status' => ReservationStatus::Released]);
+
+        (new UpdateOrderStatus)($order, OrderStatus::Cancelled);
+
+        $this->assertSame(OrderStatus::Cancelled, $order->fresh()->status);
+    }
+
+    #[Test]
     public function transitioning_to_the_current_status_is_an_idempotent_no_op(): void
     {
         // C-2: re-confirming an already-Confirmed order is a quiet no-op, not a

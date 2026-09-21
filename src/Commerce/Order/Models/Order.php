@@ -13,6 +13,8 @@ use InOtherShops\Commerce\Commerce;
 use InOtherShops\Commerce\Database\Factories\OrderFactory;
 use InOtherShops\Commerce\Order\Enums\OrderStatus;
 use InOtherShops\Currency\Enums\Currency;
+use InOtherShops\Inventory\Enums\ReservationStatus;
+use InOtherShops\Inventory\Inventory;
 use InOtherShops\Location\Concerns\InteractsWithAddresses;
 use InOtherShops\Location\Contracts\HasAddresses;
 use InOtherShops\Location\Enums\AddressType;
@@ -98,6 +100,24 @@ class Order extends Model implements HasAddresses, HasPayments, HasShipment
     {
         return $this->status === OrderStatus::Pending
             && $this->payments()->doesntExist();
+    }
+
+    /**
+     * Whether stock held for this order has been handed back — any of its
+     * reservations is Released. On a Pending order that means the expiry cron
+     * beat the payment (audit F14), wholly or for some lines: confirming it
+     * would ship goods the ledger no longer holds for it. `UpdateOrderStatus`
+     * refuses Pending → Confirmed on it and `ConfirmOrder` flags it instead.
+     * (A Released reservation on a Confirmed order is ordinary — a partial
+     * refund's restock — so this answers a question only the confirm asks.)
+     */
+    public function hasReleasedStock(): bool
+    {
+        return Inventory::stockReservation()::query()
+            ->where('reference_type', $this->getMorphClass())
+            ->where('reference_id', $this->getKey())
+            ->where('status', ReservationStatus::Released)
+            ->exists();
     }
 
     /**

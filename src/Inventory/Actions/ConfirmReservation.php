@@ -19,6 +19,13 @@ use Illuminate\Support\Facades\DB;
  * reserve time. This is a lifecycle transition on the reservation entity,
  * not a new ledger entry. The `-X Reserved` movement on the ledger stays
  * untouched: it remains the honest historical record of the decrement.
+ *
+ * It confirms whatever is still Pending, which may be nothing: a reference
+ * whose reservations were Released gets an empty collection, the same as one
+ * already confirmed. This action can't tell how many reservations its caller
+ * expected, so the guard against confirming released stock (audit F14) sits
+ * with the caller. For orders that is the order transition
+ * (`UpdateOrderStatus`, via `Order::hasReleasedStock()`).
  */
 final class ConfirmReservation
 {

@@ -62,5 +62,7 @@ return [
         'refund_refused' => 'Refund refused',
         'refund_failed' => 'Refund failed',
         'refund_issued' => 'Refund issued',
+        'status_updated' => 'Order status updated to :status',
+        'status_refused' => 'Status not changed',
     ],
 ];

@@ -84,6 +84,29 @@ final class ConfirmOrderTest extends TestCase
     }
 
     #[Test]
+    public function it_refuses_to_confirm_the_rest_when_only_some_reservations_were_released(): void
+    {
+        // The expiry cron released one line and not the other (reservations
+        // straddling a second, or a sweep that died mid-order). Confirming the
+        // held line would ship the released one against no stock: flag the
+        // whole order, as when every line was released.
+        Event::fake([OrderConfirmationBlocked::class]);
+        $order = Order::factory()->create(['status' => OrderStatus::Pending]);
+        $released = $this->reservationFor($order, 2);
+        $held = $this->reservationFor($order, 1);
+        $released->update(['status' => ReservationStatus::Released]);
+
+        $outcome = ($this->confirm)($order);
+
+        $this->assertSame(ConfirmOrderOutcome::StockUnavailable, $outcome);
+        $this->assertSame(OrderStatus::Pending, $order->fresh()->status);
+        $this->assertSame(ReservationStatus::Pending, $held->fresh()->status,
+            'The still-held line must not be confirmed on its own.');
+        Event::assertDispatched(OrderConfirmationBlocked::class,
+            fn (OrderConfirmationBlocked $e): bool => $e->order->is($order));
+    }
+
+    #[Test]
     public function it_flags_a_paid_order_that_is_no_longer_confirmable(): void
     {
         Event::fake([OrderConfirmationBlocked::class]);

@@ -61,5 +61,7 @@ return [
         'refund_refused' => 'Reembolso rechazado',
         'refund_failed' => 'Error en el reembolso',
         'refund_issued' => 'Reembolso emitido',
+        'status_updated' => 'Estado del pedido actualizado a :status',
+        'status_refused' => 'No se ha cambiado el estado',
     ],
 ];

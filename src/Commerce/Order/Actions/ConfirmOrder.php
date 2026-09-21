@@ -9,8 +9,6 @@ use InOtherShops\Commerce\Order\Events\OrderConfirmationBlocked;
 use InOtherShops\Commerce\Order\Enums\OrderStatus;
 use InOtherShops\Commerce\Order\Models\Order;
 use InOtherShops\Inventory\Actions\ConfirmReservation;
-use InOtherShops\Inventory\Enums\ReservationStatus;
-use InOtherShops\Inventory\Inventory;
 use InOtherShops\Support\Concerns\RunsLockedTransactions;
 
 /**
@@ -22,9 +20,12 @@ use InOtherShops\Support\Concerns\RunsLockedTransactions;
  *    redelivery / double-event case — the caller must NOT re-send the buyer's
  *    confirmation email or re-clear the cart; that was the real F2/F3 bug);
  *  - not Pending (e.g. Cancelled by order-expiry) → flagged + `NotConfirmable`;
- *  - Pending but its reservations were already released (F14 — the cron pulled
- *    the stock back while payment was in flight) → flagged + `StockUnavailable`,
- *    NOT silently confirmed against no held stock;
+ *  - Pending but any of its reservations was already released (F14 — the cron
+ *    pulled the stock back while payment was in flight, for every line or only
+ *    some) → flagged + `StockUnavailable`, NOT silently confirmed against stock
+ *    that is no longer held. The rule is {@see Order::hasReleasedStock()};
+ *    {@see UpdateOrderStatus} enforces it on every confirm, this checks first so
+ *    the payment path gets an outcome and an event instead of an exception;
  *  - Pending with stock still held → confirm reservations, transition to
  *    Confirmed, `Confirmed`.
  *
@@ -59,7 +60,7 @@ final class ConfirmOrder
                 return ConfirmOrderOutcome::NotConfirmable;
             }
 
-            if ($this->stockWasReleased($locked)) {
+            if ($locked->hasReleasedStock()) {
                 OrderConfirmationBlocked::dispatch($locked, 'stock reservations were released before payment confirmed');
 
                 return ConfirmOrderOutcome::StockUnavailable;
@@ -71,30 +72,5 @@ final class ConfirmOrder
 
             return ConfirmOrderOutcome::Confirmed;
         });
-    }
-
-    /**
-     * True when the order held stock that is no longer held — it has reservation
-     * rows but none are active (Pending/Confirmed), i.e. they were all Released.
-     * An order with NO reservations at all never held stock (e.g. digital goods)
-     * and is fine to confirm.
-     */
-    private function stockWasReleased(Order $order): bool
-    {
-        $model = Inventory::stockReservation();
-
-        $base = fn () => $model::query()
-            ->where('reference_type', $order->getMorphClass())
-            ->where('reference_id', $order->getKey());
-
-        if (! $base()->exists()) {
-            return false;
-        }
-
-        $hasActive = $base()
-            ->whereIn('status', [ReservationStatus::Pending->value, ReservationStatus::Confirmed->value])
-            ->exists();
-
-        return ! $hasActive;
     }
 }

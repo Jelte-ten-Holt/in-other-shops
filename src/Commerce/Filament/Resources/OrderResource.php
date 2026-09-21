@@ -20,6 +20,7 @@ use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
+use InOtherShops\Commerce\Exceptions\InvalidOrderStatusTransitionException;
 use InOtherShops\Commerce\Filament\CommerceSchema;
 use InOtherShops\Commerce\Filament\Resources\OrderResource\Pages;
 use InOtherShops\Commerce\Order\Actions\UpdateOrderStatus;
@@ -346,10 +347,23 @@ class OrderResource extends PackageResource
             ->action(function (Order $record, array $data): void {
                 $newStatus = OrderStatus::from($data['status']);
 
-                app(UpdateOrderStatus::class)($record, $newStatus);
+                // Refusals are expected here, not faults: confirming an order
+                // whose stock was released (F14), or a page left open while
+                // the order moved on. Say why instead of a 500.
+                try {
+                    app(UpdateOrderStatus::class)($record, $newStatus);
+                } catch (InvalidOrderStatusTransitionException $e) {
+                    Notification::make()
+                        ->title(__('shops-commerce::orders.notifications.status_refused'))
+                        ->body($e->getMessage())
+                        ->danger()
+                        ->send();
+
+                    return;
+                }
 
                 Notification::make()
-                    ->title("Order status updated to {$newStatus->label()}")
+                    ->title(__('shops-commerce::orders.notifications.status_updated', ['status' => $newStatus->label()]))
                     ->success()
                     ->send();
             });
