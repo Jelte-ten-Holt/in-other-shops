@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace InOtherShops\Tests\Feature\Payment;
 
+use InOtherShops\Payment\DTOs\GatewayRefund;
 use InOtherShops\Payment\DTOs\PaymentCustomerData;
 use InOtherShops\Payment\Enums\PaymentStatus;
 use InOtherShops\Payment\Exceptions\RefundAmountExceededException;
@@ -127,6 +128,80 @@ final class FakePaymentGatewayTest extends TestCase
         $this->assertCount(1, $gateway->recordedRefunds(),
             'A rejected over-refund must not append a recorded-refund entry.');
         $this->assertSame(1000, $gateway->recordedRefunds()[0]['amount']);
+    }
+
+    #[Test]
+    public function a_full_refund_is_recorded_with_the_amount_it_resolved_to(): void
+    {
+        $gateway = new FakePaymentGateway;
+        $payment = $this->paymentFor(2500);
+        $payment->update(['gateway_reference' => 'fake_pi_xyz']);
+
+        $gateway->refund($payment, 1000);
+        $gateway->refund($payment);
+
+        $this->assertSame(1500, $gateway->recordedRefunds()[1]['amount']);
+    }
+
+    #[Test]
+    public function list_refunds_returns_every_refund_on_the_payment_oldest_first_whoever_made_it(): void
+    {
+        $gateway = new FakePaymentGateway;
+        $payment = $this->paymentFor(2500);
+        $payment->update(['gateway_reference' => 'fake_pi_xyz']);
+        $other = $this->paymentFor(900);
+        $other->update(['gateway_reference' => 'fake_pi_other']);
+
+        $outside = $gateway->recordOutsideRefund($payment, 400);
+        $own = $gateway->refund($payment, 1000);
+        $gateway->recordOutsideRefund($other, 900);
+
+        $this->assertEquals(
+            [new GatewayRefund($outside, 400), new GatewayRefund($own, 1000)],
+            $gateway->listRefunds($payment),
+        );
+        $this->assertCount(1, $gateway->recordedRefunds(), 'an outside refund is not one of the app\'s own calls');
+    }
+
+    #[Test]
+    public function an_outside_refund_counts_against_the_same_cap_as_the_apps_own(): void
+    {
+        $gateway = new FakePaymentGateway;
+        $payment = $this->paymentFor(2500);
+        $payment->update(['gateway_reference' => 'fake_pi_xyz']);
+
+        $gateway->recordOutsideRefund($payment, 2000);
+
+        try {
+            $gateway->refund($payment, 501);
+            $this->fail('Expected RefundAmountExceededException.');
+        } catch (RefundAmountExceededException) {
+            // expected
+        }
+
+        $this->assertSame([], $gateway->recordedRefunds());
+        $this->assertCount(1, $gateway->listRefunds($payment));
+    }
+
+    #[Test]
+    public function a_refund_webhook_carries_the_cumulative_the_ledger_held_when_it_was_built(): void
+    {
+        $gateway = new FakePaymentGateway;
+        $payment = $this->paymentFor(2500);
+        $payment->update(['gateway_reference' => 'fake_pi_xyz']);
+
+        $gateway->recordOutsideRefund($payment, 400);
+        $first = $gateway->simulateWebhook($payment, PaymentStatus::Refunded);
+        $gateway->refund($payment, 1000);
+        $second = $gateway->simulateWebhook($payment, PaymentStatus::Refunded);
+
+        $this->assertSame(400, $gateway->parseWebhook($first)->amountRefunded,
+            'an event built before a later refund keeps its own snapshot');
+        $this->assertSame(1400, $gateway->parseWebhook($second)->amountRefunded);
+        $this->assertNull(
+            $gateway->parseWebhook($gateway->simulateWebhook($payment, PaymentStatus::Succeeded))->amountRefunded,
+            'only a refund event carries a cumulative',
+        );
     }
 
     #[Test]

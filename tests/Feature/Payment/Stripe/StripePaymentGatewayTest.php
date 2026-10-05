@@ -6,18 +6,23 @@ namespace InOtherShops\Tests\Feature\Payment\Stripe;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use InOtherShops\Currency\Enums\Currency;
+use InOtherShops\Payment\DTOs\GatewayRefund;
 use InOtherShops\Payment\DTOs\PaymentCustomerData;
 use InOtherShops\Payment\Drivers\Stripe\StripePaymentGateway;
 use InOtherShops\Payment\Enums\PaymentStatus;
 use InOtherShops\Payment\Exceptions\PaymentNotCancelableException;
 use InOtherShops\Payment\Models\Payment;
 use InOtherShops\Tests\Stubs\TestPayable;
+use InOtherShops\Tests\Support\SignsStripeWebhooks;
 use InOtherShops\Tests\TestCase;
 use Mockery;
 use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use RuntimeException;
+use Stripe\Collection;
 use Stripe\Customer;
 use Stripe\Exception\InvalidRequestException;
 use Stripe\PaymentIntent;
@@ -41,8 +46,7 @@ final class StripePaymentGatewayTest extends TestCase
 {
     use MockeryPHPUnitIntegration;
     use RefreshDatabase;
-
-    private const string WEBHOOK_SECRET = 'whsec_test_secret_for_signature_computation';
+    use SignsStripeWebhooks;
 
     private StripeClient $client;
 
@@ -368,6 +372,77 @@ final class StripePaymentGatewayTest extends TestCase
     }
 
     // ─────────────────────────────────────────────────────────────────
+    // listRefunds
+    // ─────────────────────────────────────────────────────────────────
+
+    #[Test]
+    public function list_refunds_returns_the_refunds_that_returned_money_in_reverse_of_the_api_order(): void
+    {
+        Log::spy();
+
+        $payment = $this->paymentFor(2500, Currency::EUR);
+        $payment->gateway_reference = 'pi_listed';
+
+        // Newest first, as the API returns them. re_6 and re_5 were created in
+        // the same second: only the API's own order says which came first.
+        $this->refunds
+            ->shouldReceive('all')
+            ->once()
+            ->with(['payment_intent' => 'pi_listed', 'limit' => 100])
+            ->andReturn($this->refundList([
+                ['id' => 're_6', 'amount' => 100, 'status' => 'succeeded', 'created' => 300],
+                ['id' => 're_5', 'amount' => 200, 'status' => 'pending', 'created' => 300],
+                ['id' => 're_4', 'amount' => 300, 'status' => 'failed', 'created' => 250],
+                ['id' => 're_3', 'amount' => 400, 'status' => 'canceled', 'created' => 200],
+                ['id' => 're_2', 'amount' => 500, 'status' => 'requires_action', 'created' => 150],
+                ['id' => 're_1', 'amount' => 600, 'status' => null, 'created' => 120],
+                ['id' => 're_0', 'amount' => 700, 'status' => 'succeeded', 'created' => 100],
+            ]));
+
+        $this->assertEquals(
+            [new GatewayRefund('re_0', 700), new GatewayRefund('re_5', 200), new GatewayRefund('re_6', 100)],
+            $this->gateway->listRefunds($payment),
+        );
+
+        Log::shouldNotHaveReceived('warning');
+    }
+
+    #[Test]
+    public function list_refunds_warns_when_stripe_holds_more_than_the_one_page_it_read(): void
+    {
+        Log::spy();
+
+        $payment = $this->paymentFor(2500, Currency::EUR);
+        $payment->gateway_reference = 'pi_many';
+
+        $this->refunds
+            ->shouldReceive('all')
+            ->once()
+            ->andReturn($this->refundList(
+                [['id' => 're_newest', 'amount' => 1, 'status' => 'succeeded', 'created' => 100]],
+                hasMore: true,
+            ));
+
+        $this->assertEquals([new GatewayRefund('re_newest', 1)], $this->gateway->listRefunds($payment));
+
+        Log::shouldHaveReceived('warning')->once()->with(
+            'Stripe lists more than 100 refunds for one payment; only the newest 100 were read',
+            ['payment_id' => $payment->id, 'gateway_reference' => 'pi_many'],
+        );
+    }
+
+    #[Test]
+    public function list_refunds_asks_stripe_nothing_for_a_payment_with_no_gateway_reference(): void
+    {
+        // Without a payment_intent filter Stripe would list the account's most
+        // recent refunds, whichever payments they belong to.
+        $payment = $this->paymentFor(2500, Currency::EUR);
+        $this->refunds->shouldNotReceive('all');
+
+        $this->assertSame([], $this->gateway->listRefunds($payment));
+    }
+
+    // ─────────────────────────────────────────────────────────────────
     // createCustomer
     // ─────────────────────────────────────────────────────────────────
 
@@ -555,7 +630,7 @@ final class StripePaymentGatewayTest extends TestCase
         // the intent is in payment_intent, and amount_refunded is the cumulative.
         // Reading `id` blindly (the old bug) produced a ch_… reference that never
         // matched the stored pi_…, so the refund webhook silently no-op'd.
-        $payload = $this->chargeRefundedEventJson('evt_refund', 'pi_refunded', 2000, 800, 're_abc');
+        $payload = $this->chargeRefundedEventJson('evt_refund', 'pi_refunded', 2000, 800);
         $request = $this->signedRequest($payload, time());
 
         $parsed = $this->gateway->parseWebhook($request);
@@ -564,25 +639,28 @@ final class StripePaymentGatewayTest extends TestCase
         $this->assertSame(PaymentStatus::Refunded, $parsed->status);
         $this->assertSame(2000, $parsed->amount, 'amount carries the original charge so the amount guard still validates');
         $this->assertSame(800, $parsed->amountRefunded, 'amountRefunded is the cumulative refund total');
-        $this->assertSame('re_abc', $parsed->gatewayRefundId);
     }
 
     #[Test]
-    public function parse_webhook_reads_a_charge_refund_updated_event_as_a_refund(): void
+    public function parse_webhook_reads_the_live_charge_refunded_body_without_calling_stripe(): void
     {
-        // charge.refund.updated carries a REFUND object: id is re_…, the intent
-        // is in payment_intent. We resolve the reference + refund id (so it's not
-        // a silent mismatch) but leave amountRefunded null — the cumulative isn't
-        // on the Refund object; charge.refunded carries the authoritative total.
-        $payload = $this->refundUpdatedEventJson('evt_partial', 'pi_partial_refund', 're_def');
-        $request = $this->signedRequest($payload, time());
+        // The body Stripe really sends (API 2026-03-25.dahlia): the charge has
+        // no `refunds` key. Parsing takes the cumulative and the intent from it
+        // and asks Stripe nothing; the refund list is the action's to fetch,
+        // once it knows the payment is ours.
+        $this->refunds->shouldNotReceive('all');
 
-        $parsed = $this->gateway->parseWebhook($request);
+        $parsed = $this->gateway->parseWebhook($this->signedRequest(
+            $this->stripeFixture('charge.refunded.2026-03-25.dahlia.json'),
+            time(),
+        ));
 
-        $this->assertSame('pi_partial_refund', $parsed->gatewayReference);
-        $this->assertSame(PaymentStatus::PartiallyRefunded, $parsed->status);
-        $this->assertNull($parsed->amountRefunded);
-        $this->assertSame('re_def', $parsed->gatewayRefundId);
+        $this->assertSame('pi_3UNEh8Qibh0bqUCQ0EvZ5Diw', $parsed->gatewayReference);
+        $this->assertSame('evt_3UNEh8Qibh0bqUCQ0Uc6lLpl', $parsed->eventId);
+        $this->assertSame(PaymentStatus::Refunded, $parsed->status);
+        $this->assertSame(6350, $parsed->amount);
+        $this->assertSame('eur', $parsed->currency);
+        $this->assertSame(2200, $parsed->amountRefunded);
     }
 
     #[Test]
@@ -612,6 +690,55 @@ final class StripePaymentGatewayTest extends TestCase
             PaymentStatus::Pending,
             $this->gateway->parseWebhook($request)->status,
         );
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // parseWebhook — events the driver does not handle
+    // ─────────────────────────────────────────────────────────────────
+
+    /**
+     * Authentic events about something other than a payment intent used to be
+     * cast to one: a dispute was dropped without a trace, and a charge or refund
+     * object with a `succeeded` status read as a settled payment under an id no
+     * payment row carries, which the action answers with a 500 on every delivery.
+     */
+    #[Test]
+    #[DataProvider('unhandledEvents')]
+    public function parse_webhook_ignores_and_logs_an_event_that_is_not_about_a_payment_intent(string $type, array $object): void
+    {
+        Log::spy();
+
+        $payload = json_encode([
+            'id' => 'evt_unhandled',
+            'object' => 'event',
+            'type' => $type,
+            'data' => ['object' => $object],
+        ], JSON_THROW_ON_ERROR);
+
+        $this->assertNull($this->gateway->parseWebhook($this->signedRequest($payload, time())));
+
+        Log::shouldHaveReceived('info')->once()->with(
+            'Stripe webhook ignored: not an event this driver handles',
+            ['event_type' => $type, 'event_id' => 'evt_unhandled'],
+        );
+    }
+
+    /** @return array<string, array{string, array<string, mixed>}> */
+    public static function unhandledEvents(): array
+    {
+        $dispute = ['id' => 'du_1', 'object' => 'dispute', 'charge' => 'ch_1', 'payment_intent' => 'pi_1', 'status' => 'needs_response', 'amount' => 2500];
+        $refund = ['id' => 're_1', 'object' => 'refund', 'charge' => 'ch_1', 'payment_intent' => 'pi_1', 'status' => 'succeeded', 'amount' => 2500];
+        $charge = ['id' => 'ch_1', 'object' => 'charge', 'payment_intent' => 'pi_1', 'status' => 'succeeded', 'amount' => 2500];
+
+        return [
+            'a dispute' => ['charge.dispute.created', $dispute],
+            'a closed dispute' => ['charge.dispute.closed', ['status' => 'lost'] + $dispute],
+            'charge.refund.updated' => ['charge.refund.updated', $refund],
+            'refund.created' => ['refund.created', $refund],
+            'refund.updated' => ['refund.updated', $refund],
+            'charge.succeeded' => ['charge.succeeded', $charge],
+            'charge.updated' => ['charge.updated', $charge],
+        ];
     }
 
     // ─────────────────────────────────────────────────────────────────
@@ -686,6 +813,20 @@ final class StripePaymentGatewayTest extends TestCase
     }
 
     /**
+     * One page of Stripe's refund list, in the order given.
+     *
+     * @param  list<array<string, mixed>>  $refunds
+     */
+    private function refundList(array $refunds, bool $hasMore = false): Collection
+    {
+        return Collection::constructFrom([
+            'object' => 'list',
+            'has_more' => $hasMore,
+            'data' => array_map(fn (array $refund): array => ['object' => 'refund'] + $refund, $refunds),
+        ]);
+    }
+
+    /**
      * Build a Stripe-shaped event JSON payload around a payment_intent object.
      */
     private function validIntentEventJson(string $eventId, string $eventType, string $intentId, string $intentStatus): string
@@ -704,7 +845,7 @@ final class StripePaymentGatewayTest extends TestCase
         ], JSON_THROW_ON_ERROR);
     }
 
-    private function chargeRefundedEventJson(string $eventId, string $intentId, int $amount, int $amountRefunded, string $refundId): string
+    private function chargeRefundedEventJson(string $eventId, string $intentId, int $amount, int $amountRefunded): string
     {
         return json_encode([
             'id' => $eventId,
@@ -718,50 +859,8 @@ final class StripePaymentGatewayTest extends TestCase
                     'amount' => $amount,
                     'amount_refunded' => $amountRefunded,
                     'currency' => 'eur',
-                    'refunds' => [
-                        'object' => 'list',
-                        'data' => [
-                            ['id' => $refundId, 'object' => 'refund'],
-                        ],
-                    ],
                 ],
             ],
         ], JSON_THROW_ON_ERROR);
-    }
-
-    private function refundUpdatedEventJson(string $eventId, string $intentId, string $refundId): string
-    {
-        return json_encode([
-            'id' => $eventId,
-            'object' => 'event',
-            'type' => 'charge.refund.updated',
-            'data' => [
-                'object' => [
-                    'id' => $refundId,
-                    'object' => 'refund',
-                    'payment_intent' => $intentId,
-                    'charge' => 'ch_'.$eventId,
-                ],
-            ],
-        ], JSON_THROW_ON_ERROR);
-    }
-
-    private function signedRequest(string $payload, int $timestamp, ?string $secret = null): Request
-    {
-        $secret = $secret ?? self::WEBHOOK_SECRET;
-
-        $signedPayload = "{$timestamp}.{$payload}";
-        $signature = hash_hmac('sha256', $signedPayload, $secret);
-        $header = "t={$timestamp},v1={$signature}";
-
-        return Request::create(
-            uri: '/webhooks/stripe',
-            method: 'POST',
-            content: $payload,
-            server: [
-                'CONTENT_TYPE' => 'application/json',
-                'HTTP_STRIPE_SIGNATURE' => $header,
-            ],
-        );
     }
 }

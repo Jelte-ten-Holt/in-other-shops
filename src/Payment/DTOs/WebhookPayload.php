@@ -19,11 +19,11 @@ final readonly class WebhookPayload
         public ?int $amount = null,
         public ?string $currency = null,
         // Refund events only: the gateway's CUMULATIVE refunded amount on the
-        // payment (absolute, not this event's delta) and the gateway refund id.
-        // `amount` still carries the original charge amount so the amount guard
-        // validates against the payment; `amountRefunded` is the separate refund
-        // total. Both null on non-refund events.
+        // payment (absolute, not this event's delta). `amount` still carries the
+        // original charge amount so the amount guard validates against the
+        // payment; `amountRefunded` is the separate refund total. Null on
+        // non-refund events. A refund event names no single refund — the
+        // gateway's own list does (Contracts\ListsRefunds).
         public ?int $amountRefunded = null,
-        public ?string $gatewayRefundId = null,
     ) {}
 }

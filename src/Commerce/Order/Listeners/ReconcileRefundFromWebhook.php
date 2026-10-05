@@ -10,14 +10,15 @@ use InOtherShops\Commerce\Order\Models\Order;
 use InOtherShops\Payment\Events\PaymentRefunded;
 
 /**
- * Records the Refund row for a gateway-initiated refund (Stripe dashboard /
- * dispute / API), driven off the payment webhook. The admin path records its
- * own row directly through RefundOrder; this listener covers refunds that
- * originate outside the app.
+ * Brings an order's Refund rows in line with the gateway's own list of refunds
+ * for the payment, whenever a refund event moves the payment's refunded total:
+ * a refund made in the Stripe dashboard, or through the API by anyone but this
+ * app. The admin path records its own row directly through RefundOrder.
  *
- * RecordRefund is idempotent on (gateway, gateway_refund_id), so a webhook
- * echoing an admin refund finds the existing row and no-ops — the actor stays
- * the admin who issued it, and RefundRecorded doesn't double-fire.
+ * Every listed refund is offered to RecordRefund, oldest first. It is
+ * idempotent on (gateway, gateway_refund_id), so a refund already recorded —
+ * an admin's, or one a previous event brought in — is found and left alone:
+ * its actor stays who issued it, and RefundRecorded doesn't double-fire.
  */
 final class ReconcileRefundFromWebhook
 {
@@ -27,20 +28,20 @@ final class ReconcileRefundFromWebhook
 
     public function handle(PaymentRefunded $event): void
     {
-        $payment = $event->payment;
-        $order = $payment->payable;
+        $order = $event->payment->payable;
 
-        if (! $order instanceof Order || $event->gatewayRefundId === null || $event->refundAmount === null) {
+        if (! $order instanceof Order) {
             return;
         }
 
-        ($this->recordRefund)(
-            order: $order,
-            payment: $payment,
-            gatewayRefundId: $event->gatewayRefundId,
-            amount: $event->refundAmount,
-            cumulativeRefunded: $payment->amount_refunded,
-            actor: RefundActor::gateway(),
-        );
+        foreach ($event->gatewayRefunds as $refund) {
+            ($this->recordRefund)(
+                order: $order,
+                payment: $event->payment,
+                gatewayRefundId: $refund->id,
+                amount: $refund->amount,
+                actor: RefundActor::gateway(),
+            );
+        }
     }
 }

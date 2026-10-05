@@ -43,7 +43,12 @@ interface PaymentGateway
      */
     public function verifyWebhookSignature(Request $request): void;
 
-    public function parseWebhook(Request $request): WebhookPayload;
+    /**
+     * Null means the request is authentic and carries nothing this gateway
+     * acts on (an event type the driver does not handle). The caller answers
+     * it as received and records nothing.
+     */
+    public function parseWebhook(Request $request): ?WebhookPayload;
 
     /**
      * Issue a refund and return the gateway's refund id (e.g. Stripe `re_…`).

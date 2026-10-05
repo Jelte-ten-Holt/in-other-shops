@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace InOtherShops\Payment\Drivers\Stripe;
 
+use InOtherShops\Payment\Contracts\ListsRefunds;
 use InOtherShops\Payment\Contracts\ManagesCustomers;
 use InOtherShops\Payment\Contracts\PaymentGateway;
+use InOtherShops\Payment\DTOs\GatewayRefund;
 use InOtherShops\Payment\DTOs\PaymentCustomerData;
 use InOtherShops\Payment\DTOs\PaymentSession;
 use InOtherShops\Payment\DTOs\WebhookPayload;
@@ -13,6 +15,7 @@ use InOtherShops\Payment\Enums\PaymentStatus;
 use InOtherShops\Payment\Exceptions\PaymentNotCancelableException;
 use InOtherShops\Payment\Models\Payment;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use RuntimeException;
 use Stripe\Event;
 use Stripe\Exception\InvalidRequestException;
@@ -30,7 +33,7 @@ use Stripe\Webhook;
  * Shipped only when `stripe/stripe-php` is installed — see
  * {@see StripeGatewayServiceProvider} for the gated registration.
  */
-final class StripePaymentGateway implements ManagesCustomers, PaymentGateway
+final class StripePaymentGateway implements ListsRefunds, ManagesCustomers, PaymentGateway
 {
     private ?Event $verifiedEvent = null;
 
@@ -145,7 +148,7 @@ final class StripePaymentGateway implements ManagesCustomers, PaymentGateway
         }
     }
 
-    public function parseWebhook(Request $request): WebhookPayload
+    public function parseWebhook(Request $request): ?WebhookPayload
     {
         $event = $this->verifiedEvent ?? Webhook::constructEvent(
             $request->getContent(),
@@ -156,16 +159,26 @@ final class StripePaymentGateway implements ManagesCustomers, PaymentGateway
 
         $this->verifiedEvent = null;
 
-        // Branch on the event type BEFORE reading variant fields. charge.* events
-        // carry a Charge (charge.refunded) or a Refund (charge.refund.updated) —
-        // NOT a PaymentIntent. Reading `id` off them as if it were an intent is
-        // the F27 bug (a ch_…/re_… id that never matches the stored pi_…).
+        // Branch on the event type BEFORE reading variant fields. charge.refunded
+        // carries a Charge, NOT a PaymentIntent. Reading `id` off it as if it
+        // were an intent is the F27 bug (a ch_… id that never matches the stored
+        // pi_…).
         if ($event->type === 'charge.refunded') {
             return $this->parseChargeRefunded($event);
         }
 
-        if ($event->type === 'charge.refund.updated') {
-            return $this->parseRefundUpdated($event);
+        // Everything below reads a PaymentIntent. An authentic event about
+        // anything else (a dispute, a refund, a charge) is not one this driver
+        // handles: casting it would read a du_…/re_…/ch_… id as an intent id.
+        // That includes charge.refund.updated, which says nothing the payment
+        // or its refund rows follow.
+        if (($event->data->object->object ?? null) !== PaymentIntent::OBJECT_NAME) {
+            Log::info('Stripe webhook ignored: not an event this driver handles', [
+                'event_type' => $event->type,
+                'event_id' => $event->id,
+            ]);
+
+            return null;
         }
 
         /** @var PaymentIntent $intent */
@@ -192,8 +205,10 @@ final class StripePaymentGateway implements ManagesCustomers, PaymentGateway
     /**
      * charge.refunded — data.object is a Charge. The intent id is in
      * `payment_intent`; `amount` is the original charge (so the amount guard
-     * still validates against the payment), `amount_refunded` is the CUMULATIVE
-     * refund on the charge, and the latest refund id anchors the Refund record.
+     * still validates against the payment) and `amount_refunded` is the
+     * CUMULATIVE refund on the charge. The event names no refund: since API
+     * version 2022-11-15 a Charge no longer carries its `refunds` list. The
+     * refunds themselves come from {@see self::listRefunds()}.
      */
     private function parseChargeRefunded(\Stripe\Event $event): WebhookPayload
     {
@@ -208,35 +223,7 @@ final class StripePaymentGateway implements ManagesCustomers, PaymentGateway
             amount: isset($charge->amount) && is_int($charge->amount) ? $charge->amount : null,
             currency: isset($charge->currency) && is_string($charge->currency) ? strtolower($charge->currency) : null,
             amountRefunded: isset($charge->amount_refunded) && is_int($charge->amount_refunded) ? $charge->amount_refunded : null,
-            gatewayRefundId: $this->latestRefundId($charge),
         );
-    }
-
-    /**
-     * charge.refund.updated — data.object is a Refund (async refund status
-     * transitions). We resolve the intent reference + refund id so it's not a
-     * silent no-op, but leave `amountRefunded` null: the cumulative isn't on the
-     * Refund object, and charge.refunded already carries the authoritative total.
-     */
-    private function parseRefundUpdated(\Stripe\Event $event): WebhookPayload
-    {
-        /** @var \Stripe\Refund $refund */
-        $refund = $event->data->object;
-
-        return new WebhookPayload(
-            gatewayReference: (string) $refund->payment_intent,
-            status: $this->mapStatus('', $event->type),
-            eventId: $event->id,
-            gatewayData: ['event_type' => $event->type],
-            gatewayRefundId: (string) $refund->id,
-        );
-    }
-
-    private function latestRefundId(\Stripe\Charge $charge): ?string
-    {
-        $data = $charge->refunds->data ?? [];
-
-        return isset($data[0]->id) ? (string) $data[0]->id : null;
     }
 
     public function refund(Payment $payment, ?int $amount = null): string
@@ -250,6 +237,42 @@ final class StripePaymentGateway implements ManagesCustomers, PaymentGateway
         // admin-initiated Refund row and the echoing charge.refunded webhook
         // converge on one record instead of double-counting.
         return $refund->id;
+    }
+
+    public function listRefunds(Payment $payment): array
+    {
+        if ($payment->gateway_reference === null) {
+            return []; // no intent was ever opened — nothing can have been refunded
+        }
+
+        // One page: reading `data` does not fetch a further one. A payment with
+        // more than a hundred refunds is not paginated for, only made visible.
+        $page = $this->client->refunds->all([
+            'payment_intent' => $payment->gateway_reference,
+            'limit' => 100,
+        ]);
+
+        if ($page->has_more) {
+            Log::warning('Stripe lists more than 100 refunds for one payment; only the newest 100 were read', [
+                'payment_id' => $payment->getKey(),
+                'gateway_reference' => $payment->gateway_reference,
+            ]);
+        }
+
+        $refunds = [];
+
+        // Stripe returns newest first, so the reverse is oldest first. Sorting on
+        // `created` instead would leave two refunds from the same second in
+        // arbitrary order.
+        foreach (array_reverse($page->data) as $refund) {
+            // Only these two have returned money or are returning it. failed,
+            // canceled, requires_action and a missing status have not.
+            if (in_array($refund->status, [Refund::STATUS_SUCCEEDED, Refund::STATUS_PENDING], true)) {
+                $refunds[] = new GatewayRefund(id: $refund->id, amount: $refund->amount);
+            }
+        }
+
+        return $refunds;
     }
 
     public function createCustomer(PaymentCustomerData $data): string
@@ -284,7 +307,6 @@ final class StripePaymentGateway implements ManagesCustomers, PaymentGateway
             'payment_intent.payment_failed' => PaymentStatus::Failed,
             'payment_intent.canceled' => PaymentStatus::Cancelled,
             'charge.refunded' => PaymentStatus::Refunded,
-            'charge.refund.updated' => PaymentStatus::PartiallyRefunded,
             default => match ($intentStatus) {
                 'succeeded' => PaymentStatus::Succeeded,
                 'canceled' => PaymentStatus::Cancelled,

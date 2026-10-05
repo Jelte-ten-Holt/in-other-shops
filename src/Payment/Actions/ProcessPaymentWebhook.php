@@ -4,10 +4,14 @@ declare(strict_types=1);
 
 namespace InOtherShops\Payment\Actions;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use InOtherShops\Payment\Contracts\ListsRefunds;
+use InOtherShops\Payment\Contracts\PaymentGateway;
+use InOtherShops\Payment\DTOs\GatewayRefund;
 use InOtherShops\Payment\DTOs\WebhookPayload;
 use InOtherShops\Payment\Enums\PaymentStatus;
 use InOtherShops\Payment\Events\PaymentFailed;
@@ -42,7 +46,17 @@ final class ProcessPaymentWebhook
 
         $payload = $gateway->parseWebhook($request);
 
-        return DB::transaction(function () use ($gatewayName, $payload): ?Payment {
+        // Authentic, and nothing this gateway acts on: no ledger row, no lock.
+        if ($payload === null) {
+            return null;
+        }
+
+        // Fetched BEFORE the transaction, so no gateway call ever runs under the
+        // payment row lock. If it throws, nothing has been written: the delivery
+        // answers non-2xx and the gateway retries it.
+        $gatewayRefunds = $this->gatewayRefundsFor($gateway, $gatewayName, $payload);
+
+        return DB::transaction(function () use ($gatewayName, $payload, $gatewayRefunds): ?Payment {
             // Resolve the payment BEFORE recording idempotency. An event whose
             // gateway_reference matches no payment yet (delivered before the pay
             // page wrote the reference, or the process died between the gateway
@@ -77,7 +91,7 @@ final class ProcessPaymentWebhook
             $this->guardAmountMatches($payment, $payload);
 
             if ($this->isRefundEvent($payload)) {
-                $this->applyRefund($payment, $payload);
+                $this->applyRefund($payment, $payload, $gatewayRefunds);
             } elseif ($this->updatePaymentStatus($payment, $payload)) {
                 $this->dispatchEvent($payment);
             }
@@ -111,11 +125,52 @@ final class ProcessPaymentWebhook
 
     private function findPayment(string $gatewayName, WebhookPayload $payload): ?Payment
     {
+        return $this->paymentQuery($gatewayName, $payload)->lockForUpdate()->first();
+    }
+
+    /**
+     * @return Builder<Payment>
+     */
+    private function paymentQuery(string $gatewayName, WebhookPayload $payload): Builder
+    {
         return Payment::query()
             ->where('gateway', $gatewayName)
-            ->where('gateway_reference', $payload->gatewayReference)
-            ->lockForUpdate()
-            ->first();
+            ->where('gateway_reference', $payload->gatewayReference);
+    }
+
+    /**
+     * The gateway's own refunds for the payment a refund event is about, oldest
+     * first — or nothing, when the event cannot move the payment's refunded
+     * total. The gateway is asked only when all of these hold:
+     *
+     * - the event is a refund event carrying a cumulative;
+     * - the gateway can list refunds;
+     * - an UNLOCKED read finds the payment. One gateway account can serve more
+     *   than one shop, and then every endpoint receives every shop's events;
+     *   this keeps the call to payments that are ours;
+     * - that row's refunded total is below the event's cumulative. The echo of
+     *   an admin refund fails this and costs no call. The shortcut is safe
+     *   because the total only ever rises: if the unlocked read says it would
+     *   not move, the locked read inside the transaction cannot say it would.
+     *
+     * The locked read inside the transaction stays the authority for everything
+     * else.
+     *
+     * @return list<GatewayRefund>
+     */
+    private function gatewayRefundsFor(PaymentGateway $gateway, string $gatewayName, WebhookPayload $payload): array
+    {
+        if (! $this->isRefundEvent($payload) || $payload->amountRefunded === null || ! $gateway instanceof ListsRefunds) {
+            return [];
+        }
+
+        $payment = $this->paymentQuery($gatewayName, $payload)->first();
+
+        if ($payment === null || $payment->amount_refunded >= $payload->amountRefunded) {
+            return [];
+        }
+
+        return $gateway->listRefunds($payment);
     }
 
     /**
@@ -142,13 +197,17 @@ final class ProcessPaymentWebhook
      * gateway's CUMULATIVE total monotonically (never regresses on out-of-order
      * delivery), and status is recomputed FROM THE AMOUNTS — not from the event
      * type — so a partial `charge.refunded` doesn't flip the row to fully
-     * Refunded while money remains. Dispatches PaymentRefunded with this event's
-     * delta so Commerce records the matching Refund row.
+     * Refunded while money remains. When the total moves, dispatches
+     * PaymentRefunded with the gateway's own refund list so Commerce records
+     * every refund not yet recorded. The event does not say which refund it is
+     * about, so nothing is derived from that.
+     *
+     * @param  list<GatewayRefund>  $gatewayRefunds
      */
-    private function applyRefund(Payment $payment, WebhookPayload $payload): void
+    private function applyRefund(Payment $payment, WebhookPayload $payload, array $gatewayRefunds): void
     {
-        // charge.refund.updated carries no cumulative — nothing authoritative to
-        // apply; charge.refunded is the event that moves the total.
+        // A refund event without a cumulative carries nothing authoritative to
+        // apply.
         if ($payload->amountRefunded === null) {
             return;
         }
@@ -158,8 +217,6 @@ final class ProcessPaymentWebhook
         if ($newRefunded <= $payment->amount_refunded) {
             return; // stale or already applied — don't regress, don't re-dispatch
         }
-
-        $delta = $newRefunded - $payment->amount_refunded;
 
         $status = $newRefunded >= $payment->amount
             ? PaymentStatus::Refunded
@@ -171,7 +228,7 @@ final class ProcessPaymentWebhook
             'gateway_data' => array_merge($payment->gateway_data ?? [], $payload->gatewayData),
         ]);
 
-        PaymentRefunded::dispatch($payment, $payload->gatewayRefundId, $delta);
+        PaymentRefunded::dispatch($payment, $gatewayRefunds);
     }
 
     /**

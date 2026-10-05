@@ -1,9 +1,13 @@
 # Brief — refunds made outside the app record no Refund row (rev 3)
 
-**Status (2026-10-05): rev 3, BUILD-READY.** The premise is observed, the fix
-shape is ruled, and a second adversarial check returned "build-ready with named
-fixes"; those fixes are folded in below (§ 10 lists them). One proposal is still
-Jelte's to accept or drop: the tripwire in § 3.8 (R5).
+**Status (2026-10-05): BUILT as rev 3 on `fix/dashboard-refunds`, R5 in;
+release v0.71.3.** Where the code differed from this text while building is
+listed in § 11. The live acceptance steps in § 9 are still open.
+
+Before the build: the premise is observed, the fix shape is ruled, and a second
+adversarial check returned "build-ready with named fixes"; those fixes are
+folded in below (§ 10 lists them). R5 (the tripwire in § 3.8) was accepted with
+the go to build.
 
 Rulings: **R1** measured (§ 2). **R2** mirror the gateway's refund list (Jelte,
 2026-10-05: "do what's safest"). **R3** guard the driver against events it does
@@ -487,3 +491,74 @@ shared account in both consumers' periphery docs.
   ignored event through the action, the VAT sequence itself). Checked and
   holding: the unlocked-read shortcut, the nullable return against every
   implementer, the guard against ten event types, the SDK's list behaviour.
+
+## 11. Build notes: where the code differed from this text
+
+Checked against the code while building (2026-10-05). None changed the design.
+
+- **§ 5.5 names three comments claiming dispute coverage; there were five.**
+  `RefundActorSource.php:11` and `CommerceLogSubscriber.php:75` said "dispute
+  auto-refund" too. All five are corrected.
+- **§ 6.7 has the test assert a transaction level of zero.** The suite's
+  `RefreshDatabase` wraps every test in a transaction, so the level outside the
+  action is 1, not 0. The test asserts that the list call ran at the level the
+  test itself was at, which is the same claim: the action had opened none.
+- **§ 3.6 and § 5.5 say a dispute is "logged instead of dropped silently".** It
+  is logged at `info`, as specified. Both consumers run `LOG_LEVEL=warning`
+  (periphery, v0.70.0 note), so in production that line lands nowhere. Recorded
+  on the disputes item in `TODO.md`.
+- **§ 3.8 has consumers schedule the tripwire; `CLAUDE.md` § Tripwires says the
+  package schedules its own** (as `inventory:reconcile` does since v0.71.0).
+  Built as written here, the way `purchasing:reconcile-receipts` works. Moving
+  it into the package is one `scheduleWhenEnabled` line plus a config key.
+- **§ 3.2's driver call needed a guard the text does not mention.** With a null
+  `gateway_reference` Stripe drops the `payment_intent` filter and lists the
+  account's most recent refunds, whichever payments they belong to.
+  `listRefunds()` returns `[]` for such a payment without calling Stripe. The
+  webhook path never passes one (the payment is found by its reference).
+- **§ 6.8 implies and § 7 does not list it:** `simulateWebhook()` loses
+  `amountRefunded` as well as `gatewayRefundId`. A refund status carries the
+  fake ledger's cumulative as it stands when the request is built.
+- **`RefundResult::$cumulativeRefunded` has no reader in `src/` any more.** It
+  is not on § 3.7's removal list and was left in place.
+- **§ 4's "two workers at once" row has no test.** The suite has no contention
+  probe (`docs/writing-tests.md`). The pieces it relies on are tested one by
+  one: the stale exit under the lock, and `RecordRefund`'s idempotency.
+- **`src/Payment/README.md` had a third stale line** besides the two § 7 names:
+  it called the action `HandlePaymentWebhook`. Corrected with the other two.
+
+Found by an independent review of the build, the same day:
+
+- **§ 9 step 2 says both rows "carry a `tax_summary`". The new refund's row will
+  carry an empty one.** On a payment whose rows are behind, the older refund is
+  recorded first against a payment total that already counts both, so its row
+  takes the VAT of everything refunded so far and the new row takes none. That
+  is § 3.5 working as written (the total is right, the split is not
+  chronological) and it is pinned by a test, but at acceptance it reads like a
+  failure: on order 10, `re_3UNEh8Qibh0bqUCQ03L4oluj` will carry all of it.
+- **§ 9 step 4 cannot be run straight after step 3.** The tripwire skips
+  payments touched in the last fifteen minutes, so a run right after a refund
+  passes without having looked at that payment. The command now says how many
+  payments it skipped. Run step 4 sixteen minutes later.
+- **§ 5.1 has a third outcome.** If the admin's row is committed after the
+  webhook's transaction took its snapshot and before the webhook inserts the
+  same refund, the unique index refuses the insert and the row cannot be read
+  back inside that snapshot (MySQL, repeatable read). The delivery then rolls
+  back and answers 500; Stripe's retry finds the row, and the admin keeps the
+  attribution. The fallback on that line used to construct an exception with a
+  null argument, which is a `TypeError`; it now rethrows the violation it
+  caught. Reasoned from InnoDB's rules, not run: SQLite cannot show it.
+- **The VAT anchor mixes an order-wide figure with a per-payment one.** The rows
+  are summed over the order, `amount_refunded` belongs to one payment. An order
+  with two succeeded payments (a duplicate charge) can reverse more VAT than
+  was charged. Neither shop creates a second succeeded payment today, and the
+  code before this build was wrong for that shape too. Flagged in `TODO.md`,
+  not built.
+- **Nothing compares the event's cumulative with the sum of the list.** If the
+  list lacked the refund the event is about, the total would move, fewer rows
+  would be recorded and no line would be logged. The tripwire reports the end
+  state the next day. Whether Stripe's list can lag its own event is unknown.
+- **A failure while recording a row takes the moved total down with it.** The
+  rows are written inside the delivery's transaction, so the delivery answers
+  500 and is retried. While it keeps failing, total and rows agree at their old
+  values and the tripwire sees nothing: the 500s are the signal. Tested.

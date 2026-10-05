@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace InOtherShops\Payment\Testing;
 
+use InOtherShops\Payment\Contracts\ListsRefunds;
 use InOtherShops\Payment\Contracts\ManagesCustomers;
 use InOtherShops\Payment\Contracts\PaymentGateway;
+use InOtherShops\Payment\DTOs\GatewayRefund;
 use InOtherShops\Payment\DTOs\PaymentCustomerData;
 use InOtherShops\Payment\DTOs\PaymentSession;
 use InOtherShops\Payment\DTOs\WebhookPayload;
@@ -14,6 +16,7 @@ use InOtherShops\Payment\Exceptions\PaymentNotCancelableException;
 use InOtherShops\Payment\Exceptions\RefundAmountExceededException;
 use InOtherShops\Payment\Models\Payment;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
 /**
@@ -26,24 +29,36 @@ use RuntimeException;
  * to forge a webhook request the gateway will parse without signature
  * verification noise.
  *
+ * Refunds live on the fake's own ledger, as they do at a real gateway: `refund()`
+ * (the app's own) and `recordOutsideRefund()` (someone else's, e.g. the Stripe
+ * dashboard) both land there, `listRefunds()` returns it, and a simulated
+ * refund webhook carries its total. A test cannot type a cumulative or a
+ * refund id the ledger does not hold.
+ *
  * Not a real driver — never register from a non-test ServiceProvider.
  */
-final class FakePaymentGateway implements ManagesCustomers, PaymentGateway
+final class FakePaymentGateway implements ListsRefunds, ManagesCustomers, PaymentGateway
 {
     /** @var array<int, array{payment: Payment, returnUrl: string, cancelUrl: string, gatewayCustomerId: ?string, reference: string}> */
     private array $sessions = [];
 
-    /** @var array<int, array{payment: Payment, amount: ?int, id: string}> */
+    /** @var array<int, array{payment: Payment, amount: int, id: string}> */
     private array $refunds = [];
 
     /**
-     * Cumulative amount refunded per gateway reference, tracked by the gateway
-     * itself — models Stripe capping a refund against the PaymentIntent's own
-     * refunded total, independent of the local payment row.
+     * Every refund per gateway reference, oldest first, whoever made it — the
+     * gateway's own record, independent of the local payment row. Models Stripe
+     * capping a refund against the PaymentIntent's own refunded total and
+     * listing a payment's refunds.
      *
-     * @var array<string, int>
+     * @var array<string, list<GatewayRefund>>
      */
-    private array $refundedByReference = [];
+    private array $refundLedger = [];
+
+    /** @var list<array{payment: Payment, transactionLevel: int}> */
+    private array $refundListings = [];
+
+    private bool $refundListingErrors = false;
 
     /** @var array<int, PaymentCustomerData> */
     private array $customers = [];
@@ -150,7 +165,6 @@ final class FakePaymentGateway implements ManagesCustomers, PaymentGateway
         $amount = $body['amount'] ?? null;
         $currency = $body['currency'] ?? null;
         $amountRefunded = $body['amount_refunded'] ?? null;
-        $gatewayRefundId = $body['gateway_refund_id'] ?? null;
 
         return new WebhookPayload(
             gatewayReference: $reference,
@@ -160,36 +174,38 @@ final class FakePaymentGateway implements ManagesCustomers, PaymentGateway
             amount: is_int($amount) ? $amount : null,
             currency: is_string($currency) ? strtolower($currency) : null,
             amountRefunded: is_int($amountRefunded) ? $amountRefunded : null,
-            gatewayRefundId: is_string($gatewayRefundId) ? $gatewayRefundId : null,
         );
     }
 
     public function refund(Payment $payment, ?int $amount = null): string
     {
-        if ($payment->gateway_reference === null) {
-            throw new RuntimeException("Cannot refund fake payment {$payment->id}: no gateway reference.");
+        $refund = $this->addToLedger($payment, $amount);
+
+        $this->refunds[] = ['payment' => $payment, 'amount' => $refund->amount, 'id' => $refund->id];
+
+        return $refund->id;
+    }
+
+    /**
+     * A refund made at the gateway by someone other than the app: the Stripe
+     * dashboard, another API client. It lands on the gateway's ledger and
+     * nowhere else — the app learns of it from the refund webhook and from
+     * `listRefunds()`. Returns the gateway refund id.
+     */
+    public function recordOutsideRefund(Payment $payment, int $amount): string
+    {
+        return $this->addToLedger($payment, $amount)->id;
+    }
+
+    public function listRefunds(Payment $payment): array
+    {
+        $this->refundListings[] = ['payment' => $payment, 'transactionLevel' => DB::transactionLevel()];
+
+        if ($this->refundListingErrors) {
+            throw new RuntimeException('fake: gateway unavailable');
         }
 
-        // Cap against the gateway's OWN refunded total for this reference, not
-        // the local payment row — exactly as Stripe does. This is the backstop
-        // that makes a re-clicked refund safe after a lost local write (F34): the
-        // local amount_refunded may read 0, but the gateway still rejects a second
-        // refund of money it has already returned.
-        $alreadyRefunded = $this->refundedByReference[$payment->gateway_reference] ?? 0;
-        $maxRefundable = $payment->amount - $alreadyRefunded;
-        $requested = $amount ?? $maxRefundable;
-
-        if ($requested > $maxRefundable) {
-            throw RefundAmountExceededException::exceeds($requested, $maxRefundable);
-        }
-
-        $this->refundCounter++;
-        $refundId = 'fake_re_'.str_pad((string) $this->refundCounter, 6, '0', STR_PAD_LEFT);
-
-        $this->refundedByReference[$payment->gateway_reference] = $alreadyRefunded + $requested;
-        $this->refunds[] = ['payment' => $payment, 'amount' => $amount, 'id' => $refundId];
-
-        return $refundId;
+        return $this->refundLedger[$payment->gateway_reference] ?? [];
     }
 
     public function createCustomer(PaymentCustomerData $data): string
@@ -216,6 +232,12 @@ final class FakePaymentGateway implements ManagesCustomers, PaymentGateway
      *
      *     $request = $gateway->simulateWebhook($payment, PaymentStatus::Succeeded);
      *     ($processWebhook)($gateway->identifier(), $request);
+     *
+     * A refund status carries the cumulative refunded as the fake's own ledger
+     * holds it when this is called — a gateway cuts the event the moment the
+     * refund lands. So build the request right after `refund()` or
+     * `recordOutsideRefund()`, and deliver it whenever the test wants it to
+     * arrive.
      */
     public function simulateWebhook(
         Payment $payment,
@@ -223,8 +245,6 @@ final class FakePaymentGateway implements ManagesCustomers, PaymentGateway
         ?string $eventId = null,
         ?int $amountOverride = null,
         ?string $currencyOverride = null,
-        ?int $amountRefunded = null,
-        ?string $gatewayRefundId = null,
     ): Request {
         if ($payment->gateway_reference === null) {
             throw new RuntimeException("Cannot simulate webhook for payment {$payment->id}: no gateway reference.");
@@ -239,8 +259,9 @@ final class FakePaymentGateway implements ManagesCustomers, PaymentGateway
                 'event_id' => $eventId ?? 'fake_evt_'.uniqid(),
                 'amount' => $amountOverride ?? $payment->amount,
                 'currency' => strtolower($currencyOverride ?? $payment->currency?->value ?? ''),
-                'amount_refunded' => $amountRefunded,
-                'gateway_refund_id' => $gatewayRefundId,
+                'amount_refunded' => in_array($status, [PaymentStatus::Refunded, PaymentStatus::PartiallyRefunded], true)
+                    ? $this->refundedAtGateway($payment->gateway_reference)
+                    : null,
             ], JSON_THROW_ON_ERROR),
             server: ['CONTENT_TYPE' => 'application/json'],
         );
@@ -252,10 +273,26 @@ final class FakePaymentGateway implements ManagesCustomers, PaymentGateway
         return $this->sessions;
     }
 
-    /** @return array<int, array{payment: Payment, amount: ?int, id: string}> */
+    /**
+     * The refunds the app asked for through `refund()`, each with the amount it
+     * resolved to. Outside refunds are not the app's calls and are not here.
+     *
+     * @return array<int, array{payment: Payment, amount: int, id: string}>
+     */
     public function recordedRefunds(): array
     {
         return $this->refunds;
+    }
+
+    /**
+     * Every `listRefunds()` call, with the database transaction depth it was
+     * made at — a gateway call must never run inside the caller's transaction.
+     *
+     * @return list<array{payment: Payment, transactionLevel: int}>
+     */
+    public function recordedRefundListings(): array
+    {
+        return $this->refundListings;
     }
 
     /** @return array<int, PaymentCustomerData> */
@@ -289,6 +326,49 @@ final class FakePaymentGateway implements ManagesCustomers, PaymentGateway
     public function markSessionErroring(string $gatewayReference): void
     {
         $this->erroringReferences[] = $gatewayReference;
+    }
+
+    /**
+     * Make `listRefunds()` throw a GENERIC error — a stand-in for a gateway
+     * outage while a refund webhook is being processed.
+     */
+    public function markRefundListingErroring(): void
+    {
+        $this->refundListingErrors = true;
+    }
+
+    private function addToLedger(Payment $payment, ?int $amount): GatewayRefund
+    {
+        if ($payment->gateway_reference === null) {
+            throw new RuntimeException("Cannot refund fake payment {$payment->id}: no gateway reference.");
+        }
+
+        // Cap against the gateway's OWN refunded total for this reference, not
+        // the local payment row — exactly as Stripe does. This is the backstop
+        // that makes a re-clicked refund safe after a lost local write (F34): the
+        // local amount_refunded may read 0, but the gateway still rejects a second
+        // refund of money it has already returned.
+        $maxRefundable = $payment->amount - $this->refundedAtGateway($payment->gateway_reference);
+        $requested = $amount ?? $maxRefundable;
+
+        if ($requested > $maxRefundable) {
+            throw RefundAmountExceededException::exceeds($requested, $maxRefundable);
+        }
+
+        $this->refundCounter++;
+
+        return $this->refundLedger[$payment->gateway_reference][] = new GatewayRefund(
+            id: 'fake_re_'.str_pad((string) $this->refundCounter, 6, '0', STR_PAD_LEFT),
+            amount: $requested,
+        );
+    }
+
+    private function refundedAtGateway(string $gatewayReference): int
+    {
+        return array_sum(array_map(
+            fn (GatewayRefund $refund): int => $refund->amount,
+            $this->refundLedger[$gatewayReference] ?? [],
+        ));
     }
 
     private function nextReference(): string

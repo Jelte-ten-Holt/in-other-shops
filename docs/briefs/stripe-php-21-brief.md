@@ -1,6 +1,6 @@
 # Brief — `stripe/stripe-php` 20 → 21
 
-**Status (2026-10-05): BUILT.** Q1 no tag, rides the next release · Q2 `^21.3` · Q3 mayangna's Coolify runs IOW's test keys (Jelte), bianka docs corrected in its bump PR · Q4 now · Q5 separate, §8.2 already shipped as IOW PR #78. Package on main; IOW and bianka bump PRs opened the same day. Open: §7's test-mode payment pass on mayangna after deploy, and §8.1.
+**Status (2026-10-05): BUILT.** Q1 no tag, rides the next release · Q2 `^21.3` · Q3 mayangna's Coolify runs IOW's test keys (Jelte), bianka docs corrected in its bump PR · Q4 now · Q5 separate, §8.2 already shipped as IOW PR #78. Package on main; IOW and bianka bump PRs opened the same day. Open: §7's test-mode payment pass on mayangna after deploy. §8.1 is fixed in v0.71.3 ([dashboard-refund-brief.md](dashboard-refund-brief.md)).
 
 Status: **draft 1 — research only, nothing changed.** Home: `TODO.md` § Open ("Upgrade `stripe/stripe-php` 20 → 21").
 **Date:** 2026-09-29
@@ -156,6 +156,7 @@ Nothing forces an order between steps 1 and 2. The package does not `require` st
 ## 8. Found along the way (not part of this change)
 
 1. **Dashboard/dispute refunds likely write no Refund row. Pre-existing and on the money path. Unverified live.**
+   - **→ Confirmed live 2026-10-05 and fixed in v0.71.3: [dashboard-refund-brief.md](dashboard-refund-brief.md).** The fix lists the payment's refunds through the API (from the webhook action, not inside the driver's parser). Two things below turned out wrong: disputes are not part of this gap (they are a separate, still-open one, `TODO.md` § Open), and `charge.refund.updated` is now ignored rather than parsed. The line references below are to the code before that fix.
    - Since API `2022-11-15`, `Charge.refunds` is no longer included ([changelog](https://docs.stripe.com/changelog/2022-11-15/deprecates-charges-auto-expand)), and webhook payloads omit it ([woocommerce-gateway-stripe#2497](https://github.com/woocommerce/woocommerce-gateway-stripe/issues/2497)).
    - So `latestRefundId()` (`StripePaymentGateway.php:235-240`) returns null. `ProcessPaymentWebhook::applyRefund` still updates `payments.amount_refunded`/`status` and dispatches `PaymentRefunded` (`:168-174`). But `ReconcileRefundFromWebhook.php:33` returns early on a null refund id.
    - Result: no Refund row, no `ReverseTax`, no `RefundRecorded` audit row. `charge.refund.updated` carries the id but no cumulative, so `applyRefund` exits at `:152`. Admin-initiated refunds are unaffected, because they get the `re_…` id from the API response.

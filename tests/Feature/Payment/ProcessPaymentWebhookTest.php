@@ -276,10 +276,8 @@ final class ProcessPaymentWebhookTest extends TestCase
 
         $payment = $this->paymentWithReference('fake_pi_refund_race', PaymentStatus::Pending);
 
-        ($this->process)('fake', $this->gateway->simulateWebhook(
-            $payment, PaymentStatus::Refunded, 'evt_refund',
-            amountRefunded: $payment->amount, gatewayRefundId: 're_1',
-        ));
+        $this->gateway->recordOutsideRefund($payment, $payment->amount);
+        ($this->process)('fake', $this->gateway->simulateWebhook($payment, PaymentStatus::Refunded, 'evt_refund'));
         $this->assertSame(PaymentStatus::Refunded, $payment->fresh()->status);
 
         ($this->process)('fake', $this->gateway->simulateWebhook($payment, PaymentStatus::Succeeded, 'evt_late_success'));
@@ -299,10 +297,8 @@ final class ProcessPaymentWebhookTest extends TestCase
 
         $payment = $this->paymentWithReference('fake_pi_partial_race', PaymentStatus::Pending);
 
-        ($this->process)('fake', $this->gateway->simulateWebhook(
-            $payment, PaymentStatus::PartiallyRefunded, 'evt_partial',
-            amountRefunded: 100, gatewayRefundId: 're_2',
-        ));
+        $this->gateway->recordOutsideRefund($payment, 100);
+        ($this->process)('fake', $this->gateway->simulateWebhook($payment, PaymentStatus::PartiallyRefunded, 'evt_partial'));
         $this->assertSame(PaymentStatus::PartiallyRefunded, $payment->fresh()->status);
 
         ($this->process)('fake', $this->gateway->simulateWebhook($payment, PaymentStatus::Succeeded, 'evt_late_success_2'));

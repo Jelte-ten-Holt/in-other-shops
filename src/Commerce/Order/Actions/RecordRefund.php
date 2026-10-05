@@ -27,7 +27,8 @@ use InOtherShops\Pricing\DTOs\TaxBreakdownLine;
  * Tax reversal is cumulative-anchored (see ReverseTax): the reversed bracket
  * tax is the delta between what this refund's cumulative should have reversed
  * and what prior refunds already reversed — so a sequence of partials reconciles
- * to the charged tax exactly.
+ * to the charged tax exactly. The cumulative is derived here, the same way for
+ * every caller (see {@see self::reverseTaxSummary()}).
  */
 final class RecordRefund
 {
@@ -40,7 +41,6 @@ final class RecordRefund
         Payment $payment,
         string $gatewayRefundId,
         int $amount,
-        int $cumulativeRefunded,
         RefundActor $actor,
         ?string $reason = null,
     ): Refund {
@@ -50,7 +50,7 @@ final class RecordRefund
             return $existing;
         }
 
-        $taxSummary = $this->reverseTaxSummary($order, $amount, $cumulativeRefunded);
+        $taxSummary = $this->reverseTaxSummary($order, $payment, $amount);
 
         try {
             $refund = DB::transaction(fn (): Refund => Commerce::refund()::query()->create([
@@ -65,10 +65,13 @@ final class RecordRefund
                 'actor_id' => $actor->id,
                 'actor_label' => $actor->label,
             ]));
-        } catch (UniqueConstraintViolationException) {
+        } catch (UniqueConstraintViolationException $e) {
             // A concurrent path (admin vs. webhook) recorded it first — return
-            // theirs, don't double-record or double-dispatch.
-            return $this->find($payment->gateway, $gatewayRefundId) ?? throw new UniqueConstraintViolationException('', '', [], null);
+            // theirs, don't double-record or double-dispatch. Inside a
+            // transaction whose snapshot predates their commit the row cannot
+            // be read back: the violation then escapes, the caller's
+            // transaction rolls back, and a retry finds the row.
+            return $this->find($payment->gateway, $gatewayRefundId) ?? throw $e;
         }
 
         RefundRecorded::dispatch($refund);
@@ -86,16 +89,25 @@ final class RecordRefund
     }
 
     /**
+     * The cumulative this refund's VAT is anchored to is the larger of what the
+     * rows will say once it is recorded and what the payment says. The two
+     * differ in both directions: the rows run ahead between two events of one
+     * run of outside refunds (the first event records every listed refund, the
+     * payment total follows event by event), and they sit behind on a payment
+     * with an unrecorded refund. Both only ever rise, so the anchor never falls
+     * and no refund reverses negative tax. Which row carries which share can
+     * differ from the chronological split; the reversed total cannot.
+     *
      * @return list<array{rate_bps: int, taxable_base: int, tax: int}>
      */
-    private function reverseTaxSummary(Order $order, int $amount, int $cumulativeRefunded): array
+    private function reverseTaxSummary(Order $order, Payment $payment, int $amount): array
     {
         [$alreadyTax, $alreadyBase] = $this->alreadyReversed($order);
 
         $deltas = ($this->reverseTax)(
             originalBrackets: $order->taxSummary(),
             originalAmount: $order->total,
-            cumulativeRefunded: $cumulativeRefunded,
+            cumulativeRefunded: max($order->refundedTotal() + $amount, $payment->amount_refunded),
             alreadyReversedTax: $alreadyTax,
             alreadyReversedBase: $alreadyBase,
         );
