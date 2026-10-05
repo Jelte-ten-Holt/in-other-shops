@@ -71,10 +71,10 @@ final class CommerceLogSubscriber extends LogSubscriberBase
 
     /**
      * Map the refund's business {@see RefundActor} onto the cross-cutting audit
-     * {@see LogActor}: an admin-issued refund is a User actor; a gateway-issued
-     * one (Stripe dashboard, dispute auto-refund) is a Gateway actor named for
-     * the gateway. Lives here, not on LogActor, so the Logging domain stays
-     * independent of Commerce.
+     * {@see LogActor}: an admin-issued refund is a User actor; one made at the
+     * gateway by someone else (the Stripe dashboard, another API client) is a
+     * Gateway actor named for the gateway. Lives here, not on LogActor, so the
+     * Logging domain stays independent of Commerce.
      */
     private function auditActorForRefund(Refund $refund): LogActor
     {

@@ -8,7 +8,47 @@ The format is loosely [Keep a Changelog](https://keepachangelog.com/); the
 package is pre-1.0, so minor versions may carry breaking changes (all consumers
 are pre-launch — single-release-window policy, no deprecation bridges).
 
-## Unreleased
+## v0.71.3 — 2026-10-05
+
+Refunds made outside the app are recorded (`docs/briefs/dashboard-refund-brief.md`).
+No migration, no config. Consumers floor at `^0.71.3`.
+
+A refund issued in the Stripe dashboard, or through the API by anyone but the
+app, moved the payment row and nothing else: no `Refund` row, no VAT reversal,
+no audit row, and an admin order page still offering money that was already
+gone. The live `charge.refunded` body carries no `refunds` list (Stripe API
+`2022-11-15` and later), so the driver found no refund id to record. The suite
+was green because every refund test injected an id the live payload lacks.
+
+- **Fix.** When a refund event would move a payment's refunded total,
+  `ProcessPaymentWebhook` fetches the gateway's own refund list for that payment
+  (after an unlocked payment lookup, before the transaction) and
+  `ReconcileRefundFromWebhook` records every refund on it that has no row, each
+  under its own id with its own amount. New optional gateway capability
+  `Payment\Contracts\ListsRefunds` with the `GatewayRefund` DTO; the Stripe
+  driver implements it.
+- **One VAT anchor.** `RecordRefund` loses its `cumulativeRefunded` parameter
+  and derives the anchor itself: `max(rows + this refund, payment total)`.
+- **Changed shapes.** `PaymentRefunded` is `(Payment, list<GatewayRefund>)`;
+  `PaymentGateway::parseWebhook()` may return null; `WebhookPayload::$gatewayRefundId`
+  is gone.
+- **Events the Stripe driver does not handle** are ignored and logged at `info`
+  instead of cast to a payment intent. A dispute event used to be dropped
+  without a trace; `charge.succeeded`, `charge.updated`, `refund.created` and
+  `refund.updated` would have answered 500 on every delivery if enabled.
+  `charge.refund.updated` is now one of the ignored ones.
+- **Tripwire.** `commerce:reconcile-refunds` reports payments whose refunded
+  total differs from their `Refund` rows (read-only, exits non-zero). Registered,
+  not scheduled by the package: consumers add one daily schedule line.
+- **Test surface.** `FakePaymentGateway` keeps a refund ledger and implements
+  `ListsRefunds`; `recordOutsideRefund()` stands for a dashboard refund;
+  `simulateWebhook()` loses `amountRefunded` and `gatewayRefundId`.
+- **Not healed.** A payment whose rows were already behind stays behind until
+  another outside refund moves its total. The tripwire's first run lists them.
+- **Not built.** A failed refund is never undone, and a dispute leaves no local
+  record and raises no alert. Both are open items in `TODO.md`.
+
+Also in this release:
 
 - Dev dependency `stripe/stripe-php` moves to `^21.3` (v21.3.2) and the `suggest`
   note names the same floor. Same `dahlia` API major, no driver change; both

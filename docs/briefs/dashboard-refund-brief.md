@@ -1,9 +1,13 @@
 # Brief — refunds made outside the app record no Refund row (rev 3)
 
-**Status (2026-10-05): rev 3, BUILD-READY.** The premise is observed, the fix
-shape is ruled, and a second adversarial check returned "build-ready with named
-fixes"; those fixes are folded in below (§ 10 lists them). One proposal is still
-Jelte's to accept or drop: the tripwire in § 3.8 (R5).
+**Status (2026-10-05): BUILT as rev 3 on `fix/dashboard-refunds`, R5 in;
+release v0.71.3.** Where the code differed from this text while building is
+listed in § 11. The live acceptance steps in § 9 are still open.
+
+Before the build: the premise is observed, the fix shape is ruled, and a second
+adversarial check returned "build-ready with named fixes"; those fixes are
+folded in below (§ 10 lists them). R5 (the tripwire in § 3.8) was accepted with
+the go to build.
 
 Rulings: **R1** measured (§ 2). **R2** mirror the gateway's refund list (Jelte,
 2026-10-05: "do what's safest"). **R3** guard the driver against events it does
@@ -487,3 +491,38 @@ shared account in both consumers' periphery docs.
   ignored event through the action, the VAT sequence itself). Checked and
   holding: the unlocked-read shortcut, the nullable return against every
   implementer, the guard against ten event types, the SDK's list behaviour.
+
+## 11. Build notes: where the code differed from this text
+
+Checked against the code while building (2026-10-05). None changed the design.
+
+- **§ 5.5 names three comments claiming dispute coverage; there were five.**
+  `RefundActorSource.php:11` and `CommerceLogSubscriber.php:75` said "dispute
+  auto-refund" too. All five are corrected.
+- **§ 6.7 has the test assert a transaction level of zero.** The suite's
+  `RefreshDatabase` wraps every test in a transaction, so the level outside the
+  action is 1, not 0. The test asserts that the list call ran at the level the
+  test itself was at, which is the same claim: the action had opened none.
+- **§ 3.6 and § 5.5 say a dispute is "logged instead of dropped silently".** It
+  is logged at `info`, as specified. Both consumers run `LOG_LEVEL=warning`
+  (periphery, v0.70.0 note), so in production that line lands nowhere. Recorded
+  on the disputes item in `TODO.md`.
+- **§ 3.8 has consumers schedule the tripwire; `CLAUDE.md` § Tripwires says the
+  package schedules its own** (as `inventory:reconcile` does since v0.71.0).
+  Built as written here, the way `purchasing:reconcile-receipts` works. Moving
+  it into the package is one `scheduleWhenEnabled` line plus a config key.
+- **§ 3.2's driver call needed a guard the text does not mention.** With a null
+  `gateway_reference` Stripe drops the `payment_intent` filter and lists the
+  account's most recent refunds, whichever payments they belong to.
+  `listRefunds()` returns `[]` for such a payment without calling Stripe. The
+  webhook path never passes one (the payment is found by its reference).
+- **§ 6.8 implies and § 7 does not list it:** `simulateWebhook()` loses
+  `amountRefunded` as well as `gatewayRefundId`. A refund status carries the
+  fake ledger's cumulative as it stands when the request is built.
+- **`RefundResult::$cumulativeRefunded` has no reader in `src/` any more.** It
+  is not on § 3.7's removal list and was left in place.
+- **§ 4's "two workers at once" row has no test.** The suite has no contention
+  probe (`docs/writing-tests.md`). The pieces it relies on are tested one by
+  one: the stale exit under the lock, and `RecordRefund`'s idempotency.
+- **`src/Payment/README.md` had a third stale line** besides the two § 7 names:
+  it called the action `HandlePaymentWebhook`. Corrected with the other two.

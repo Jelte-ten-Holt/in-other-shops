@@ -66,8 +66,8 @@ The domain ships a `PaymentGateway` interface. Projects implement it per provide
 
 - `createSession(Payment, returnUrl, cancelUrl, ?gatewayCustomerId)` → `PaymentSession` (redirect URL + reference)
 - `retrieveSession(Payment)` → `PaymentSession` (current redirect URL / clientSecret for an existing payment — used on reload, tab restore, deep-link)
-- `parseWebhook(Request)` → `WebhookPayload` (validated, parsed status)
-- `refund(Payment, ?amount)` → void (full or partial)
+- `parseWebhook(Request)` → `?WebhookPayload` (validated, parsed status). `null` means the request is authentic and carries nothing the gateway acts on; the caller answers it as received and records nothing.
+- `refund(Payment, ?amount)` → string, the gateway's refund id (full or partial)
 - `identifier()` → string (e.g. `stripe`)
 
 The service provider binds the contract to whichever class is configured in `payment.gateway`.
@@ -78,14 +78,24 @@ Optional interface for gateways that support customer objects (Stripe, Mollie). 
 
 - `createCustomer(PaymentCustomerData)` → string (gateway customer ID)
 
-Gateways implement both interfaces: `class StripePaymentGateway implements PaymentGateway, ManagesCustomers`.
+### ListsRefunds Contract
+
+Optional interface for gateways that can list the refunds made against a payment, whoever made them. Separate from `PaymentGateway` for the same reason as `ManagesCustomers`, and checked the same way (`instanceof`).
+
+- `listRefunds(Payment)` → `list<GatewayRefund>`: the gateway's own refunds for the payment that returned money or are returning it, oldest first.
+
+`ProcessPaymentWebhook` calls it when a refund event would move a payment's refunded total (see below). A gateway without it still has its refund webhooks move the payment total; no refund rows are recorded from them.
+
+Gateways implement the interfaces they support: `class StripePaymentGateway implements ListsRefunds, ManagesCustomers, PaymentGateway`.
 
 ## DTOs
 
 - **`PaymentSession`** — redirect URL + gateway reference from session creation.
 - **`PaymentCustomerData`** — email, name, phone for creating a gateway customer.
 - **`InitiatePaymentResult`** — payment record + redirect URL.
-- **`WebhookPayload`** — parsed webhook data.
+- **`WebhookPayload`** — parsed webhook data. A refund event carries the payment's cumulative refunded amount; it names no single refund.
+- **`GatewayRefund`** — one refund as the gateway records it: its id there and its amount.
+- **`RefundResult`** — what `RefundPayment` returns: the gateway refund id, the amount, the payment's cumulative refunded after it.
 
 ## Actions
 
@@ -106,19 +116,38 @@ Profile resolution flow:
 
 Asks the payment's gateway for its current `PaymentSession` (clientSecret / redirectUrl). Used when re-rendering a payment page on reload, tab restore, or deep-link — no new gateway session is created. Does not modify the Payment record.
 
-### HandlePaymentWebhook
+### ProcessPaymentWebhook
 
-Parses the webhook via the gateway, finds the Payment by `gateway_reference`, updates status. Dispatches `PaymentSucceeded` or `PaymentFailed` if the status changed. Idempotent — duplicate webhooks with the same status are no-ops.
+Verifies the signature, parses the webhook via the gateway, finds the Payment by `gateway_reference` under a row lock, records the event id in the idempotency ledger (`webhook_events`) and updates the payment. Dispatches `PaymentSucceeded` or `PaymentFailed` if the status changed. Returns `null`, with no ledger row, for an event the gateway does not handle and for an informational event that matches no payment.
+
+**Refund events.** A refund event carries the payment's cumulative refunded amount and does not say which refund it is about. `amount_refunded` follows that cumulative and never falls; the status is recomputed from the amounts. When the event would move the total and the gateway implements `ListsRefunds`, the action fetches the gateway's refund list for the payment and dispatches `PaymentRefunded` with it. The list is fetched after an unlocked payment lookup and **before** the database transaction, so no gateway call runs under the row lock; if the call throws, nothing has been written and the gateway retries the delivery. The echo of a refund this app issued does not move the total, so it costs no call and dispatches nothing.
 
 ### RefundPayment
 
-Validates the payment is refundable, calls the gateway, updates `amount_refunded` and status. Supports partial refunds. Dispatches `PaymentRefunded`.
+Validates the payment is refundable, calls the gateway, updates `amount_refunded` and status. Supports partial refunds. Returns a `RefundResult`. It dispatches no event and records no refund row: recording is the caller's job (Commerce's `RefundOrder`), so Payment stays free of Commerce.
 
 ## Events
 
 - **PaymentSucceeded** — carries `Payment`. Fired when webhook confirms success.
 - **PaymentFailed** — carries `Payment`. Fired when webhook confirms failure.
-- **PaymentRefunded** — carries `Payment`. Fired after refund completes (full or partial).
+- **PaymentRefunded** — carries `Payment` and `gatewayRefunds` (`list<GatewayRefund>`, oldest first; empty when the gateway cannot list refunds). Fired when a refund webhook moves the payment's refunded total, which is a refund made outside the app (the Stripe dashboard, another API client). **Not** fired by `RefundPayment`. Commerce listens and records a `Refund` row for every listed refund that has none.
+
+## Stripe webhook events
+
+The events a Stripe endpoint should carry:
+
+| Event | What the driver does |
+|---|---|
+| `payment_intent.succeeded` | payment → Succeeded, `PaymentSucceeded` |
+| `payment_intent.payment_failed` | payment → Failed, `PaymentFailed` |
+| `payment_intent.canceled` | payment → Cancelled |
+| `charge.refunded` | payment's refunded total and status; `PaymentRefunded` when the total moves |
+
+Any other `payment_intent.*` event is read through the intent's own status. Everything else is ignored: answered as received, logged at `info` with the event type and id, no ledger row. That includes `charge.refund.updated`, `refund.*`, `charge.succeeded`, `charge.updated` and **`charge.dispute.*`**. A dispute is not a refund and leaves no local record; Stripe's own e-mail and dashboard are the signal for one.
+
+`charge.refunded` is rendered without the charge's `refunds` list (Stripe API `2022-11-15` and later), which is why the driver lists refunds through the API instead of reading them off the event. A captured body is in `tests/Fixtures/Stripe/`.
+
+If one Stripe account serves more than one shop, every endpoint receives every shop's events. An informational or refund event for a payment that is not this shop's is answered as received; a `payment_intent.succeeded` or `payment_failed` for one answers 500 by design (the same answer an early delivery for our own payment gets, so Stripe retries it).
 
 ## Filament
 
@@ -138,6 +167,8 @@ Validates the payment is refundable, calls the gateway, updates `amount_refunded
 - **Polymorphic `profileable`** — PaymentProfile attaches to any model, not just Customer. Same extraction principle.
 - **Gateway as a contract** — the domain never imports a specific provider. The project implements the gateway and configures it via `.env`. Testing uses a `FakePaymentGateway`.
 - **ManagesCustomers as separate interface** — not all gateways have customer concepts. The optional interface keeps the main `PaymentGateway` contract clean and avoids forcing no-op implementations.
+- **ListsRefunds as separate interface** — same shape, and adding a method to `PaymentGateway` would break every implementer outside the drivers.
+- **Refund rows mirror the gateway's list** — nothing is derived from "which refund is this event about", because the event does not say. One mechanism: there is no second path reading a refund id off a webhook.
 - **Events over return values** — webhook handling fires events so project-level listeners can react (confirm order, send email, etc.) without the domain knowing about those concerns.
 - **Idempotent webhooks** — providers often send duplicate webhooks. The handler skips events when the status hasn't changed.
 - **Redirect-only flow (for now)** — `PaymentSession` currently carries a `redirectUrl`, assuming all gateways use hosted payment pages (Stripe Checkout, Mollie, Adyen hosted). This covers the immediate use case but will need to evolve — see Future section.
