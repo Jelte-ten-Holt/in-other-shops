@@ -19,6 +19,7 @@ use InOtherShops\Tests\Support\SignsStripeWebhooks;
 use InOtherShops\Tests\TestCase;
 use Mockery;
 use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use Stripe\Collection;
 use Stripe\Service\RefundService;
@@ -111,14 +112,19 @@ final class ProcessStripeWebhookTest extends TestCase
         $this->assertSame(RefundActorSource::Gateway, $refunds[1]->actor_source);
     }
 
+    /**
+     * Stripe sends a refund's update twice, as charge.refund.updated and as
+     * refund.updated. Neither says anything the payment or its refund rows
+     * follow, so both are answered as received: no ledger row, no row lock.
+     * A forgotten null check here would answer 500 on every such delivery.
+     */
     #[Test]
-    public function an_event_the_driver_does_not_handle_is_answered_without_a_ledger_row(): void
+    #[DataProvider('refundUpdateEventTypes')]
+    public function a_refund_update_event_is_answered_without_a_ledger_row(string $type): void
     {
-        // Stripe sends a refund's update twice, as charge.refund.updated and as
-        // refund.updated. The second is the captured body under its other name.
         $payment = $this->orderPayment();
         $event = json_decode($this->stripeFixture('charge.refund.updated.2026-03-25.dahlia.json'), true);
-        $event['type'] = 'refund.updated';
+        $event['type'] = $type;
 
         $returned = ($this->process)('stripe', $this->signedRequest(json_encode($event, JSON_THROW_ON_ERROR), time()));
 
@@ -126,6 +132,15 @@ final class ProcessStripeWebhookTest extends TestCase
         $this->assertSame(0, WebhookEvent::query()->count());
         $this->assertSame(PaymentStatus::Succeeded, $payment->refresh()->status);
         $this->assertSame(0, $payment->amount_refunded);
+    }
+
+    /** @return array<string, array{string}> */
+    public static function refundUpdateEventTypes(): array
+    {
+        return [
+            'as captured' => ['charge.refund.updated'],
+            'under its other name' => ['refund.updated'],
+        ];
     }
 
     /** @return array<int, int> rate in basis points => reversed tax in cents */

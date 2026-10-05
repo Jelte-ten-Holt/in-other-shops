@@ -159,21 +159,19 @@ final class StripePaymentGateway implements ListsRefunds, ManagesCustomers, Paym
 
         $this->verifiedEvent = null;
 
-        // Branch on the event type BEFORE reading variant fields. charge.* events
-        // carry a Charge (charge.refunded) or a Refund (charge.refund.updated) —
-        // NOT a PaymentIntent. Reading `id` off them as if it were an intent is
-        // the F27 bug (a ch_…/re_… id that never matches the stored pi_…).
+        // Branch on the event type BEFORE reading variant fields. charge.refunded
+        // carries a Charge, NOT a PaymentIntent. Reading `id` off it as if it
+        // were an intent is the F27 bug (a ch_… id that never matches the stored
+        // pi_…).
         if ($event->type === 'charge.refunded') {
             return $this->parseChargeRefunded($event);
-        }
-
-        if ($event->type === 'charge.refund.updated') {
-            return $this->parseRefundUpdated($event);
         }
 
         // Everything below reads a PaymentIntent. An authentic event about
         // anything else (a dispute, a refund, a charge) is not one this driver
         // handles: casting it would read a du_…/re_…/ch_… id as an intent id.
+        // That includes charge.refund.updated, which says nothing the payment
+        // or its refund rows follow.
         if (($event->data->object->object ?? null) !== PaymentIntent::OBJECT_NAME) {
             Log::info('Stripe webhook ignored: not an event this driver handles', [
                 'event_type' => $event->type,
@@ -207,8 +205,10 @@ final class StripePaymentGateway implements ListsRefunds, ManagesCustomers, Paym
     /**
      * charge.refunded — data.object is a Charge. The intent id is in
      * `payment_intent`; `amount` is the original charge (so the amount guard
-     * still validates against the payment), `amount_refunded` is the CUMULATIVE
-     * refund on the charge, and the latest refund id anchors the Refund record.
+     * still validates against the payment) and `amount_refunded` is the
+     * CUMULATIVE refund on the charge. The event names no refund: since API
+     * version 2022-11-15 a Charge no longer carries its `refunds` list. The
+     * refunds themselves come from {@see self::listRefunds()}.
      */
     private function parseChargeRefunded(\Stripe\Event $event): WebhookPayload
     {
@@ -223,35 +223,7 @@ final class StripePaymentGateway implements ListsRefunds, ManagesCustomers, Paym
             amount: isset($charge->amount) && is_int($charge->amount) ? $charge->amount : null,
             currency: isset($charge->currency) && is_string($charge->currency) ? strtolower($charge->currency) : null,
             amountRefunded: isset($charge->amount_refunded) && is_int($charge->amount_refunded) ? $charge->amount_refunded : null,
-            gatewayRefundId: $this->latestRefundId($charge),
         );
-    }
-
-    /**
-     * charge.refund.updated — data.object is a Refund (async refund status
-     * transitions). We resolve the intent reference + refund id so it's not a
-     * silent no-op, but leave `amountRefunded` null: the cumulative isn't on the
-     * Refund object, and charge.refunded already carries the authoritative total.
-     */
-    private function parseRefundUpdated(\Stripe\Event $event): WebhookPayload
-    {
-        /** @var \Stripe\Refund $refund */
-        $refund = $event->data->object;
-
-        return new WebhookPayload(
-            gatewayReference: (string) $refund->payment_intent,
-            status: $this->mapStatus('', $event->type),
-            eventId: $event->id,
-            gatewayData: ['event_type' => $event->type],
-            gatewayRefundId: (string) $refund->id,
-        );
-    }
-
-    private function latestRefundId(\Stripe\Charge $charge): ?string
-    {
-        $data = $charge->refunds->data ?? [];
-
-        return isset($data[0]->id) ? (string) $data[0]->id : null;
     }
 
     public function refund(Payment $payment, ?int $amount = null): string
@@ -335,7 +307,6 @@ final class StripePaymentGateway implements ListsRefunds, ManagesCustomers, Paym
             'payment_intent.payment_failed' => PaymentStatus::Failed,
             'payment_intent.canceled' => PaymentStatus::Cancelled,
             'charge.refunded' => PaymentStatus::Refunded,
-            'charge.refund.updated' => PaymentStatus::PartiallyRefunded,
             default => match ($intentStatus) {
                 'succeeded' => PaymentStatus::Succeeded,
                 'canceled' => PaymentStatus::Cancelled,

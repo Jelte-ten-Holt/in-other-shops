@@ -206,8 +206,8 @@ final class ProcessPaymentWebhook
      */
     private function applyRefund(Payment $payment, WebhookPayload $payload, array $gatewayRefunds): void
     {
-        // charge.refund.updated carries no cumulative — nothing authoritative to
-        // apply; charge.refunded is the event that moves the total.
+        // A refund event without a cumulative carries nothing authoritative to
+        // apply.
         if ($payload->amountRefunded === null) {
             return;
         }
