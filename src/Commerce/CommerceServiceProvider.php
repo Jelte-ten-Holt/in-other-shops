@@ -8,6 +8,7 @@ use InOtherShops\Commerce\Cart\Commands\PruneExpiredCartsCommand;
 use InOtherShops\Commerce\Cart\FlowChains\AddToCartChain;
 use InOtherShops\Commerce\Listeners\CommerceLogSubscriber;
 use InOtherShops\Commerce\Order\Commands\ExpireAbandonedOrdersCommand;
+use InOtherShops\Commerce\Order\Commands\ReconcileRefundsCommand;
 use InOtherShops\Commerce\Order\Events\OrderCreated;
 use InOtherShops\Commerce\Order\Events\OrderStatusChanged;
 use InOtherShops\Commerce\Order\Listeners\CreateShipmentForNewOrder;
@@ -47,7 +48,7 @@ final class CommerceServiceProvider extends DomainServiceProvider
 
     protected function domainCommands(): array
     {
-        return [PruneExpiredCartsCommand::class, ExpireAbandonedOrdersCommand::class];
+        return [PruneExpiredCartsCommand::class, ExpireAbandonedOrdersCommand::class, ReconcileRefundsCommand::class];
     }
 
     public function boot(): void
