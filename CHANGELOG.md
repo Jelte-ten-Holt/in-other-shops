@@ -8,6 +8,22 @@ The format is loosely [Keep a Changelog](https://keepachangelog.com/); the
 package is pre-1.0, so minor versions may carry breaking changes (all consumers
 are pre-launch — single-release-window policy, no deprecation bridges).
 
+## Unreleased
+
+- Dev dependency `stripe/stripe-php` moves to `^21.3` (v21.3.2) and the `suggest`
+  note names the same floor. Same `dahlia` API major, no driver change; both
+  consumers bump in the same sitting (2026-10-05). Brief:
+  `docs/briefs/stripe-php-21-brief.md`. Nothing a consumer installs changes, so
+  this rides the next release rather than earning a tag.
+
+## v0.71.2 — 2026-09-21
+
+`UpdateOrderStatus` refuses Pending → Confirmed when `Order::hasReleasedStock()`
+(silent-correctness F14 residue). The payment path had been guarded since
+v0.32.0; this closes the admin "Update status" confirm and the partially
+released order. Consumers floor at `^0.71.2`. *(Entry written 2026-10-05; the
+tag shipped without one.)*
+
 ## v0.71.1 — 2026-09-08
 
 Test-only. v0.71.0's tag was the first run of the MySQL CI leg on the release-1
