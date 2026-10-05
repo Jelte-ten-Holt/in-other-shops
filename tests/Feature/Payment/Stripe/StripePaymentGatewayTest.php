@@ -8,6 +8,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use InOtherShops\Currency\Enums\Currency;
+use InOtherShops\Payment\DTOs\GatewayRefund;
 use InOtherShops\Payment\DTOs\PaymentCustomerData;
 use InOtherShops\Payment\Drivers\Stripe\StripePaymentGateway;
 use InOtherShops\Payment\Enums\PaymentStatus;
@@ -21,6 +22,7 @@ use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use RuntimeException;
+use Stripe\Collection;
 use Stripe\Customer;
 use Stripe\Exception\InvalidRequestException;
 use Stripe\PaymentIntent;
@@ -370,6 +372,77 @@ final class StripePaymentGatewayTest extends TestCase
     }
 
     // ─────────────────────────────────────────────────────────────────
+    // listRefunds
+    // ─────────────────────────────────────────────────────────────────
+
+    #[Test]
+    public function list_refunds_returns_the_refunds_that_returned_money_in_reverse_of_the_api_order(): void
+    {
+        Log::spy();
+
+        $payment = $this->paymentFor(2500, Currency::EUR);
+        $payment->gateway_reference = 'pi_listed';
+
+        // Newest first, as the API returns them. re_6 and re_5 were created in
+        // the same second: only the API's own order says which came first.
+        $this->refunds
+            ->shouldReceive('all')
+            ->once()
+            ->with(['payment_intent' => 'pi_listed', 'limit' => 100])
+            ->andReturn($this->refundList([
+                ['id' => 're_6', 'amount' => 100, 'status' => 'succeeded', 'created' => 300],
+                ['id' => 're_5', 'amount' => 200, 'status' => 'pending', 'created' => 300],
+                ['id' => 're_4', 'amount' => 300, 'status' => 'failed', 'created' => 250],
+                ['id' => 're_3', 'amount' => 400, 'status' => 'canceled', 'created' => 200],
+                ['id' => 're_2', 'amount' => 500, 'status' => 'requires_action', 'created' => 150],
+                ['id' => 're_1', 'amount' => 600, 'status' => null, 'created' => 120],
+                ['id' => 're_0', 'amount' => 700, 'status' => 'succeeded', 'created' => 100],
+            ]));
+
+        $this->assertEquals(
+            [new GatewayRefund('re_0', 700), new GatewayRefund('re_5', 200), new GatewayRefund('re_6', 100)],
+            $this->gateway->listRefunds($payment),
+        );
+
+        Log::shouldNotHaveReceived('warning');
+    }
+
+    #[Test]
+    public function list_refunds_warns_when_stripe_holds_more_than_the_one_page_it_read(): void
+    {
+        Log::spy();
+
+        $payment = $this->paymentFor(2500, Currency::EUR);
+        $payment->gateway_reference = 'pi_many';
+
+        $this->refunds
+            ->shouldReceive('all')
+            ->once()
+            ->andReturn($this->refundList(
+                [['id' => 're_newest', 'amount' => 1, 'status' => 'succeeded', 'created' => 100]],
+                hasMore: true,
+            ));
+
+        $this->assertEquals([new GatewayRefund('re_newest', 1)], $this->gateway->listRefunds($payment));
+
+        Log::shouldHaveReceived('warning')->once()->with(
+            'Stripe lists more than 100 refunds for one payment; only the newest 100 were read',
+            ['payment_id' => $payment->id, 'gateway_reference' => 'pi_many'],
+        );
+    }
+
+    #[Test]
+    public function list_refunds_asks_stripe_nothing_for_a_payment_with_no_gateway_reference(): void
+    {
+        // Without a payment_intent filter Stripe would list the account's most
+        // recent refunds, whichever payments they belong to.
+        $payment = $this->paymentFor(2500, Currency::EUR);
+        $this->refunds->shouldNotReceive('all');
+
+        $this->assertSame([], $this->gateway->listRefunds($payment));
+    }
+
+    // ─────────────────────────────────────────────────────────────────
     // createCustomer
     // ─────────────────────────────────────────────────────────────────
 
@@ -570,6 +643,28 @@ final class StripePaymentGatewayTest extends TestCase
     }
 
     #[Test]
+    public function parse_webhook_reads_the_live_charge_refunded_body_without_calling_stripe(): void
+    {
+        // The body Stripe really sends (API 2026-03-25.dahlia): the charge has
+        // no `refunds` key. Parsing takes the cumulative and the intent from it
+        // and asks Stripe nothing; the refund list is the action's to fetch,
+        // once it knows the payment is ours.
+        $this->refunds->shouldNotReceive('all');
+
+        $parsed = $this->gateway->parseWebhook($this->signedRequest(
+            $this->stripeFixture('charge.refunded.2026-03-25.dahlia.json'),
+            time(),
+        ));
+
+        $this->assertSame('pi_3UNEh8Qibh0bqUCQ0EvZ5Diw', $parsed->gatewayReference);
+        $this->assertSame('evt_3UNEh8Qibh0bqUCQ0Uc6lLpl', $parsed->eventId);
+        $this->assertSame(PaymentStatus::Refunded, $parsed->status);
+        $this->assertSame(6350, $parsed->amount);
+        $this->assertSame('eur', $parsed->currency);
+        $this->assertSame(2200, $parsed->amountRefunded);
+    }
+
+    #[Test]
     public function parse_webhook_reads_a_charge_refund_updated_event_as_a_refund(): void
     {
         // charge.refund.updated carries a REFUND object: id is re_…, the intent
@@ -732,6 +827,20 @@ final class StripePaymentGatewayTest extends TestCase
             'amount' => $amount,
             'currency' => $currency,
             'status' => PaymentStatus::Pending,
+        ]);
+    }
+
+    /**
+     * One page of Stripe's refund list, in the order given.
+     *
+     * @param  list<array<string, mixed>>  $refunds
+     */
+    private function refundList(array $refunds, bool $hasMore = false): Collection
+    {
+        return Collection::constructFrom([
+            'object' => 'list',
+            'has_more' => $hasMore,
+            'data' => array_map(fn (array $refund): array => ['object' => 'refund'] + $refund, $refunds),
         ]);
     }
 

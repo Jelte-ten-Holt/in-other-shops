@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace InOtherShops\Tests\Feature\Payment\Stripe;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use InOtherShops\Commerce\Order\Enums\RefundActorSource;
 use InOtherShops\Commerce\Order\Models\Order;
+use InOtherShops\Commerce\Order\Models\Refund;
 use InOtherShops\Currency\Enums\Currency;
 use InOtherShops\Payment\Actions\ProcessPaymentWebhook;
 use InOtherShops\Payment\Drivers\Stripe\StripePaymentGateway;
@@ -18,6 +20,7 @@ use InOtherShops\Tests\TestCase;
 use Mockery;
 use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
 use PHPUnit\Framework\Attributes\Test;
+use Stripe\Collection;
 use Stripe\Service\RefundService;
 use Stripe\StripeClient;
 
@@ -35,6 +38,9 @@ final class ProcessStripeWebhookTest extends TestCase
 
     /** The payment intent both captured events belong to. */
     private const string INTENT = 'pi_3UNEh8Qibh0bqUCQ0EvZ5Diw';
+
+    /** The dashboard refund (EUR 22.00) the captured events are about. */
+    private const string CAPTURED_REFUND = 're_3UNEh8Qibh0bqUCQ03L4oluj';
 
     private RefundService $refunds;
 
@@ -55,6 +61,56 @@ final class ProcessStripeWebhookTest extends TestCase
         $this->process = $this->app->make(ProcessPaymentWebhook::class);
     }
 
+    /**
+     * The gap this class exists for. The live charge.refunded body names no
+     * refund: it carries the charge's cumulative and nothing else. The rows come
+     * from the gateway's own list, which by the time the event is processed can
+     * already hold a later refund whose event is still on its way.
+     */
+    #[Test]
+    public function a_dashboard_refund_records_every_refund_the_gateway_lists_for_the_payment(): void
+    {
+        $payment = $this->orderPayment();
+
+        // Newest first, as the API returns them.
+        $this->refunds->shouldReceive('all')->once()
+            ->with(['payment_intent' => self::INTENT, 'limit' => 100])
+            ->andReturn(Collection::constructFrom([
+                'object' => 'list',
+                'has_more' => false,
+                'data' => [
+                    ['id' => 're_later', 'object' => 'refund', 'amount' => 1000, 'status' => 'succeeded'],
+                    ['id' => self::CAPTURED_REFUND, 'object' => 'refund', 'amount' => 2200, 'status' => 'succeeded'],
+                ],
+            ]));
+
+        $returned = ($this->process)('stripe', $this->signedRequest(
+            $this->stripeFixture('charge.refunded.2026-03-25.dahlia.json'),
+            time(),
+        ));
+
+        $this->assertTrue($payment->is($returned));
+        $payment->refresh();
+        $this->assertSame(2200, $payment->amount_refunded, 'the payment total follows the event, not the list');
+        $this->assertSame(PaymentStatus::PartiallyRefunded, $payment->status);
+
+        $refunds = $payment->payable->refunds()->orderBy('id')->get();
+        $this->assertCount(2, $refunds);
+
+        // Oldest first. VAT on 6350 charged {1900: 760, 700: 104}: 2200 refunded
+        // reverses {263, 36}, 3200 reverses {383, 52}, so the later 1000 carries
+        // the difference.
+        $this->assertSame(self::CAPTURED_REFUND, $refunds[0]->gateway_refund_id);
+        $this->assertSame(2200, $refunds[0]->amount);
+        $this->assertSame([1900 => 263, 700 => 36], $this->taxByRate($refunds[0]));
+        $this->assertSame(RefundActorSource::Gateway, $refunds[0]->actor_source);
+
+        $this->assertSame('re_later', $refunds[1]->gateway_refund_id);
+        $this->assertSame(1000, $refunds[1]->amount);
+        $this->assertSame([1900 => 120, 700 => 16], $this->taxByRate($refunds[1]));
+        $this->assertSame(RefundActorSource::Gateway, $refunds[1]->actor_source);
+    }
+
     #[Test]
     public function an_event_the_driver_does_not_handle_is_answered_without_a_ledger_row(): void
     {
@@ -70,6 +126,18 @@ final class ProcessStripeWebhookTest extends TestCase
         $this->assertSame(0, WebhookEvent::query()->count());
         $this->assertSame(PaymentStatus::Succeeded, $payment->refresh()->status);
         $this->assertSame(0, $payment->amount_refunded);
+    }
+
+    /** @return array<int, int> rate in basis points => reversed tax in cents */
+    private function taxByRate(Refund $refund): array
+    {
+        $tax = [];
+
+        foreach ($refund->taxSummary() as $line) {
+            $tax[$line->rateBps] = $line->tax;
+        }
+
+        return $tax;
     }
 
     private function orderPayment(): Payment

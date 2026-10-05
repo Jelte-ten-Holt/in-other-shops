@@ -5,21 +5,31 @@ declare(strict_types=1);
 namespace InOtherShops\Tests\Feature\Payment;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use InOtherShops\Commerce\Order\Enums\RefundActorSource;
 use InOtherShops\Commerce\Order\Models\Order;
 use InOtherShops\Currency\Enums\Currency;
 use InOtherShops\Payment\Actions\ProcessPaymentWebhook;
+use InOtherShops\Payment\Actions\RefundPayment;
+use InOtherShops\Payment\DTOs\GatewayRefund;
 use InOtherShops\Payment\Enums\PaymentStatus;
+use InOtherShops\Payment\Events\PaymentRefunded;
 use InOtherShops\Payment\Models\Payment;
+use InOtherShops\Payment\Models\WebhookEvent;
 use InOtherShops\Payment\PaymentGatewayManager;
 use InOtherShops\Payment\Testing\FakePaymentGateway;
 use InOtherShops\Tests\TestCase;
 use PHPUnit\Framework\Attributes\Test;
+use RuntimeException;
 
 /**
- * Phase 3: a refund that originates at the gateway (Stripe dashboard / dispute /
- * API) lands via the webhook, updates the payment monotonically, and the Commerce
- * reconciliation listener records the matching Refund row with the reversed tax.
+ * A refund that originates at the gateway (the Stripe dashboard, or the API used
+ * by anyone but this app) lands via the webhook, updates the payment
+ * monotonically, and the Commerce reconciliation listener records a Refund row,
+ * with the reversed tax, for every refund the gateway lists that has none yet.
+ * The interleavings with admin refunds are walked in
+ * Commerce\Order\ReconcileRefundFromWebhookTest.
  */
 final class ProcessPaymentWebhookRefundTest extends TestCase
 {
@@ -44,14 +54,9 @@ final class ProcessPaymentWebhookRefundTest extends TestCase
         $order = $this->order();
         $payment = $this->paymentFor($order);
 
-        $request = $this->gateway->simulateWebhook(
-            $payment,
-            PaymentStatus::Refunded,
-            amountRefunded: 1760,
-            gatewayRefundId: 're_dash',
-        );
+        $refundId = $this->gateway->recordOutsideRefund($payment, 1760);
 
-        ($this->process)('fake', $request);
+        ($this->process)('fake', $this->gateway->simulateWebhook($payment, PaymentStatus::Refunded));
 
         $payment->refresh();
         $this->assertSame(PaymentStatus::Refunded, $payment->status);
@@ -59,7 +64,7 @@ final class ProcessPaymentWebhookRefundTest extends TestCase
 
         $refund = $order->refunds()->sole();
         $this->assertSame(1760, $refund->amount);
-        $this->assertSame('re_dash', $refund->gateway_refund_id);
+        $this->assertSame($refundId, $refund->gateway_refund_id);
         $this->assertSame(RefundActorSource::Gateway, $refund->actor_source);
         // Full refund reverses the charged tax.
         $this->assertSame(210, collect($refund->taxSummary())->sum(fn ($l) => $l->tax));
@@ -71,11 +76,11 @@ final class ProcessPaymentWebhookRefundTest extends TestCase
         $order = $this->order();
         $payment = $this->paymentFor($order);
 
+        $this->gateway->recordOutsideRefund($payment, 800);
+
         ($this->process)('fake', $this->gateway->simulateWebhook(
             $payment,
             PaymentStatus::Refunded, // event-type status; recomputed from amounts
-            amountRefunded: 800,
-            gatewayRefundId: 're_partial',
         ));
 
         $payment->refresh();
@@ -91,17 +96,19 @@ final class ProcessPaymentWebhookRefundTest extends TestCase
         $order = $this->order();
         $payment = $this->paymentFor($order);
 
-        ($this->process)('fake', $this->gateway->simulateWebhook(
-            $payment, PaymentStatus::Refunded, amountRefunded: 1760, gatewayRefundId: 're_hi',
-        ));
-        ($this->process)('fake', $this->gateway->simulateWebhook(
-            $payment, PaymentStatus::PartiallyRefunded, amountRefunded: 800, gatewayRefundId: 're_lo',
-        ));
+        $this->gateway->recordOutsideRefund($payment, 800);
+        $lower = $this->gateway->simulateWebhook($payment, PaymentStatus::PartiallyRefunded);
+        $this->gateway->recordOutsideRefund($payment, 960);
+        $higher = $this->gateway->simulateWebhook($payment, PaymentStatus::Refunded);
+
+        ($this->process)('fake', $higher);
+        ($this->process)('fake', $lower);
 
         $payment->refresh();
         $this->assertSame(1760, $payment->amount_refunded, 'monotonic — a stale lower cumulative cannot regress it');
         $this->assertSame(PaymentStatus::Refunded, $payment->status);
-        $this->assertSame(1, $order->refunds()->count(), 'the stale event recorded no new refund');
+        $this->assertSame([800, 960], $order->refunds()->orderBy('id')->pluck('amount')->all(),
+            'both refunds were recorded by the first event; the stale one recorded nothing new');
     }
 
     #[Test]
@@ -110,15 +117,16 @@ final class ProcessPaymentWebhookRefundTest extends TestCase
         $order = $this->order();
         $payment = $this->paymentFor($order);
 
-        $request = $this->gateway->simulateWebhook(
-            $payment, PaymentStatus::Refunded, eventId: 'evt_same', amountRefunded: 1760, gatewayRefundId: 're_x',
-        );
+        $this->gateway->recordOutsideRefund($payment, 1760);
+        $request = $this->gateway->simulateWebhook($payment, PaymentStatus::Refunded, eventId: 'evt_same');
 
         ($this->process)('fake', $request);
         ($this->process)('fake', $request); // same event id → deduped by the webhook ledger
 
         $this->assertSame(1, $order->refunds()->count());
         $this->assertSame(1760, $payment->refresh()->amount_refunded);
+        $this->assertCount(1, $this->gateway->recordedRefundListings(),
+            'the redelivery finds the total already moved and does not ask the gateway again');
     }
 
     #[Test]
@@ -131,17 +139,117 @@ final class ProcessPaymentWebhookRefundTest extends TestCase
         $payment = $this->paymentFor($order);
 
         // Gateway refunded, but the local row missed it (still Succeeded, 0).
-        $this->gateway->refund($payment, 1760);
+        $refundId = $this->gateway->refund($payment, 1760);
         $this->assertSame(0, $payment->refresh()->amount_refunded);
 
-        ($this->process)('fake', $this->gateway->simulateWebhook(
-            $payment, PaymentStatus::Refunded, amountRefunded: 1760, gatewayRefundId: 're_recover',
-        ));
+        ($this->process)('fake', $this->gateway->simulateWebhook($payment, PaymentStatus::Refunded));
 
         $payment->refresh();
         $this->assertSame(PaymentStatus::Refunded, $payment->status);
         $this->assertSame(1760, $payment->amount_refunded, 'the webhook reconciles the lost local write');
-        $this->assertSame(1, $order->refunds()->count());
+
+        // The row is the admin's own refund, found in the gateway's list. Who
+        // clicked is lost with the local write: the gateway is the actor.
+        $refund = $order->refunds()->sole();
+        $this->assertSame($refundId, $refund->gateway_refund_id);
+        $this->assertSame(RefundActorSource::Gateway, $refund->actor_source);
+    }
+
+    #[Test]
+    public function a_refund_event_dispatches_payment_refunded_with_the_gateways_refunds_oldest_first(): void
+    {
+        Event::fake([PaymentRefunded::class]);
+
+        $payment = $this->paymentFor($this->order());
+
+        $older = $this->gateway->recordOutsideRefund($payment, 500);
+        $newer = $this->gateway->recordOutsideRefund($payment, 200);
+
+        ($this->process)('fake', $this->gateway->simulateWebhook($payment, PaymentStatus::Refunded));
+
+        Event::assertDispatched(
+            PaymentRefunded::class,
+            fn (PaymentRefunded $event): bool => $event->payment->is($payment)
+                && $event->payment->amount_refunded === 700
+                && array_map(fn (GatewayRefund $refund): array => [$refund->id, $refund->amount], $event->gatewayRefunds)
+                    === [[$older, 500], [$newer, 200]],
+        );
+    }
+
+    /**
+     * Both shops share one Stripe account, so each endpoint also receives the
+     * other shop's events. A refund event for a payment that is not ours must
+     * not cost a call to the gateway.
+     */
+    #[Test]
+    public function a_refund_event_for_a_payment_that_is_not_ours_makes_no_list_call(): void
+    {
+        $theirs = Payment::factory()->make([
+            'gateway' => 'fake',
+            'gateway_reference' => 'fake_pi_other_shop',
+            'amount' => 1760,
+            'currency' => Currency::EUR,
+        ]);
+
+        $this->gateway->recordOutsideRefund($theirs, 500);
+
+        $returned = ($this->process)('fake', $this->gateway->simulateWebhook($theirs, PaymentStatus::Refunded));
+
+        $this->assertNull($returned);
+        $this->assertSame([], $this->gateway->recordedRefundListings());
+        $this->assertSame(0, WebhookEvent::query()->count());
+    }
+
+    #[Test]
+    public function the_echo_of_an_admin_refund_makes_no_list_call_and_dispatches_nothing(): void
+    {
+        $payment = $this->paymentFor($this->order());
+
+        $this->app->make(RefundPayment::class)($payment, 500);
+
+        Event::fake([PaymentRefunded::class]);
+
+        ($this->process)('fake', $this->gateway->simulateWebhook($payment, PaymentStatus::Refunded));
+
+        $this->assertSame([], $this->gateway->recordedRefundListings());
+        $this->assertSame(500, $payment->refresh()->amount_refunded);
+        Event::assertNotDispatched(PaymentRefunded::class);
+    }
+
+    /**
+     * The list is fetched before the transaction opens, so a gateway call never
+     * runs under the payment row lock, and a failing one leaves nothing behind:
+     * the delivery answers non-2xx and the gateway retries it.
+     */
+    #[Test]
+    public function a_failing_list_call_escapes_before_any_transaction_and_leaves_no_trace(): void
+    {
+        $order = $this->order();
+        $payment = $this->paymentFor($order);
+
+        $this->gateway->recordOutsideRefund($payment, 500);
+        $this->gateway->markRefundListingErroring();
+
+        // RefreshDatabase wraps the test in its own transaction; the action must
+        // not have opened another by the time it asks the gateway.
+        $outsideTheAction = DB::transactionLevel();
+
+        try {
+            ($this->process)('fake', $this->gateway->simulateWebhook($payment, PaymentStatus::Refunded));
+            $this->fail('Expected the gateway failure to escape.');
+        } catch (RuntimeException $e) {
+            $this->assertSame('fake: gateway unavailable', $e->getMessage());
+        }
+
+        $this->assertSame(
+            [$outsideTheAction],
+            array_column($this->gateway->recordedRefundListings(), 'transactionLevel'),
+            'the list call ran inside the action\'s transaction',
+        );
+        $this->assertSame(0, WebhookEvent::query()->count(), 'no idempotency row, so the retry is processed');
+        $this->assertSame(0, $payment->refresh()->amount_refunded);
+        $this->assertSame(PaymentStatus::Succeeded, $payment->status);
+        $this->assertSame(0, $order->refunds()->count());
     }
 
     private function order(): Order

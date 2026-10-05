@@ -67,7 +67,6 @@ final class RefundOrder
             payment: $payment,
             gatewayRefundId: $result->gatewayRefundId,
             amount: $result->amount,
-            cumulativeRefunded: $result->cumulativeRefunded,
             actor: $actor,
             reason: $reason,
         );

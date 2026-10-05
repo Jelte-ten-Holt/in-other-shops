@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace InOtherShops\Payment\Drivers\Stripe;
 
+use InOtherShops\Payment\Contracts\ListsRefunds;
 use InOtherShops\Payment\Contracts\ManagesCustomers;
 use InOtherShops\Payment\Contracts\PaymentGateway;
+use InOtherShops\Payment\DTOs\GatewayRefund;
 use InOtherShops\Payment\DTOs\PaymentCustomerData;
 use InOtherShops\Payment\DTOs\PaymentSession;
 use InOtherShops\Payment\DTOs\WebhookPayload;
@@ -31,7 +33,7 @@ use Stripe\Webhook;
  * Shipped only when `stripe/stripe-php` is installed — see
  * {@see StripeGatewayServiceProvider} for the gated registration.
  */
-final class StripePaymentGateway implements ManagesCustomers, PaymentGateway
+final class StripePaymentGateway implements ListsRefunds, ManagesCustomers, PaymentGateway
 {
     private ?Event $verifiedEvent = null;
 
@@ -263,6 +265,42 @@ final class StripePaymentGateway implements ManagesCustomers, PaymentGateway
         // admin-initiated Refund row and the echoing charge.refunded webhook
         // converge on one record instead of double-counting.
         return $refund->id;
+    }
+
+    public function listRefunds(Payment $payment): array
+    {
+        if ($payment->gateway_reference === null) {
+            return []; // no intent was ever opened — nothing can have been refunded
+        }
+
+        // One page: reading `data` does not fetch a further one. A payment with
+        // more than a hundred refunds is not paginated for, only made visible.
+        $page = $this->client->refunds->all([
+            'payment_intent' => $payment->gateway_reference,
+            'limit' => 100,
+        ]);
+
+        if ($page->has_more) {
+            Log::warning('Stripe lists more than 100 refunds for one payment; only the newest 100 were read', [
+                'payment_id' => $payment->getKey(),
+                'gateway_reference' => $payment->gateway_reference,
+            ]);
+        }
+
+        $refunds = [];
+
+        // Stripe returns newest first, so the reverse is oldest first. Sorting on
+        // `created` instead would leave two refunds from the same second in
+        // arbitrary order.
+        foreach (array_reverse($page->data) as $refund) {
+            // Only these two have returned money or are returning it. failed,
+            // canceled, requires_action and a missing status have not.
+            if (in_array($refund->status, [Refund::STATUS_SUCCEEDED, Refund::STATUS_PENDING], true)) {
+                $refunds[] = new GatewayRefund(id: $refund->id, amount: $refund->amount);
+            }
+        }
+
+        return $refunds;
     }
 
     public function createCustomer(PaymentCustomerData $data): string
