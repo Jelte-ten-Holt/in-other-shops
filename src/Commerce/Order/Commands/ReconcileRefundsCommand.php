@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace InOtherShops\Commerce\Order\Commands;
 
+use Carbon\CarbonInterface;
 use Illuminate\Console\Command;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Log;
 use InOtherShops\Commerce\Commerce;
@@ -24,7 +26,8 @@ use InOtherShops\Payment\Models\Payment;
  *
  * Payments touched in the last fifteen minutes are skipped: between two events
  * of one run the rows are ahead of the total by design, and the next event
- * closes the gap.
+ * closes the gap. The run says how many it skipped, so a clean result right
+ * after a refund is not read as a verdict on that payment.
  *
  * Not auto-scheduled: consumers wire it into their own scheduler + alerting.
  */
@@ -38,10 +41,19 @@ final class ReconcileRefundsCommand extends Command
 
     public function handle(): int
     {
-        $mismatches = $this->mismatches();
+        $settledBefore = now()->subMinutes(self::SETTLING_MINUTES);
+
+        // A clean run says nothing about a payment it skipped, so say so.
+        $skipped = $this->orderPayments()->where('updated_at', '>=', $settledBefore)->count();
+
+        if ($skipped > 0) {
+            $this->warn($skipped.' payment(s) touched in the last '.self::SETTLING_MINUTES.' minutes were not checked; run again later to cover them.');
+        }
+
+        $mismatches = $this->mismatches($settledBefore);
 
         if ($mismatches->isEmpty()) {
-            $this->info('Refunds reconciled clean: every order payment\'s refunded total matches its recorded refunds.');
+            $this->info('Refunds reconciled clean: every order payment checked has a refunded total that matches its recorded refunds.');
 
             return self::SUCCESS;
         }
@@ -67,15 +79,22 @@ final class ReconcileRefundsCommand extends Command
     }
 
     /**
+     * @return Builder<Payment>
+     */
+    private function orderPayments(): Builder
+    {
+        return Payment::query()->where('payable_type', (new (Commerce::order()))->getMorphClass());
+    }
+
+    /**
      * @return Collection<int, Payment>
      */
-    private function mismatches(): Collection
+    private function mismatches(CarbonInterface $settledBefore): Collection
     {
         // Shops are small by design — one pass with the rows summed in SQL is
         // fine; no chunking needed at this scale.
-        return Payment::query()
-            ->where('payable_type', (new (Commerce::order()))->getMorphClass())
-            ->where('updated_at', '<', now()->subMinutes(self::SETTLING_MINUTES))
+        return $this->orderPayments()
+            ->where('updated_at', '<', $settledBefore)
             ->addSelect(['recorded_refunds' => Commerce::refund()::query()
                 ->selectRaw('coalesce(sum(amount), 0)')
                 ->whereColumn('refunds.payment_id', 'payments.id'),

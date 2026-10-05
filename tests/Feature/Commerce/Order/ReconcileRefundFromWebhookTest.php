@@ -161,6 +161,7 @@ final class ReconcileRefundFromWebhookTest extends TestCase
             ['amount' => 300, 'tax' => [1900 => 27, 700 => 8], 'by' => 'admin'],
         ], $this->rows());
         $this->assertSame([1900 => 91, 700 => 28], $this->reversedTax());
+        $this->assertSame([1900 => 479, 700 => 402], $this->reversedBase(), 'the taxable base is reversed on the same anchor');
         $this->assertNoNegativeTaxLine();
         $this->assertSame(1000, $this->payment->refresh()->amount_refunded);
     }
@@ -182,6 +183,7 @@ final class ReconcileRefundFromWebhookTest extends TestCase
             ['amount' => 300, 'tax' => [1900 => 27, 700 => 9], 'by' => 'admin'],
         ], $this->rows());
         $this->assertSame([1900 => 160, 700 => 50], $this->reversedTax());
+        $this->assertSame([1900 => 843, 700 => 707], $this->reversedBase());
         $this->assertNoNegativeTaxLine();
         $this->assertSame(1760, $this->payment->refresh()->amount_refunded);
         $this->assertSame(PaymentStatus::Refunded, $this->payment->status);
@@ -259,6 +261,29 @@ final class ReconcileRefundFromWebhookTest extends TestCase
     }
 
     /**
+     * The one way such a payment IS healed: another outside refund moves its
+     * total, and the gateway's list brings the missing refund in with it. The
+     * older refund is recorded first against a payment total that already
+     * counts both, so its row carries the VAT of everything refunded so far and
+     * the new refund's row carries none. The reversed total is right; the split
+     * is not chronological.
+     */
+    #[Test]
+    public function a_new_outside_refund_on_a_payment_whose_rows_are_behind_brings_the_missing_row_in(): void
+    {
+        $this->gateway->recordOutsideRefund($this->payment, 500);
+        $this->payment->update(['amount_refunded' => 500, 'status' => PaymentStatus::PartiallyRefunded]);
+
+        $this->deliver($this->outsideRefund(300));
+
+        $this->assertSame([
+            ['amount' => 500, 'tax' => [1900 => 73, 700 => 22], 'by' => 'gateway'],
+            ['amount' => 300, 'tax' => [], 'by' => 'gateway'],
+        ], $this->rows());
+        $this->assertSame(800, $this->payment->refresh()->amount_refunded);
+    }
+
+    /**
      * A refund lands at the gateway from outside the app. The gateway cuts its
      * event in the same moment, so the event carries the cumulative as it stood
      * right then, however late it is delivered.
@@ -325,6 +350,20 @@ final class ReconcileRefundFromWebhookTest extends TestCase
         }
 
         return $tax;
+    }
+
+    /** @return array<int, int> reversed taxable base per rate, summed over every row */
+    private function reversedBase(): array
+    {
+        $base = [];
+
+        foreach ($this->order->refunds()->get() as $refund) {
+            foreach ($refund->taxSummary() as $line) {
+                $base[$line->rateBps] = ($base[$line->rateBps] ?? 0) + $line->taxableBase;
+            }
+        }
+
+        return $base;
     }
 
     private function assertNoNegativeTaxLine(): void

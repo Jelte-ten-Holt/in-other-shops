@@ -32,6 +32,15 @@ final class ReconcileRefundsCommandTest extends TestCase
         $this->refundRow($matching, 500);
         $this->refundRow($matching, 300);
 
+        // A second payment on the same order, with no refunds of its own: rows
+        // are matched to a payment, not to its order.
+        Payment::factory()->for($matching->payable, 'payable')->create([
+            'gateway' => 'stripe',
+            'amount' => 6350,
+            'amount_refunded' => 0,
+            'updated_at' => now()->subHour(),
+        ]);
+
         // A payment for something that is not an order has no refund rows to
         // agree with, whatever its total says.
         Payment::factory()->for(TestPayable::factory()->create(['total_due' => 1760]), 'payable')->create([
@@ -81,17 +90,21 @@ final class ReconcileRefundsCommandTest extends TestCase
      * that moment must not raise the alarm.
      */
     #[Test]
-    public function a_payment_touched_within_the_last_fifteen_minutes_is_skipped(): void
+    public function a_payment_touched_within_the_last_fifteen_minutes_is_skipped_and_the_run_says_so(): void
     {
-        $recent = $this->orderPayment(refunded: 500, touched: now()->subMinute());
+        $recent = $this->orderPayment(refunded: 500, touched: now()->subMinutes(14));
         $this->refundRow($recent, 500);
         $this->refundRow($recent, 200);
 
-        $this->artisan('commerce:reconcile-refunds')->assertExitCode(0);
+        $this->artisan('commerce:reconcile-refunds')
+            ->expectsOutputToContain('1 payment(s) touched in the last 15 minutes were not checked')
+            ->assertExitCode(0);
 
-        $this->travel(15)->minutes();
+        $this->travel(2)->minutes();
 
-        $this->artisan('commerce:reconcile-refunds')->assertExitCode(1);
+        $this->artisan('commerce:reconcile-refunds')
+            ->doesntExpectOutputToContain('were not checked')
+            ->assertExitCode(1);
     }
 
     #[Test]

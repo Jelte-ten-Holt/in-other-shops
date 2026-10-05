@@ -5,14 +5,19 @@ declare(strict_types=1);
 namespace InOtherShops\Tests\Feature\Payment;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use InOtherShops\Commerce\Order\Enums\RefundActorSource;
+use InOtherShops\Commerce\Order\Events\RefundRecorded;
 use InOtherShops\Commerce\Order\Models\Order;
 use InOtherShops\Currency\Enums\Currency;
 use InOtherShops\Payment\Actions\ProcessPaymentWebhook;
 use InOtherShops\Payment\Actions\RefundPayment;
+use InOtherShops\Payment\Contracts\PaymentGateway;
 use InOtherShops\Payment\DTOs\GatewayRefund;
+use InOtherShops\Payment\DTOs\PaymentSession;
+use InOtherShops\Payment\DTOs\WebhookPayload;
 use InOtherShops\Payment\Enums\PaymentStatus;
 use InOtherShops\Payment\Events\PaymentRefunded;
 use InOtherShops\Payment\Models\Payment;
@@ -20,6 +25,7 @@ use InOtherShops\Payment\Models\WebhookEvent;
 use InOtherShops\Payment\PaymentGatewayManager;
 use InOtherShops\Payment\Testing\FakePaymentGateway;
 use InOtherShops\Tests\TestCase;
+use LogicException;
 use PHPUnit\Framework\Attributes\Test;
 use RuntimeException;
 
@@ -121,8 +127,9 @@ final class ProcessPaymentWebhookRefundTest extends TestCase
         $request = $this->gateway->simulateWebhook($payment, PaymentStatus::Refunded, eventId: 'evt_same');
 
         ($this->process)('fake', $request);
-        ($this->process)('fake', $request); // same event id → deduped by the webhook ledger
+        ($this->process)('fake', $request); // same event id: one ledger row, nothing recorded twice
 
+        $this->assertSame(1, WebhookEvent::query()->count());
         $this->assertSame(1, $order->refunds()->count());
         $this->assertSame(1760, $payment->refresh()->amount_refunded);
         $this->assertCount(1, $this->gateway->recordedRefundListings(),
@@ -250,6 +257,123 @@ final class ProcessPaymentWebhookRefundTest extends TestCase
         $this->assertSame(0, $payment->refresh()->amount_refunded);
         $this->assertSame(PaymentStatus::Succeeded, $payment->status);
         $this->assertSame(0, $order->refunds()->count());
+    }
+
+    /**
+     * The rows are written inside the delivery's transaction, so a failure while
+     * recording any of them takes the moved total and the idempotency row down
+     * with it. Committing those without the rows would leave a payment no later
+     * event repairs: every redelivery would be stale.
+     */
+    #[Test]
+    public function a_failure_while_recording_a_refund_unwinds_the_whole_delivery(): void
+    {
+        $order = $this->order();
+        $payment = $this->paymentFor($order);
+
+        $this->gateway->recordOutsideRefund($payment, 500);
+        $this->gateway->recordOutsideRefund($payment, 200);
+
+        // The first refund records cleanly; the second fails once its row is in.
+        Event::listen(RefundRecorded::class, function (RefundRecorded $event): void {
+            if ($event->refund->amount === 200) {
+                throw new RuntimeException('recording failed');
+            }
+        });
+
+        try {
+            ($this->process)('fake', $this->gateway->simulateWebhook($payment, PaymentStatus::Refunded));
+            $this->fail('Expected the failure to escape.');
+        } catch (RuntimeException $e) {
+            $this->assertSame('recording failed', $e->getMessage());
+        }
+
+        $this->assertSame(0, $order->refunds()->count(), 'the first refund\'s row must not survive alone');
+        $this->assertSame(0, WebhookEvent::query()->count(), 'no idempotency row, so the retry is processed');
+        $this->assertSame(0, $payment->refresh()->amount_refunded);
+        $this->assertSame(PaymentStatus::Succeeded, $payment->status);
+    }
+
+    /**
+     * ListsRefunds is optional. A gateway without it still has its refund events
+     * move the payment total; there is no list, so no row is recorded.
+     */
+    #[Test]
+    public function a_refund_event_from_a_gateway_that_cannot_list_refunds_still_moves_the_payment_total(): void
+    {
+        Event::fake([PaymentRefunded::class]);
+
+        $order = $this->order();
+        $payment = $this->paymentFor($order);
+        $payment->update(['gateway' => 'plain']);
+
+        $this->app->make(PaymentGatewayManager::class)->extend('plain', fn (): PaymentGateway => $this->gatewayWithoutRefundList());
+
+        $this->gateway->recordOutsideRefund($payment, 500);
+
+        ($this->process)('plain', $this->gateway->simulateWebhook($payment, PaymentStatus::Refunded));
+
+        $this->assertSame(500, $payment->refresh()->amount_refunded);
+        $this->assertSame(PaymentStatus::PartiallyRefunded, $payment->status);
+        Event::assertDispatched(
+            PaymentRefunded::class,
+            fn (PaymentRefunded $event): bool => $event->payment->is($payment) && $event->gatewayRefunds === [],
+        );
+        $this->assertSame([], $this->gateway->recordedRefundListings());
+    }
+
+    /**
+     * A PaymentGateway that is not a ListsRefunds. It reads webhooks the way the
+     * fake does and supports nothing else.
+     */
+    private function gatewayWithoutRefundList(): PaymentGateway
+    {
+        return new class($this->gateway) implements PaymentGateway
+        {
+            public function __construct(private readonly FakePaymentGateway $fake) {}
+
+            public function identifier(): string
+            {
+                return 'plain';
+            }
+
+            public function verifyWebhookSignature(Request $request): void {}
+
+            public function parseWebhook(Request $request): ?WebhookPayload
+            {
+                return $this->fake->parseWebhook($request);
+            }
+
+            public function createSession(Payment $payment, string $returnUrl, string $cancelUrl, ?string $gatewayCustomerId = null): PaymentSession
+            {
+                throw new LogicException('Not needed for this test.');
+            }
+
+            public function retrieveSession(Payment $payment): PaymentSession
+            {
+                throw new LogicException('Not needed for this test.');
+            }
+
+            public function cancelSession(Payment $payment): void
+            {
+                throw new LogicException('Not needed for this test.');
+            }
+
+            public function refund(Payment $payment, ?int $amount = null): string
+            {
+                throw new LogicException('Not needed for this test.');
+            }
+
+            public function customerDashboardUrl(string $gatewayCustomerId): ?string
+            {
+                return null;
+            }
+
+            public function paymentDashboardUrl(Payment $payment): ?string
+            {
+                return null;
+            }
+        };
     }
 
     private function order(): Order

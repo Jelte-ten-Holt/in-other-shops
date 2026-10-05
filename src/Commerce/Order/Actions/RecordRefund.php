@@ -65,10 +65,13 @@ final class RecordRefund
                 'actor_id' => $actor->id,
                 'actor_label' => $actor->label,
             ]));
-        } catch (UniqueConstraintViolationException) {
+        } catch (UniqueConstraintViolationException $e) {
             // A concurrent path (admin vs. webhook) recorded it first — return
-            // theirs, don't double-record or double-dispatch.
-            return $this->find($payment->gateway, $gatewayRefundId) ?? throw new UniqueConstraintViolationException('', '', [], null);
+            // theirs, don't double-record or double-dispatch. Inside a
+            // transaction whose snapshot predates their commit the row cannot
+            // be read back: the violation then escapes, the caller's
+            // transaction rolls back, and a retry finds the row.
+            return $this->find($payment->gateway, $gatewayRefundId) ?? throw $e;
         }
 
         RefundRecorded::dispatch($refund);

@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 namespace InOtherShops\Tests\Feature\Commerce\Order;
 
+use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use InOtherShops\Commerce\Order\Actions\RecordRefund;
 use InOtherShops\Commerce\Order\DTOs\RefundActor;
+use InOtherShops\Commerce\Order\Enums\RefundActorSource;
 use InOtherShops\Commerce\Order\Events\RefundRecorded;
 use InOtherShops\Commerce\Order\Models\Order;
 use InOtherShops\Commerce\Order\Models\Refund;
@@ -98,6 +101,50 @@ final class RecordRefundTest extends TestCase
         $this->assertSame(160, $tax[1900]);
         $this->assertSame(50, $tax[700]);
         $this->assertSame(1760, $order->fresh()->refundedTotal());
+    }
+
+    /**
+     * The admin's own call and the webhook listener can both be offered the same
+     * refund and both miss the pre-check. The unique index refuses the second
+     * insert; the loser returns the winner's row and announces nothing.
+     */
+    #[Test]
+    public function a_refund_another_writer_recorded_between_the_check_and_the_insert_is_returned_not_duplicated(): void
+    {
+        Event::fake([RefundRecorded::class]);
+
+        $order = $this->order();
+        $payment = $this->paymentFor($order);
+
+        // The other writer's row lands after this call's pre-check and outside
+        // its own insert: on the first read of the order's refunds, which is
+        // where the VAT reversal starts.
+        $landed = false;
+        DB::listen(function (QueryExecuted $query) use (&$landed, $order, $payment): void {
+            if ($landed || ! str_contains($query->sql, 'refunds') || ! str_contains($query->sql, 'order_id')) {
+                return;
+            }
+
+            $landed = true;
+
+            DB::table('refunds')->insert([
+                'order_id' => $order->id,
+                'payment_id' => $payment->id,
+                'gateway' => $payment->gateway,
+                'gateway_refund_id' => 're_raced',
+                'amount' => 1000,
+                'actor_source' => RefundActorSource::Gateway->value,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        });
+
+        $returned = ($this->record)($order, $payment, 're_raced', 1000, RefundActor::admin('7'));
+
+        $this->assertTrue($landed);
+        $this->assertSame(1, $order->refunds()->count());
+        $this->assertSame(RefundActorSource::Gateway, $returned->actor_source, 'the row returned is the other writer\'s');
+        Event::assertNotDispatched(RefundRecorded::class);
     }
 
     /**

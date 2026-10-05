@@ -526,3 +526,39 @@ Checked against the code while building (2026-10-05). None changed the design.
   one: the stale exit under the lock, and `RecordRefund`'s idempotency.
 - **`src/Payment/README.md` had a third stale line** besides the two § 7 names:
   it called the action `HandlePaymentWebhook`. Corrected with the other two.
+
+Found by an independent review of the build, the same day:
+
+- **§ 9 step 2 says both rows "carry a `tax_summary`". The new refund's row will
+  carry an empty one.** On a payment whose rows are behind, the older refund is
+  recorded first against a payment total that already counts both, so its row
+  takes the VAT of everything refunded so far and the new row takes none. That
+  is § 3.5 working as written (the total is right, the split is not
+  chronological) and it is pinned by a test, but at acceptance it reads like a
+  failure: on order 10, `re_3UNEh8Qibh0bqUCQ03L4oluj` will carry all of it.
+- **§ 9 step 4 cannot be run straight after step 3.** The tripwire skips
+  payments touched in the last fifteen minutes, so a run right after a refund
+  passes without having looked at that payment. The command now says how many
+  payments it skipped. Run step 4 sixteen minutes later.
+- **§ 5.1 has a third outcome.** If the admin's row is committed after the
+  webhook's transaction took its snapshot and before the webhook inserts the
+  same refund, the unique index refuses the insert and the row cannot be read
+  back inside that snapshot (MySQL, repeatable read). The delivery then rolls
+  back and answers 500; Stripe's retry finds the row, and the admin keeps the
+  attribution. The fallback on that line used to construct an exception with a
+  null argument, which is a `TypeError`; it now rethrows the violation it
+  caught. Reasoned from InnoDB's rules, not run: SQLite cannot show it.
+- **The VAT anchor mixes an order-wide figure with a per-payment one.** The rows
+  are summed over the order, `amount_refunded` belongs to one payment. An order
+  with two succeeded payments (a duplicate charge) can reverse more VAT than
+  was charged. Neither shop creates a second succeeded payment today, and the
+  code before this build was wrong for that shape too. Flagged in `TODO.md`,
+  not built.
+- **Nothing compares the event's cumulative with the sum of the list.** If the
+  list lacked the refund the event is about, the total would move, fewer rows
+  would be recorded and no line would be logged. The tripwire reports the end
+  state the next day. Whether Stripe's list can lag its own event is unknown.
+- **A failure while recording a row takes the moved total down with it.** The
+  rows are written inside the delivery's transaction, so the delivery answers
+  500 and is retried. While it keeps failing, total and rows agree at their old
+  values and the tripwire sees nothing: the 500s are the signal. Tested.
