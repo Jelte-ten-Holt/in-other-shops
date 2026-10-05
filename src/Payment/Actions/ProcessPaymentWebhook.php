@@ -42,6 +42,11 @@ final class ProcessPaymentWebhook
 
         $payload = $gateway->parseWebhook($request);
 
+        // Authentic, and nothing this gateway acts on: no ledger row, no lock.
+        if ($payload === null) {
+            return null;
+        }
+
         return DB::transaction(function () use ($gatewayName, $payload): ?Payment {
             // Resolve the payment BEFORE recording idempotency. An event whose
             // gateway_reference matches no payment yet (delivered before the pay

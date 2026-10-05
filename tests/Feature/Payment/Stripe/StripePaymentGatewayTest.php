@@ -6,6 +6,7 @@ namespace InOtherShops\Tests\Feature\Payment\Stripe;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use InOtherShops\Currency\Enums\Currency;
 use InOtherShops\Payment\DTOs\PaymentCustomerData;
 use InOtherShops\Payment\Drivers\Stripe\StripePaymentGateway;
@@ -13,9 +14,11 @@ use InOtherShops\Payment\Enums\PaymentStatus;
 use InOtherShops\Payment\Exceptions\PaymentNotCancelableException;
 use InOtherShops\Payment\Models\Payment;
 use InOtherShops\Tests\Stubs\TestPayable;
+use InOtherShops\Tests\Support\SignsStripeWebhooks;
 use InOtherShops\Tests\TestCase;
 use Mockery;
 use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use RuntimeException;
 use Stripe\Customer;
@@ -41,8 +44,7 @@ final class StripePaymentGatewayTest extends TestCase
 {
     use MockeryPHPUnitIntegration;
     use RefreshDatabase;
-
-    private const string WEBHOOK_SECRET = 'whsec_test_secret_for_signature_computation';
+    use SignsStripeWebhooks;
 
     private StripeClient $client;
 
@@ -615,6 +617,54 @@ final class StripePaymentGatewayTest extends TestCase
     }
 
     // ─────────────────────────────────────────────────────────────────
+    // parseWebhook — events the driver does not handle
+    // ─────────────────────────────────────────────────────────────────
+
+    /**
+     * Authentic events about something other than a payment intent used to be
+     * cast to one: a dispute was dropped without a trace, and a charge or refund
+     * object with a `succeeded` status read as a settled payment under an id no
+     * payment row carries, which the action answers with a 500 on every delivery.
+     */
+    #[Test]
+    #[DataProvider('unhandledEvents')]
+    public function parse_webhook_ignores_and_logs_an_event_that_is_not_about_a_payment_intent(string $type, array $object): void
+    {
+        Log::spy();
+
+        $payload = json_encode([
+            'id' => 'evt_unhandled',
+            'object' => 'event',
+            'type' => $type,
+            'data' => ['object' => $object],
+        ], JSON_THROW_ON_ERROR);
+
+        $this->assertNull($this->gateway->parseWebhook($this->signedRequest($payload, time())));
+
+        Log::shouldHaveReceived('info')->once()->with(
+            'Stripe webhook ignored: not an event this driver handles',
+            ['event_type' => $type, 'event_id' => 'evt_unhandled'],
+        );
+    }
+
+    /** @return array<string, array{string, array<string, mixed>}> */
+    public static function unhandledEvents(): array
+    {
+        $dispute = ['id' => 'du_1', 'object' => 'dispute', 'charge' => 'ch_1', 'payment_intent' => 'pi_1', 'status' => 'needs_response', 'amount' => 2500];
+        $refund = ['id' => 're_1', 'object' => 'refund', 'charge' => 'ch_1', 'payment_intent' => 'pi_1', 'status' => 'succeeded', 'amount' => 2500];
+        $charge = ['id' => 'ch_1', 'object' => 'charge', 'payment_intent' => 'pi_1', 'status' => 'succeeded', 'amount' => 2500];
+
+        return [
+            'a dispute' => ['charge.dispute.created', $dispute],
+            'a closed dispute' => ['charge.dispute.closed', ['status' => 'lost'] + $dispute],
+            'refund.created' => ['refund.created', $refund],
+            'refund.updated' => ['refund.updated', $refund],
+            'charge.succeeded' => ['charge.succeeded', $charge],
+            'charge.updated' => ['charge.updated', $charge],
+        ];
+    }
+
+    // ─────────────────────────────────────────────────────────────────
     // parseWebhook — verified-event reuse
     // ─────────────────────────────────────────────────────────────────
 
@@ -744,24 +794,5 @@ final class StripePaymentGatewayTest extends TestCase
                 ],
             ],
         ], JSON_THROW_ON_ERROR);
-    }
-
-    private function signedRequest(string $payload, int $timestamp, ?string $secret = null): Request
-    {
-        $secret = $secret ?? self::WEBHOOK_SECRET;
-
-        $signedPayload = "{$timestamp}.{$payload}";
-        $signature = hash_hmac('sha256', $signedPayload, $secret);
-        $header = "t={$timestamp},v1={$signature}";
-
-        return Request::create(
-            uri: '/webhooks/stripe',
-            method: 'POST',
-            content: $payload,
-            server: [
-                'CONTENT_TYPE' => 'application/json',
-                'HTTP_STRIPE_SIGNATURE' => $header,
-            ],
-        );
     }
 }

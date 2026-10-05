@@ -13,6 +13,7 @@ use InOtherShops\Payment\Enums\PaymentStatus;
 use InOtherShops\Payment\Exceptions\PaymentNotCancelableException;
 use InOtherShops\Payment\Models\Payment;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use RuntimeException;
 use Stripe\Event;
 use Stripe\Exception\InvalidRequestException;
@@ -145,7 +146,7 @@ final class StripePaymentGateway implements ManagesCustomers, PaymentGateway
         }
     }
 
-    public function parseWebhook(Request $request): WebhookPayload
+    public function parseWebhook(Request $request): ?WebhookPayload
     {
         $event = $this->verifiedEvent ?? Webhook::constructEvent(
             $request->getContent(),
@@ -166,6 +167,18 @@ final class StripePaymentGateway implements ManagesCustomers, PaymentGateway
 
         if ($event->type === 'charge.refund.updated') {
             return $this->parseRefundUpdated($event);
+        }
+
+        // Everything below reads a PaymentIntent. An authentic event about
+        // anything else (a dispute, a refund, a charge) is not one this driver
+        // handles: casting it would read a du_…/re_…/ch_… id as an intent id.
+        if (($event->data->object->object ?? null) !== PaymentIntent::OBJECT_NAME) {
+            Log::info('Stripe webhook ignored: not an event this driver handles', [
+                'event_type' => $event->type,
+                'event_id' => $event->id,
+            ]);
+
+            return null;
         }
 
         /** @var PaymentIntent $intent */
