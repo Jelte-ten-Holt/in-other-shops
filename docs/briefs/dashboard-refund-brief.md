@@ -1,18 +1,25 @@
 # Brief — refunds made outside the app record no Refund row
 
-**Status (2026-10-05): brief, awaiting Jelte's answers to § 8.** Surfaced by the
+**Status (2026-10-05): rev 1 + adversarial pass (§ 9). Not build-ready.** Two
+claims of rev 1 are withdrawn in place (the dispute claim, and "holds by
+construction"); § 8's Q1 and Q5 are superseded by § 9's rulings R1–R4. The
+build waits on those rulings and on one live observation (R1). Surfaced by the
 stripe-php 21 research ([stripe-php-21-brief.md](stripe-php-21-brief.md) § 8.1).
 Not yet seen live; the mayangna test-mode dashboard refund from that brief's § 7
 is the acceptance test, not the gate (§ 1 says why).
 
 ## 1. Verdict
 
-A refund issued in the Stripe dashboard, by a dispute, or through the API by
-anyone but this app **moves the payment row and nothing else**: no `Refund`
+A refund issued in the Stripe dashboard or through the API by anyone but this
+app (~~or by a dispute~~ — withdrawn, § 9.1: a dispute is not a refund and takes
+a different, worse path) **moves the payment row and nothing else**: no `Refund`
 row, no tax reversal, no `RefundRecorded` audit row. Admin-initiated refunds are
 unaffected.
 
-The cause holds by construction, not by observation. Since Stripe API
+~~The cause holds by construction, not by observation.~~ **Withdrawn, § 9.3:
+expected, not observed.** The vendored SDK's own docblock still says the ten
+most recent refunds are on the Charge by default, and no code reads or pins the
+endpoint's API version. One live event body settles it. Since Stripe API
 `2022-11-15` a Charge no longer carries `refunds`, and webhook payloads cannot
 expand it. The webhook endpoint's API version is what renders the payload, and
 both shops' Stripe accounts were created in 2026, so their endpoints are on a
@@ -122,9 +129,9 @@ the version bump.
 
 **Tests**
 - `tests/Feature/Payment/Stripe/StripePaymentGatewayTest.php` —
-  `chargeRefundedEventJson()` (`:707-730`) drops `refunds`; the two tests using
-  it (`:558`, `:585`) then expect a `refunds->all` call and must fail on the
-  unfixed driver. Add: list-call failure propagates; a payload that still
+  `chargeRefundedEventJson()` (`:707-730`) drops `refunds`; the one test using
+  it (`:558`; `:585` belongs to the `charge.refund.updated` test — corrected,
+  § 9.5) then expects a `refunds->all` call and must fail on the unfixed driver. Add: list-call failure propagates; a payload that still
   carries `refunds` makes no API call.
 - `ProcessPaymentWebhookRefundTest`, `ProcessPaymentWebhookTest:281,304`,
   `RecordRefundTest`, `RefundPaymentTest` — use `FakePaymentGateway` or hand-built
@@ -159,12 +166,12 @@ v0.72.0 after it. No migration, no config, no consumer code.
 - **Live, mayangna test mode, after the bump deploys:** one refund from the
   Stripe dashboard produces a `Refund` row with the `re_…` id, a `tax_summary`,
   `actor_source = gateway`, and a `RefundRecorded` audit row; the order page
-  shows it. An admin refund still produces exactly one row when its webhook
-  echoes back.
+  shows it. ~~An admin refund still produces exactly one row when its webhook
+  echoes back.~~ (Cannot fail, § 9.5: the echo exits before the listener runs.)
 
 ## 8. Open questions for Jelte
 
-**Q1. Newest refund, or match the cumulative?** Lean newest (§ 4): the
+**Q1 (superseded by § 9 R2). Newest refund, or match the cumulative?** Lean newest (§ 4): the
 misattribution needs two refunds inside one webhook delivery window, the payment
 total is right either way, and the fortified walk is more code for a case we
 have not seen. Say so if you would rather have the walk.
@@ -179,7 +186,138 @@ old endpoint versions working without a call.
 **Q4. Tag v0.71.3 and bump both consumers now?** Lean yes; it is one sitting and
 it lands before Release 2 so the two never share a release.
 
-**Q5. Build before or after the mayangna dashboard refund?** Lean before. The
+**Q5 (superseded by § 9 R1; the lean below is reversed). Build before or after the mayangna dashboard refund?** Lean before. The
 cause is structural (§ 1); the live refund then verifies the fix instead of the
 bug. If you prefer to see the bug first, do the § 7 pass of the stripe brief on
 the current deploy and expect no `Refund` row.
+
+## 9. Adversarial pass (2026-10-05)
+
+An independent reviewer checked rev 1 against the code, both consumers and the
+vendored SDK. § 2's mechanism holds (a `refunds`-less `charge.refunded` parses to
+a null id through the real driver, and the listener skips it). The rest of this
+section is what did not hold. Each claim below was re-read in the code before
+being recorded here.
+
+### 9.1 Disputes are not refunds — rev 1 was wrong, and so are three comments
+
+`charge.dispute.*` has no branch in `parseWebhook()`, so it falls into the
+PaymentIntent cast (`StripePaymentGateway.php:171-189`): the reference becomes
+the dispute's `dp_…` id, the status maps to Pending (`:288-292`), no payment
+matches, and `ProcessPaymentWebhook.php:65-70` answers 204 with no ledger row
+and no log. A dispute creates no Refund object and no `charge.refunded`, so
+shape A would find nothing either. **Money lost to a dispute leaves no local
+trace at all.** The same wrong claim ("dashboard / dispute / API") sits in
+`PaymentRefunded.php:11-12`, `ReconcileRefundFromWebhook.php:13-14` and the
+header of `ProcessPaymentWebhookRefundTest.php:20`; all three get corrected in
+the build. Disputes become their own TODO item (R3 covers the cast, not a
+dispute feature).
+
+### 9.2 The two-refund case is worse than rev 1's § 4 said
+
+With "newest non-failed", refund 2's amount and VAT reversal are **never
+recorded**, and `Order::refundedTotal()` (`Order.php:160-163`, a sum of Refund
+rows) under-reports for good. The admin page reads that sum for the
+fully-refunded notice (`EditOrder.php:52`), the refund cap (`:87`) and the
+action's visibility (`:144`). The window is not one delivery: any delayed first
+event (a deploy, or a 500 in backoff, which § 4's throw-on-failure creates)
+widens it to hours, because the payload's cumulative is a snapshot at event time
+and the list is live at processing time. The Q1 walk fixes dashboard-then-
+dashboard but **not dashboard-then-admin**: the admin write raises
+`amount_refunded` first, event 1 exits at `ProcessPaymentWebhook.php:158-160`,
+and event 2 resolves to the admin's existing id. Nothing today reconciles
+`sum(refunds.amount)` against `payments.amount_refunded`.
+
+### 9.3 The premise is unobserved, and Q5's lean skipped the only falsifier
+
+`vendor/stripe/stripe-php/lib/Service/RefundService.php:15-17` says "The 10 most
+recent refunds are always available by default on the Charge object", and
+`Charge.php:49` still declares `$refunds`. That may be stale API description
+text, but it is the opposite of rev 1's premise, and the endpoint's API version
+is dashboard state that no code reads (`Event::$api_version` is ignored). Rev 1
+called the cause structural and leaned towards building first. That was a claim
+I had not verified. See R1.
+
+### 9.4 Failure modes rev 1 missed
+
+- **Events outside the handled set 500 on every delivery.** `charge.succeeded`,
+  `charge.updated`, `refund.created` and `refund.updated` (status `succeeded`)
+  map to Succeeded with a `ch_…`/`re_…` reference, miss, and throw at
+  `ProcessPaymentWebhook.php:65-68`. Shape B would have triggered exactly this.
+  No doc in any of the three repos lists which events the endpoint may carry, so
+  rev 1's "Operator: nothing" was wrong: the enabled-event set is a real
+  constraint. See R3.
+- **A refund that is recorded while `pending` and later fails is never undone.**
+  `parseRefundUpdated()` never reads `$refund->status`, the event exits at
+  `ProcessPaymentWebhook.php:152`, and `max()` at `:156` discards a lower
+  cumulative. This exists today for admin refunds; the fix extends it to
+  dashboard refunds, and `RefundPayment.php:97` then blocks re-issuing from the
+  admin. Whether `amount_refunded` drops on failure is a Stripe fact nobody here
+  has checked. See R4.
+- **No backfill.** Dashboard refunds made before the fix get no row; with
+  shape A the next refund's row would carry the whole cumulative's VAT
+  (`RecordRefund.php:93-101`). Test data only today.
+- Throwing on a failed list call (§ 4) ties the payment-row update, which works
+  today, to the lookup. Stands as designed; note that test mode retries far
+  fewer times than live mode's three days.
+
+### 9.5 Test trust
+
+- The `:558` test does go red once the fixture drops `refunds`. But it passes on
+  a broken driver unless `all` is pinned with the exact arguments, and a
+  one-element list proves neither the selection nor the status filter.
+- § 7's "admin refund still one row" cannot fail (struck above).
+- **Every row-recording test injects the refund id through
+  `FakePaymentGateway::simulateWebhook()`** (`:220-247`), including the F34
+  backstop (`ProcessPaymentWebhookRefundTest.php:125-145`) that
+  `RefundPayment.php:57-58` cites as pinned. On the live payload shape that
+  backstop records zero rows today. No test drives `ProcessPaymentWebhook` with
+  the Stripe driver. The build adds one: a signed, live-shaped `charge.refunded`
+  through `ProcessPaymentWebhook('stripe', …)` asserting the Refund row.
+- Rev 1's § 5 miscounted the fixture's callers (corrected in place).
+
+### 9.6 Periphery rev 1 missed
+
+- The admin order page's cap, visibility and notice derive from Refund rows
+  (§ 9.2), so the fix changes admin behaviour, not only display: after a
+  dashboard refund the page stops offering money that is already gone.
+- IOW reads `payments.amount_refunded` in `ShowOrderController.php:74`
+  (customer-facing), `AgentTools/ShowOrder.php:229` and `ExportUserData.php:135`.
+  Unaffected by the fix; exposed to the failed-refund case.
+- Checked and holding: both consumers let a webhook exception escape as a 500
+  (IOW `bootstrap/app.php:113-115`, bianka's JSON rendering only), pinned by
+  `WebhookControllerTest.php:71` and `WebhookRaceRegressionTest.php:82`. The
+  `charge` filter exists and the list is documented newest-first.
+
+### 9.7 Rulings needed before rev 2 (these replace § 8's Q1 and Q5)
+
+**R1. Measure first.** One test-mode refund from the Stripe dashboard on
+mayangna's *current* deploy. From the event's page in the dashboard, keep the
+`charge.refunded` body and its `api_version`, and note the endpoint's enabled
+events. The body becomes the test fixture. If it carries `refunds`, this brief
+is void and the gap is elsewhere. Lean: do this before any code; it is one step
+of the stripe brief's § 7 pass that is owed anyway.
+
+**R2. Fix shape.** (a) Newest id only: ~15 lines, with § 9.2's hole left open
+and recorded. (b) **Mirror the gateway's list:** the driver lists the intent's
+refunds outside the transaction, the list rides the payload and
+`PaymentRefunded` as an additive property, and the listener records every
+refund not yet recorded with its own amount, oldest first. Rows then equal the
+gateway's list under any interleaving, dashboard-then-admin included, and
+earlier unrecorded refunds backfill on the next event. ~40 lines plus tests.
+Lean (b): the purpose of this fix is correct refund and VAT records, and (a)
+knowingly leaves a hole in the same records.
+
+**R3. Events the driver does not handle.** Guard `parseWebhook()` on
+`data.object.object === 'payment_intent'`; anything else is dropped with a log
+line naming the event type, instead of being cast. That turns the dispute drop
+from silent into logged and removes the 500-on-every-delivery risk. Lean: same
+release, own commit, and document the allowed event set in `Payment/README.md`
+and both consumers' deploy docs. A dispute *feature* is not in scope.
+
+**R4. Failed refunds.** Flag as its own TODO item, not in this release. It
+needs a Stripe fact first (does `amount_refunded` drop when a refund fails), and
+card refunds rarely fail. Lean: flag only.
+
+Q2 (fail the webhook on a failed list call), Q3 (keep the inline fast path) and
+Q4 (v0.71.3, both consumers bumped) stand as leaned.
