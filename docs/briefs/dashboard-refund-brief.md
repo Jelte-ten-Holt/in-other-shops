@@ -1,6 +1,8 @@
 # Brief — refunds made outside the app record no Refund row
 
-**Status (2026-10-05): rev 1 + adversarial pass (§ 9). Not build-ready.** Two
+**Status (2026-10-05, evening): the premise is OBSERVED (§ 9.8) — R1 done.
+Rev 2 waits on rulings R2–R4 only.** Earlier the same day: rev 1 + adversarial
+pass (§ 9), not build-ready. Two
 claims of rev 1 are withdrawn in place (the dispute claim, and "holds by
 construction"); § 8's Q1 and Q5 are superseded by § 9's rulings R1–R4. The
 build waits on those rulings and on one live observation (R1). Surfaced by the
@@ -291,14 +293,16 @@ I had not verified. See R1.
 
 ### 9.7 Rulings needed before rev 2 (these replace § 8's Q1 and Q5)
 
-**R1. Measure first.** One test-mode refund from the Stripe dashboard on
+**R1 — DONE 2026-10-05, see § 9.8: the live `charge.refunded` body carries no
+`refunds` key.** Original text: Measure first. One test-mode refund from the Stripe dashboard on
 mayangna's *current* deploy. From the event's page in the dashboard, keep the
 `charge.refunded` body and its `api_version`, and note the endpoint's enabled
 events. The body becomes the test fixture. If it carries `refunds`, this brief
 is void and the gap is elsewhere. Lean: do this before any code; it is one step
 of the stripe brief's § 7 pass that is owed anyway.
 
-**R2. Fix shape.** (a) Newest id only: ~15 lines, with § 9.2's hole left open
+**R2 — revised in § 9.8 (three shapes now, lean unchanged).** Original text:
+Fix shape. (a) Newest id only: ~15 lines, with § 9.2's hole left open
 and recorded. (b) **Mirror the gateway's list:** the driver lists the intent's
 refunds outside the transaction, the list rides the payload and
 `PaymentRefunded` as an additive property, and the listener records every
@@ -321,3 +325,80 @@ card refunds rarely fail. Lean: flag only.
 
 Q2 (fail the webhook on a failed list call), Q3 (keep the inline fast path) and
 Q4 (v0.71.3, both consumers bumped) stand as leaned.
+
+### 9.8 Live observation and Stripe documentation (2026-10-05, after the pass)
+
+**R1 is done.** Jelte issued a test-mode partial refund (EUR 22.00 of 63.50)
+from the Stripe dashboard against mayangna order 10 (payment 6,
+`pi_3UNEh8Qibh0bqUCQ0EvZ5Diw`). What the dashboard and the admin showed:
+
+- **`charge.refunded`** (`evt_3UNEh8Qibh0bqUCQ0Uc6lLpl`, source Dashboard),
+  rendered at API version **`2026-03-25.dahlia`**, answered 204. The charge
+  carries `amount_refunded: 2200` and **no `refunds` key**. § 1's premise is now
+  observed. Body saved, scrubbed, as
+  `tests/Fixtures/Stripe/charge.refunded.2026-03-25.dahlia.json`.
+- **The payment row moved** as § 2 step 3 predicts: mayangna's admin shows the
+  payment at EUR 22.00 refunded, `partially_refunded`. The missing Refund row
+  follows from the code path (§ 2 step 4); its visible sign, the absence of the
+  "Este pedido está parcialmente reembolsado" notice on the order page
+  (`EditOrder.php:52-66`), has not been confirmed by eye.
+- **One second later Stripe emitted the refund's update twice:** as
+  `charge.refund.updated` (`evt_…0dMbXMKm`, delivered to both endpoints, 204)
+  and as `refund.updated` (`evt_…0Zt2HHj0`). The refund object carries its
+  `id`, its own `amount: 2200`, `payment_intent` and `status: succeeded`.
+  Fixture saved alongside the other.
+- **Both shops share one Stripe account, so every event is delivered to both
+  endpoints** (`inotherworlds.net` and `mayangna.com`). For refund events the
+  other shop drops the delivery quietly. For a *settled* event
+  (`payment_intent.succeeded`, `payment_intent.payment_failed`) the other shop
+  finds no payment and throws `UnmatchedWebhookPaymentException` by design
+  (`ProcessPaymentWebhook.php:65-68`; IOW pins the 500 in
+  `WebhookControllerTest.php:59`). So every mayangna test payment should be a
+  500 at IOW, and the reverse. **Expected from the code; not yet looked at in
+  the dashboard.** It ends when Bianka has her own account. It matters to this
+  brief because a fix that calls the Stripe API at parse time would also call
+  it for the other shop's events.
+
+**Stripe documentation, read the same day:**
+
+- Changelog `2022-11-15`: the Charge object no longer auto-expands refunds;
+  `Charge.refunds` became nullable. It can still be expanded by hand, which
+  Stripe advises against. Confirms § 1; the SDK docblock quoted in § 9.3 is
+  stale text.
+- Event reference: `charge.refunded` — "Listen to `refund.created` for
+  information about the refund." `refund.created` occurs whenever a refund is
+  created, `refund.failed` whenever one fails. `charge.refund.updated` fires only
+  "on selected payment methods", and the refunds guide marks it deprecated in
+  favour of `refund.updated`. The acquirer reference that triggered today's
+  update can take up to seven business days in live mode and never arrives for
+  a reversal, so **`charge.refund.updated` cannot be what records a row.**
+- Dispute events carry a `dispute` object (confirms § 9.1).
+- Retries: live mode up to three days with exponential backoff; sandbox events
+  three times within a few hours.
+- A failed refund moves to status `failed` and is announced by `refund.failed`;
+  the money returns to the Stripe balance, up to 30 days later. Whether the
+  charge's `amount_refunded` drops is still not stated anywhere I read (R4).
+
+**R2, revised: three shapes.**
+
+- **(a) Newest id only.** As before: smallest, and § 9.2's hole stays open.
+- **(b) Mirror the gateway's list (lean).** Refined by today's finding: fetch the
+  intent's refunds only after the payment is matched, and outside the row lock,
+  so the other shop's events cost nothing. The listener records every refund not
+  yet recorded, with its own amount, oldest first. Everything lives in code;
+  nothing depends on dashboard state; earlier unrecorded refunds backfill.
+- **(c) Record each row from `refund.created`.** Stripe's documented path: the
+  event carries the id and the refund's own amount, so no API call at all.
+  `charge.refunded` keeps moving the payment total. Costs: the event has to be
+  enabled by hand on every endpoint (two today, Bianka's own account later),
+  and a missing tick recreates this exact gap silently; no backfill; needs R3's
+  guard first, or the other shop answers 500.
+
+Both (b) and (c) need one more rule that rev 1 never had to think about: when
+the webhook records an admin refund's row before the admin path does, the admin
+must still end up as the row's actor, with the reason kept. Today that race
+cannot arise, because the echo of an admin refund exits before the listener
+runs. Rev 2 specifies it; the targeted adversarial check attacks it.
+
+**Lean (b):** it is the only shape whose correctness does not depend on
+something an operator ticked in a dashboard.
