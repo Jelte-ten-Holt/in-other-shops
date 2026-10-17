@@ -134,7 +134,7 @@ How to write tests for this package — trust principles, what each Action/Liste
 
 ## Commands
 
-The package does not ship application-level CLI commands. Exceptions: inventory housekeeping (`inventory:release-expired` and the read-only tripwire `inventory:reconcile`, both gated behind `inventory.schedule.enabled`), cart cleanup (`commerce:prune-carts`, prunes expired guest carts), and webhook ledger pruning (`payment:prune-webhook-events`, retention via `payment.webhook_retention_days`, default 90). The full catalog of commands, their schedule state, and every other periphery actor this package contributes to consumers lives in [docs/periphery.md](docs/periphery.md).
+The package does not ship application-level CLI commands. Exceptions: inventory housekeeping (`inventory:release-expired` and the read-only tripwire `inventory:reconcile`, both gated behind `inventory.schedule.enabled`), cart cleanup (`commerce:prune-carts`, prunes expired guest carts), webhook ledger pruning (`payment:prune-webhook-events`, retention via `payment.webhook_retention_days`, default 90), and two read-only tripwires the package registers but does not schedule: `commerce:reconcile-refunds` (payment `amount_refunded` vs its `Refund` rows; both consumers schedule it daily) and `purchasing:reconcile-receipts` (purchase-order `quantity_received` vs the Received movements; in-other-worlds schedules it, bianka-shop-one does not). The full catalog of commands, their schedule state, and every other periphery actor this package contributes to consumers lives in [docs/periphery.md](docs/periphery.md).
 
 ## Periphery
 
