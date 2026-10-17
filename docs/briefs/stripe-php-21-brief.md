@@ -2,7 +2,7 @@
 
 **Status (2026-10-05): BUILT.** Q1 no tag, rides the next release · Q2 `^21.3` · Q3 mayangna's Coolify runs IOW's test keys (Jelte), bianka docs corrected in its bump PR · Q4 now · Q5 separate, §8.2 already shipped as IOW PR #78. Package on main; IOW and bianka bump PRs opened the same day. Open: §7's test-mode payment pass on mayangna after deploy. §8.1 is fixed in v0.71.3 ([dashboard-refund-brief.md](dashboard-refund-brief.md)).
 
-Status: **draft 1 — research only, nothing changed.** Home: `TODO.md` § Open ("Upgrade `stripe/stripe-php` 20 → 21").
+Original status (2026-09-29, superseded by the line above; marked 2026-10-17): draft 1 — research only, nothing changed. The item it pointed to in `TODO.md` § Open now sits under § Recently shipped.
 **Date:** 2026-09-29
 **Repos:** in-other-shops (driver + suite), in-other-worlds, bianka-shop-one
 
