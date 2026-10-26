@@ -6,6 +6,7 @@ namespace InOtherShops\Tests\Stubs\Filament;
 
 use Filament\Panel;
 use Filament\PanelProvider;
+use InOtherShops\Commerce\Filament\Resources\OrderResource;
 use InOtherShops\Purchasing\Filament\Resources\PurchaseOrderResource;
 
 /**
@@ -28,6 +29,7 @@ final class TestPanelProvider extends PanelProvider
             ->resources([
                 StubEditableResource::class,
                 // The package's own pages that carry behaviour of their own.
+                OrderResource::class,
                 PurchaseOrderResource::class,
             ]);
     }

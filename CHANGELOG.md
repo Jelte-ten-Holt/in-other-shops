@@ -66,8 +66,15 @@ No migration.
 - **Mark paid** on the order edit page and `RecordManualPayment`: a `manual`
   payment for the full total on the day the admin gives, then
   `PaymentSucceeded`, as for a card payment — the order is confirmed and the
-  customer is sent the order confirmation. Refund actions are hidden for a
-  manual payment.
+  customer is sent the order confirmation. It first closes any open card intent
+  of the order (new `CancelOpenGatewaySessions`, shared with expiry), so a
+  declined attempt cannot be retried into a second charge. Refund actions are
+  hidden for a manual payment.
+- **`commerce:expire-orders` leaves an order with no payment row alone**: an
+  order created in the admin waits for Mark paid or a manual cancel, however
+  long the transfer takes. Checkout orders always open a payment.
+- in-other-worlds overrides the order edit page: its bump must gate Delete on
+  `Order::isDeletable()` and add `EditOrder::markPaidAction()`.
 
 ## v0.71.3 — 2026-10-05
 

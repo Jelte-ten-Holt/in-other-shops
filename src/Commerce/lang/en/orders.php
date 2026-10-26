@@ -68,7 +68,7 @@ return [
         'marked_paid' => 'Payment recorded',
         'mark_paid_refused' => 'Could not record the payment',
         'frozen_title' => 'This order is paid',
-        'frozen_body' => 'Its prices, lines and addresses are the record of the sale and can no longer be changed. Notes and status still can.',
+        'frozen_body' => 'Its prices, lines and addresses are the record of the sale and can no longer be changed.',
         'status_updated' => 'Order status updated to :status',
         'status_refused' => 'Status not changed',
     ],

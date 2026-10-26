@@ -67,7 +67,7 @@ return [
         'marked_paid' => 'Pago registrado',
         'mark_paid_refused' => 'No se pudo registrar el pago',
         'frozen_title' => 'Este pedido está pagado',
-        'frozen_body' => 'Sus precios, líneas y direcciones son el registro de la venta y ya no se pueden cambiar. Las notas y el estado sí.',
+        'frozen_body' => 'Sus precios, líneas y direcciones son el registro de la venta y ya no se pueden cambiar.',
         'status_updated' => 'Estado del pedido actualizado a :status',
         'status_refused' => 'No se ha cambiado el estado',
     ],

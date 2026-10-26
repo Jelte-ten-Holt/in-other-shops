@@ -6,6 +6,7 @@ namespace InOtherShops\Tests\Feature\Commerce\Order;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use InOtherShops\Commerce\Exceptions\OrderFrozenException;
+use InOtherShops\Commerce\Order\Enums\OrderStatus;
 use InOtherShops\Commerce\Order\Models\Order;
 use InOtherShops\Commerce\Order\Models\OrderLine;
 use InOtherShops\Location\Models\Address;
@@ -46,18 +47,44 @@ final class OrderFreezeTest extends TestCase
         $this->assertSame($frozen, $order->isFrozen());
     }
 
+    /**
+     * What the customer was charged and under which number, with a changed
+     * value for each. Kept apart from Order::FROZEN_WHEN_PAID on purpose: a
+     * column dropped from the constant fails its case here, and one added to
+     * it fails the_frozen_columns_are_exactly_the_charged_ones.
+     */
+    private const array CHANGED = [
+        'order_number' => 'ORD-RENAMED',
+        'currency' => 'USD',
+        'subtotal' => 9000,
+        'discount' => 500,
+        'voucher_code' => 'SPRING',
+        'shipping_method_identifier' => 'express',
+        'shipping_cost' => 900,
+        'shipping_cost_currency' => 'USD',
+        'tax' => 1500,
+        'tax_rate_bps' => 2100,
+        'tax_rate_country_code' => 'NL',
+        'tax_summary' => [['rate_bps' => 1900, 'taxable_base' => 100, 'tax' => 19]],
+        'total' => 9000,
+    ];
+
     /** @return array<string, array{string, mixed}> */
     public static function frozenFields(): array
     {
-        return [
-            'total' => ['total', 9000],
-            'subtotal' => ['subtotal', 9000],
-            'discount' => ['discount', 500],
-            'shipping cost' => ['shipping_cost', 900],
-            'tax summary' => ['tax_summary', [['rate_bps' => 1900, 'taxable_base' => 100, 'tax' => 19]]],
-            'order number' => ['order_number', 'ORD-RENAMED'],
-            'currency' => ['currency', 'USD'],
-        ];
+        $cases = [];
+
+        foreach (self::CHANGED as $field => $value) {
+            $cases[$field] = [$field, $value];
+        }
+
+        return $cases;
+    }
+
+    #[Test]
+    public function the_frozen_columns_are_exactly_the_charged_ones(): void
+    {
+        $this->assertEqualsCanonicalizing(array_keys(self::CHANGED), Order::FROZEN_WHEN_PAID);
     }
 
     #[Test]
@@ -82,10 +109,11 @@ final class OrderFreezeTest extends TestCase
     {
         $order = $this->order(paid: true);
 
-        $order->update(['notes' => 'Customer asked for gift wrap', 'email' => 'new@example.test']);
+        $order->update(['notes' => 'Customer asked for gift wrap', 'email' => 'new@example.test', 'status' => OrderStatus::Confirmed]);
 
         $this->assertSame('Customer asked for gift wrap', $order->fresh()->notes);
         $this->assertSame('new@example.test', $order->fresh()->email);
+        $this->assertSame(OrderStatus::Confirmed, $order->fresh()->status);
     }
 
     #[Test]

@@ -100,6 +100,22 @@ final class ExpireAbandonedOrdersTest extends TestCase
         $this->assertSame([], $this->gateway->recordedCancellations());
     }
 
+    /**
+     * An order created in the admin opens no payment. It is waiting for a bank
+     * transfer, which takes days, and holds no stock: expiring it after the
+     * checkout hold window would leave "Mark paid" nothing to mark.
+     */
+    #[Test]
+    public function it_leaves_an_order_that_never_opened_a_payment_for_mark_paid(): void
+    {
+        $order = $this->pendingOrder(ageMinutes: 3 * 24 * 60);
+
+        ($this->expire)();
+
+        $this->assertSame(OrderStatus::Pending, $order->fresh()->status);
+        $this->assertTrue($order->fresh()->acceptsManualPayment());
+    }
+
     #[Test]
     public function it_never_expires_an_order_that_was_actually_paid(): void
     {

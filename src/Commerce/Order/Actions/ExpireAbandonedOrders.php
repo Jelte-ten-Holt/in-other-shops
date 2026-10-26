@@ -9,7 +9,6 @@ use InOtherShops\Commerce\Order\Enums\OrderStatus;
 use InOtherShops\Commerce\Order\Models\Order;
 use InOtherShops\Payment\Enums\PaymentStatus;
 use InOtherShops\Payment\Exceptions\PaymentNotCancelableException;
-use InOtherShops\Payment\PaymentGatewayManager;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -21,6 +20,11 @@ use Throwable;
  * cancellation (they were decoupled: the reservation-expiry cron released stock
  * but left the order Pending and the gateway intent live, so a late payment
  * could confirm an order whose stock was already gone).
+ *
+ * An abandoned order is a checkout that opened a payment and never completed
+ * it. An order with no payment row at all was created in the admin: it holds
+ * no stock and is waiting for a bank transfer, so it is left for "Mark paid"
+ * (RecordManualPayment) or a manual cancel.
  *
  * For each abandoned order, in two phases:
  *  1. (no lock held) re-check it is still Pending and unpaid, then cancel its
@@ -45,7 +49,7 @@ final class ExpireAbandonedOrders
 {
     public function __construct(
         private readonly UpdateOrderStatus $updateOrderStatus,
-        private readonly PaymentGatewayManager $gateways,
+        private readonly CancelOpenGatewaySessions $cancelOpenGatewaySessions,
     ) {}
 
     /**
@@ -84,9 +88,14 @@ final class ExpireAbandonedOrders
      */
     private function candidateIds(Carbon $cutoff): \Illuminate\Support\Collection
     {
+        // Only an order that opened a payment: every checkout order does, in
+        // the same transaction that creates it. An order created in the admin
+        // has none and holds no stock; it waits for "Mark paid" or a manual
+        // cancel, however long a bank transfer takes.
         return Commerce::order()::query()
             ->where('status', OrderStatus::Pending->value)
             ->where('created_at', '<', $cutoff)
+            ->whereHas('payments')
             ->orderBy('id')
             ->pluck('id');
     }
@@ -106,7 +115,10 @@ final class ExpireAbandonedOrders
         }
 
         try {
-            $this->cancelGatewaySessions($order);
+            // Failed as well as Pending: an order abandoned after a decline
+            // carries a retryable intent, and a late retry would capture money
+            // against a Cancelled order (see CancelOpenGatewaySessions).
+            ($this->cancelOpenGatewaySessions)($order);
         } catch (PaymentNotCancelableException $e) {
             // Intent is live — leave the order for the confirm path. Warn with
             // the order id + reference(s): a paid-but-still-Pending order that
@@ -150,25 +162,4 @@ final class ExpireAbandonedOrders
         return $order->payments()->where('status', PaymentStatus::Succeeded->value)->exists();
     }
 
-    /**
-     * Failed is included alongside Pending because a failed ATTEMPT is not a
-     * terminal intent state: after a card decline the gateway parks the intent
-     * in requires_payment_method, still live and still completable from the
-     * shopper's open payment page. An order abandoned after a decline therefore
-     * carries a Failed payment with a retryable intent — skipping it here would
-     * cancel the order while leaving the intent chargeable, and a late retry
-     * would capture money against a Cancelled order (the exact decoupling this
-     * action exists to prevent).
-     */
-    private function cancelGatewaySessions(Order $order): void
-    {
-        $payments = $order->payments()
-            ->whereIn('status', [PaymentStatus::Pending->value, PaymentStatus::Failed->value])
-            ->whereNotNull('gateway_reference')
-            ->get();
-
-        foreach ($payments as $payment) {
-            $this->gateways->gateway($payment->gateway)->cancelSession($payment);
-        }
-    }
 }

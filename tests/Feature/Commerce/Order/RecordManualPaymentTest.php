@@ -15,6 +15,8 @@ use InOtherShops\Currency\Enums\Currency;
 use InOtherShops\Payment\Enums\PaymentStatus;
 use InOtherShops\Payment\Events\PaymentSucceeded;
 use InOtherShops\Payment\Models\Payment;
+use InOtherShops\Payment\PaymentGatewayManager;
+use InOtherShops\Payment\Testing\FakePaymentGateway;
 use InOtherShops\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
@@ -34,6 +36,14 @@ final class RecordManualPaymentTest extends TestCase
 
         // After every claimed day used below.
         $this->travelTo(CarbonImmutable::parse('2026-12-01 12:00:00', 'UTC'));
+    }
+
+    private function fakeGateway(): FakePaymentGateway
+    {
+        $gateway = new FakePaymentGateway('fake');
+        $this->app->make(PaymentGatewayManager::class)->extend('fake', fn (): FakePaymentGateway => $gateway);
+
+        return $gateway;
     }
 
     #[Test]
@@ -115,6 +125,56 @@ final class RecordManualPaymentTest extends TestCase
         app(RecordManualPayment::class)($order, CarbonImmutable::parse('2026-11-23 23:00:00', 'UTC'));
 
         $this->assertSame(1, $order->payments()->where('gateway', 'manual')->count());
+    }
+
+    #[Test]
+    public function a_declined_attempts_intent_is_closed_before_the_payment_is_recorded(): void
+    {
+        Event::fake([PaymentSucceeded::class]);
+        $gateway = $this->fakeGateway();
+        $order = Order::factory()->create(['total' => 9590]);
+        Payment::factory()->failed()->for($order, 'payable')->create(['amount' => 9590, 'gateway' => 'fake', 'gateway_reference' => 'fake_pi_declined']);
+
+        app(RecordManualPayment::class)($order, CarbonImmutable::parse('2026-11-23 23:00:00', 'UTC'));
+
+        $this->assertSame(['fake_pi_declined'], $gateway->recordedCancellations());
+        $this->assertSame(1, $order->payments()->where('gateway', 'manual')->count());
+    }
+
+    #[Test]
+    public function a_card_payment_still_going_through_refuses_mark_paid_without_a_payment_or_an_event(): void
+    {
+        Event::fake([PaymentSucceeded::class]);
+        $gateway = $this->fakeGateway();
+        $gateway->markSessionLive('fake_pi_processing');
+        $order = Order::factory()->create(['total' => 9590]);
+        Payment::factory()->failed()->for($order, 'payable')->create(['amount' => 9590, 'gateway' => 'fake', 'gateway_reference' => 'fake_pi_processing']);
+
+        try {
+            app(RecordManualPayment::class)($order, CarbonImmutable::parse('2026-11-23 23:00:00', 'UTC'));
+            $this->fail('An order with a live card intent was marked paid.');
+        } catch (CommerceException $e) {
+            $this->assertStringContainsString('still going through', $e->getMessage());
+        }
+
+        $this->assertSame(0, $order->payments()->where('gateway', 'manual')->count());
+        Event::assertNotDispatched(PaymentSucceeded::class);
+    }
+
+    #[Test]
+    public function a_refused_order_is_refused_before_any_gateway_is_asked(): void
+    {
+        $gateway = $this->fakeGateway();
+        $order = Order::factory()->create(['total' => 9590, 'status' => OrderStatus::Cancelled]);
+        Payment::factory()->failed()->for($order, 'payable')->create(['amount' => 9590, 'gateway' => 'fake', 'gateway_reference' => 'fake_pi_old']);
+
+        try {
+            app(RecordManualPayment::class)($order, CarbonImmutable::parse('2026-11-23 23:00:00', 'UTC'));
+        } catch (CommerceException) {
+            // Refused, as it should be.
+        }
+
+        $this->assertSame([], $gateway->recordedCancellations());
     }
 
     #[Test]
