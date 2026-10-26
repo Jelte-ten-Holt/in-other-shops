@@ -8,6 +8,30 @@ The format is loosely [Keep a Changelog](https://keepachangelog.com/); the
 package is pre-1.0, so minor versions may carry breaking changes (all consumers
 are pre-launch — single-release-window policy, no deprecation bridges).
 
+## Unreleased — bookkeeping read API and its prerequisites
+
+For the in-other-books app (`in-other-books/docs/brief.md` §12): P-2, P-4, P-1
+and P-5, built as stacked PRs and released together.
+
+### P-2 — settlement fields
+
+Two additive migrations, one config key, one auto-scheduled command.
+
+- `payments` gains `charge_reference`, `settlement_reference`, `paid_at`, `fee`,
+  `net`, `settled_amount`, `settled_currency`, `exchange_rate`; `refunds` gains
+  `settlement_reference`, `fee`, `settled_amount`, `settled_currency`,
+  `exchange_rate`. All nullable; nothing in the shop reads them.
+- New optional gateway capability `Payment\Contracts\ReportsSettlements` with
+  the `Settlement` DTO; the Stripe driver implements it from the balance
+  transaction, `FakePaymentGateway` from `settle()` / `settleRefund()`.
+- New `commerce:record-settlements`, scheduled by the package every five
+  minutes behind the new `commerce.schedule.enabled` (default `true`). It asks
+  about settled payments and refunds from the last 30 days that have no
+  settlement, outside any transaction, and writes each once. A payment's
+  `paid_at` is written with its settlement.
+- Why not on `payment_intent.succeeded`, as the brief said: Stripe's
+  asynchronous capture leaves the balance transaction empty on that event.
+
 ## v0.71.3 — 2026-10-05
 
 Refunds made outside the app are recorded (`docs/briefs/dashboard-refund-brief.md`).

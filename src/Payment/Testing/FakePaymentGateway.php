@@ -7,9 +7,11 @@ namespace InOtherShops\Payment\Testing;
 use InOtherShops\Payment\Contracts\ListsRefunds;
 use InOtherShops\Payment\Contracts\ManagesCustomers;
 use InOtherShops\Payment\Contracts\PaymentGateway;
+use InOtherShops\Payment\Contracts\ReportsSettlements;
 use InOtherShops\Payment\DTOs\GatewayRefund;
 use InOtherShops\Payment\DTOs\PaymentCustomerData;
 use InOtherShops\Payment\DTOs\PaymentSession;
+use InOtherShops\Payment\DTOs\Settlement;
 use InOtherShops\Payment\DTOs\WebhookPayload;
 use InOtherShops\Payment\Enums\PaymentStatus;
 use InOtherShops\Payment\Exceptions\PaymentNotCancelableException;
@@ -35,9 +37,13 @@ use RuntimeException;
  * refund webhook carries its total. A test cannot type a cumulative or a
  * refund id the ledger does not hold.
  *
+ * Settlements are whatever a test hands `settle()` / `settleRefund()`; until
+ * then the gateway reports none, as Stripe does in the minutes after a card
+ * payment succeeds.
+ *
  * Not a real driver — never register from a non-test ServiceProvider.
  */
-final class FakePaymentGateway implements ListsRefunds, ManagesCustomers, PaymentGateway
+final class FakePaymentGateway implements ListsRefunds, ManagesCustomers, PaymentGateway, ReportsSettlements
 {
     /** @var array<int, array{payment: Payment, returnUrl: string, cancelUrl: string, gatewayCustomerId: ?string, reference: string}> */
     private array $sessions = [];
@@ -59,6 +65,17 @@ final class FakePaymentGateway implements ListsRefunds, ManagesCustomers, Paymen
     private array $refundListings = [];
 
     private bool $refundListingErrors = false;
+
+    /** @var array<string, Settlement> keyed by gateway reference */
+    private array $paymentSettlements = [];
+
+    /** @var array<string, Settlement> keyed by gateway refund id */
+    private array $refundSettlements = [];
+
+    /** @var list<int> DB transaction level at each settlement lookup */
+    private array $settlementLookups = [];
+
+    private bool $settlementLookupErrors = false;
 
     /** @var array<int, PaymentCustomerData> */
     private array $customers = [];
@@ -206,6 +223,58 @@ final class FakePaymentGateway implements ListsRefunds, ManagesCustomers, Paymen
         }
 
         return $this->refundLedger[$payment->gateway_reference] ?? [];
+    }
+
+    public function settlementFor(Payment $payment): ?Settlement
+    {
+        $this->lookUpSettlement();
+
+        return $this->paymentSettlements[(string) $payment->gateway_reference] ?? null;
+    }
+
+    public function refundSettlementFor(string $gatewayRefundId): ?Settlement
+    {
+        $this->lookUpSettlement();
+
+        return $this->refundSettlements[$gatewayRefundId] ?? null;
+    }
+
+    /** From now on the gateway reports this settlement for the payment. */
+    public function settle(Payment $payment, Settlement $settlement): void
+    {
+        $this->paymentSettlements[(string) $payment->gateway_reference] = $settlement;
+    }
+
+    /** From now on the gateway reports this settlement for the refund. */
+    public function settleRefund(string $gatewayRefundId, Settlement $settlement): void
+    {
+        $this->refundSettlements[$gatewayRefundId] = $settlement;
+    }
+
+    /** Every settlement lookup from now on throws, as an unreachable gateway would. */
+    public function failSettlementLookups(): void
+    {
+        $this->settlementLookupErrors = true;
+    }
+
+    /**
+     * The DB transaction level at each settlement lookup, in order — so a test
+     * can prove the gateway was asked outside any lock.
+     *
+     * @return list<int>
+     */
+    public function settlementLookups(): array
+    {
+        return $this->settlementLookups;
+    }
+
+    private function lookUpSettlement(): void
+    {
+        $this->settlementLookups[] = DB::transactionLevel();
+
+        if ($this->settlementLookupErrors) {
+            throw new RuntimeException('fake: gateway unavailable');
+        }
     }
 
     public function createCustomer(PaymentCustomerData $data): string

@@ -143,4 +143,21 @@ return [
             ],
         ],
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Schedule
+    |--------------------------------------------------------------------------
+    |
+    | The package schedules `commerce:record-settlements` every five minutes:
+    | it asks each gateway that reports settlements what a settled payment or
+    | refund did to the shop's balance there, and writes it once. Turn it off
+    | only if you schedule the command yourself; nothing else fills the
+    | settlement fields.
+    |
+    */
+
+    'schedule' => [
+        'enabled' => env('COMMERCE_SCHEDULE_ENABLED', true),
+    ],
 ];

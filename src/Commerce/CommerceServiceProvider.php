@@ -9,6 +9,7 @@ use InOtherShops\Commerce\Cart\FlowChains\AddToCartChain;
 use InOtherShops\Commerce\Listeners\CommerceLogSubscriber;
 use InOtherShops\Commerce\Order\Commands\ExpireAbandonedOrdersCommand;
 use InOtherShops\Commerce\Order\Commands\ReconcileRefundsCommand;
+use InOtherShops\Commerce\Order\Commands\RecordSettlementsCommand;
 use InOtherShops\Commerce\Order\Events\OrderCreated;
 use InOtherShops\Commerce\Order\Events\OrderStatusChanged;
 use InOtherShops\Commerce\Order\Listeners\CreateShipmentForNewOrder;
@@ -18,6 +19,7 @@ use InOtherShops\Commerce\Order\Listeners\SyncInventoryOnOrderStatusChange;
 use InOtherShops\FlowChain\FlowChainRegistry;
 use InOtherShops\Payment\Events\PaymentRefunded;
 use InOtherShops\Support\DomainServiceProvider;
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Route;
 
@@ -48,7 +50,7 @@ final class CommerceServiceProvider extends DomainServiceProvider
 
     protected function domainCommands(): array
     {
-        return [PruneExpiredCartsCommand::class, ExpireAbandonedOrdersCommand::class, ReconcileRefundsCommand::class];
+        return [PruneExpiredCartsCommand::class, ExpireAbandonedOrdersCommand::class, ReconcileRefundsCommand::class, RecordSettlementsCommand::class];
     }
 
     public function boot(): void
@@ -63,6 +65,10 @@ final class CommerceServiceProvider extends DomainServiceProvider
         Event::listen(PaymentRefunded::class, ReconcileRefundFromWebhook::class);
 
         $this->app->make(FlowChainRegistry::class)->register(AddToCartChain::class);
+
+        $this->scheduleWhenEnabled(function (Schedule $schedule): void {
+            $schedule->command('commerce:record-settlements')->everyFiveMinutes();
+        });
     }
 
     private function registerCartRoutes(): void

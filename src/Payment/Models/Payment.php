@@ -27,6 +27,11 @@ class Payment extends Model
             'currency' => Currency::class,
             'status' => PaymentStatus::class,
             'gateway_data' => 'array',
+            'paid_at' => 'datetime',
+            'fee' => 'integer',
+            'net' => 'integer',
+            'settled_amount' => 'integer',
+            'exchange_rate' => 'decimal:10',
         ];
     }
 

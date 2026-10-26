@@ -443,6 +443,132 @@ final class StripePaymentGatewayTest extends TestCase
     }
 
     // ─────────────────────────────────────────────────────────────────
+    // settlementFor / refundSettlementFor
+    // ─────────────────────────────────────────────────────────────────
+
+    #[Test]
+    public function settlement_for_reads_the_balance_transaction_of_the_intents_latest_charge(): void
+    {
+        $payment = $this->paymentFor(6400, Currency::USD);
+        $payment->update(['gateway_reference' => 'pi_usd']);
+
+        $this->paymentIntents->shouldReceive('retrieve')->once()
+            ->with('pi_usd', ['expand' => ['latest_charge.balance_transaction']])
+            ->andReturn(PaymentIntent::constructFrom([
+                'id' => 'pi_usd',
+                'object' => 'payment_intent',
+                'latest_charge' => [
+                    'id' => 'ch_usd',
+                    'object' => 'charge',
+                    'balance_transaction' => [
+                        'id' => 'txn_usd',
+                        'object' => 'balance_transaction',
+                        'amount' => 5888,
+                        'currency' => 'eur',
+                        'fee' => 334,
+                        'net' => 5554,
+                        'exchange_rate' => 0.92,
+                        'created' => 1795200127,
+                    ],
+                ],
+            ]));
+
+        $settlement = $this->gateway->settlementFor($payment);
+
+        $this->assertNotNull($settlement);
+        $this->assertSame('txn_usd', $settlement->reference);
+        $this->assertSame('ch_usd', $settlement->chargeReference);
+        $this->assertSame('2026-11-20T18:42:07+00:00', $settlement->settledAt->toIso8601String());
+        $this->assertSame(5888, $settlement->amount);
+        $this->assertSame('EUR', $settlement->currency);
+        $this->assertSame(334, $settlement->fee);
+        $this->assertSame(5554, $settlement->net);
+        $this->assertSame('0.9200000000', $settlement->exchangeRate);
+    }
+
+    /**
+     * Asynchronous capture: the intent has succeeded and its charge exists, but
+     * Stripe has not written the balance transaction yet.
+     */
+    #[Test]
+    public function settlement_for_is_null_while_the_charge_has_no_balance_transaction_yet(): void
+    {
+        $payment = $this->paymentFor(2500, Currency::EUR);
+        $payment->update(['gateway_reference' => 'pi_async']);
+
+        $this->paymentIntents->shouldReceive('retrieve')->once()->andReturn(PaymentIntent::constructFrom([
+            'id' => 'pi_async',
+            'object' => 'payment_intent',
+            'latest_charge' => ['id' => 'ch_async', 'object' => 'charge', 'balance_transaction' => null],
+        ]));
+
+        $this->assertNull($this->gateway->settlementFor($payment));
+    }
+
+    #[Test]
+    public function settlement_for_reports_no_rate_when_nothing_was_converted(): void
+    {
+        $payment = $this->paymentFor(2500, Currency::EUR);
+        $payment->update(['gateway_reference' => 'pi_eur']);
+
+        $this->paymentIntents->shouldReceive('retrieve')->once()->andReturn(PaymentIntent::constructFrom([
+            'id' => 'pi_eur',
+            'object' => 'payment_intent',
+            'latest_charge' => ['id' => 'ch_eur', 'object' => 'charge', 'balance_transaction' => [
+                'id' => 'txn_eur', 'object' => 'balance_transaction', 'amount' => 2500, 'currency' => 'eur',
+                'fee' => 60, 'net' => 2440, 'exchange_rate' => null, 'created' => 1795200127,
+            ]],
+        ]));
+
+        $this->assertNull($this->gateway->settlementFor($payment)?->exchangeRate);
+    }
+
+    #[Test]
+    public function settlement_for_asks_stripe_nothing_for_a_payment_with_no_gateway_reference(): void
+    {
+        $payment = $this->paymentFor(2500, Currency::EUR);
+        $this->paymentIntents->shouldNotReceive('retrieve');
+
+        $this->assertNull($this->gateway->settlementFor($payment));
+    }
+
+    #[Test]
+    public function refund_settlement_for_reports_the_magnitudes_of_the_refunds_negative_transaction(): void
+    {
+        $this->refunds->shouldReceive('retrieve')->once()
+            ->with('re_usd', ['expand' => ['balance_transaction']])
+            ->andReturn(Refund::constructFrom([
+                'id' => 're_usd',
+                'object' => 'refund',
+                'balance_transaction' => [
+                    'id' => 'txn_refund', 'object' => 'balance_transaction', 'amount' => -1425, 'currency' => 'eur',
+                    'fee' => 0, 'net' => -1425, 'exchange_rate' => 0.95, 'created' => 1796895000,
+                ],
+            ]));
+
+        $settlement = $this->gateway->refundSettlementFor('re_usd');
+
+        $this->assertNotNull($settlement);
+        $this->assertSame('txn_refund', $settlement->reference);
+        $this->assertSame(1425, $settlement->amount);
+        $this->assertSame(1425, $settlement->net);
+        $this->assertSame(0, $settlement->fee);
+        $this->assertSame('EUR', $settlement->currency);
+        $this->assertSame('0.9500000000', $settlement->exchangeRate);
+        $this->assertNull($settlement->chargeReference);
+    }
+
+    #[Test]
+    public function refund_settlement_for_is_null_without_a_balance_transaction(): void
+    {
+        $this->refunds->shouldReceive('retrieve')->once()->andReturn(Refund::constructFrom([
+            'id' => 're_new', 'object' => 'refund', 'balance_transaction' => null,
+        ]));
+
+        $this->assertNull($this->gateway->refundSettlementFor('re_new'));
+    }
+
+    // ─────────────────────────────────────────────────────────────────
     // createCustomer
     // ─────────────────────────────────────────────────────────────────
 
