@@ -71,6 +71,14 @@ class PurchaseOrderResource extends PackageResource
                         PurchasingSchema::purchaseLinesRepeater(),
                     ])
                     ->visibleOn('create'),
+                Section::make(__('shops-purchasing::purchaseorder.section.supplier_invoice'))
+                    ->schema(PurchasingSchema::supplierInvoiceFields())
+                    ->columns(3)
+                    ->visibleOn('edit'),
+                Section::make(__('shops-purchasing::purchaseorder.section.payment'))
+                    ->schema(PurchasingSchema::supplierPaymentFields())
+                    ->columns(2)
+                    ->visibleOn('edit'),
             ]);
     }
 

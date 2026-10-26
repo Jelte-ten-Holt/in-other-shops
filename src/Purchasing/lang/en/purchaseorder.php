@@ -15,12 +15,24 @@ return [
     'section' => [
         'details' => 'Details',
         'lines' => 'Lines',
+        'supplier_invoice' => 'Supplier invoice',
+        'payment' => 'Payment',
     ],
     'fields' => [
         'supplier' => 'Supplier',
         'expected_delivery' => 'Expected delivery',
         'shipping_cost' => 'Shipping cost',
         'customs_cost' => 'Customs cost',
+        'supplier_invoice_number' => 'Invoice number',
+        'supplier_invoice_date' => 'Invoice date',
+        'supplier_invoice_total' => 'Invoice total (gross)',
+        'supplier_invoice_total_help' => 'As printed on the invoice. It must equal the net plus VAT of the rates below.',
+        'supplier_invoice_tax_summary' => 'VAT per rate',
+        'vat_rate' => 'VAT rate',
+        'net' => 'Net',
+        'vat' => 'VAT',
+        'paid_on' => 'Paid on',
+        'amount_paid' => 'Amount paid',
     ],
     'columns' => [
         'total' => 'Total',
@@ -30,6 +42,7 @@ return [
         'place' => 'Mark ordered',
         'receive' => 'Receive',
         'cancel' => 'Cancel',
+        'add_rate' => 'Add a VAT rate',
     ],
     'notifications' => [
         'placed' => 'Purchase order placed',

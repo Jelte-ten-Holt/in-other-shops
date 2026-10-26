@@ -34,6 +34,23 @@ Two additive migrations, one config key, one auto-scheduled command.
 - Why not on `payment_intent.succeeded`, as the brief said: Stripe's
   asynchronous capture leaves the balance transaction empty on that event.
 
+### P-4 — purchasing fields
+
+Two additive migrations, one model boot hook.
+
+- `suppliers` gains `vat_id`, `country_code`, `address_line_1`,
+  `address_line_2`, `city`, `postal_code`; the supplier form gains a
+  "VAT and address" section.
+- `purchase_orders` gains the supplier invoice (`supplier_invoice_number`,
+  `supplier_invoice_date`, gross `supplier_invoice_total`, per-rate
+  `supplier_invoice_tax_summary`) and its payment (`paid_at`, `amount_paid`),
+  with edit-page sections for both. `PurchaseOrder::saving` refuses half an
+  invoice, a total its rates do not add up to, and a payment without its date
+  or a positive amount (`SupplierInvoiceException`).
+- New `Support\Filament\ClaimedDay`: a day a person claims, stored as the
+  start of that day in Filament's timezone.
+- Not built: the invoice as an attachment (Media's disk is public).
+
 ## v0.71.3 — 2026-10-05
 
 Refunds made outside the app are recorded (`docs/briefs/dashboard-refund-brief.md`).

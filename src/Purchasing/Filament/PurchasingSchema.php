@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace InOtherShops\Purchasing\Filament;
 
 use InOtherShops\Purchasing\Contracts\HasPurchases;
+use InOtherShops\Support\Filament\ClaimedDay;
 use InOtherShops\Support\Filament\MoneyFields;
+use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
@@ -67,6 +69,68 @@ final class PurchasingSchema
             MoneyFields::moneyInput('input_vat', nullable: true)
                 ->label(__('shops-purchasing::purchaseline.input_vat'))
                 ->nullable(),
+        ];
+    }
+
+    /**
+     * The supplier's invoice as printed on it: number, date, gross total and
+     * VAT per rate. The model refuses half an invoice and a total its rates do
+     * not add up to; `requiredWith` says so on the form first.
+     *
+     * @return array<Component>
+     */
+    public static function supplierInvoiceFields(): array
+    {
+        return [
+            TextInput::make('supplier_invoice_number')
+                ->label(__('shops-purchasing::purchaseorder.fields.supplier_invoice_number'))
+                ->maxLength(255),
+            DatePicker::make('supplier_invoice_date')
+                ->label(__('shops-purchasing::purchaseorder.fields.supplier_invoice_date'))
+                ->requiredWith('supplier_invoice_number'),
+            MoneyFields::moneyInput('supplier_invoice_total', nullable: true)
+                ->label(__('shops-purchasing::purchaseorder.fields.supplier_invoice_total'))
+                ->helperText(__('shops-purchasing::purchaseorder.fields.supplier_invoice_total_help'))
+                ->requiredWith('supplier_invoice_number'),
+            Repeater::make('supplier_invoice_tax_summary')
+                ->label(__('shops-purchasing::purchaseorder.fields.supplier_invoice_tax_summary'))
+                ->schema([
+                    TextInput::make('rate_bps')
+                        ->label(__('shops-purchasing::purchaseorder.fields.vat_rate'))
+                        ->numeric()
+                        ->minValue(0)
+                        ->required()
+                        ->suffix('%')
+                        ->formatStateUsing(fn (mixed $state): ?string => $state === null ? null : (string) ((int) $state / 100))
+                        ->dehydrateStateUsing(fn (mixed $state): int => MoneyFields::dehydrateBps($state)),
+                    MoneyFields::moneyInput('taxable_base')
+                        ->label(__('shops-purchasing::purchaseorder.fields.net'))
+                        ->required(),
+                    MoneyFields::moneyInput('tax')
+                        ->label(__('shops-purchasing::purchaseorder.fields.vat'))
+                        ->required(),
+                ])
+                ->columns(3)
+                ->defaultItems(0)
+                ->addActionLabel(__('shops-purchasing::purchaseorder.actions.add_rate'))
+                ->columnSpanFull(),
+        ];
+    }
+
+    /**
+     * Our payment of the invoice: the day it was paid and the amount, together.
+     *
+     * @return array<Component>
+     */
+    public static function supplierPaymentFields(): array
+    {
+        return [
+            ClaimedDay::picker('paid_at')
+                ->label(__('shops-purchasing::purchaseorder.fields.paid_on'))
+                ->requiredWith('amount_paid'),
+            MoneyFields::moneyInput('amount_paid', nullable: true)
+                ->label(__('shops-purchasing::purchaseorder.fields.amount_paid'))
+                ->requiredWith('paid_at'),
         ];
     }
 
