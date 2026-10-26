@@ -14,7 +14,9 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Component;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
+use Closure;
 use Illuminate\Database\Eloquent\Relations\Relation;
 
 /**
@@ -75,7 +77,8 @@ final class PurchasingSchema
     /**
      * The supplier's invoice as printed on it: number, date, gross total and
      * VAT per rate. The model refuses half an invoice and a total its rates do
-     * not add up to; `requiredWith` says so on the form first.
+     * not add up to; the form says so first, field by field. An invoice without
+     * VAT (reverse charge, a small business) is one row at 0 %.
      *
      * @return array<Component>
      */
@@ -91,9 +94,12 @@ final class PurchasingSchema
             MoneyFields::moneyInput('supplier_invoice_total', nullable: true)
                 ->label(__('shops-purchasing::purchaseorder.fields.supplier_invoice_total'))
                 ->helperText(__('shops-purchasing::purchaseorder.fields.supplier_invoice_total_help'))
-                ->requiredWith('supplier_invoice_number'),
+                ->requiredWith('supplier_invoice_number')
+                ->rule(fn (Get $get): Closure => self::totalMatchesRates($get)),
             Repeater::make('supplier_invoice_tax_summary')
                 ->label(__('shops-purchasing::purchaseorder.fields.supplier_invoice_tax_summary'))
+                ->helperText(__('shops-purchasing::purchaseorder.fields.supplier_invoice_tax_summary_help'))
+                ->requiredWith('supplier_invoice_number')
                 ->schema([
                     TextInput::make('rate_bps')
                         ->label(__('shops-purchasing::purchaseorder.fields.vat_rate'))
@@ -115,6 +121,33 @@ final class PurchasingSchema
                 ->addActionLabel(__('shops-purchasing::purchaseorder.actions.add_rate'))
                 ->columnSpanFull(),
         ];
+    }
+
+    /**
+     * The gross total typed from the invoice must be the net plus VAT of the
+     * rates below it — the same check the model makes on save, as a field error.
+     */
+    private static function totalMatchesRates(Get $get): Closure
+    {
+        return function (string $attribute, mixed $value, Closure $fail) use ($get): void {
+            $rows = $get('supplier_invoice_tax_summary') ?? [];
+
+            if ($value === null || $value === '' || $rows === []) {
+                return;
+            }
+
+            $summed = 0;
+
+            foreach ($rows as $row) {
+                $summed += MoneyFields::dehydrateCents($row['taxable_base'] ?? 0) + MoneyFields::dehydrateCents($row['tax'] ?? 0);
+            }
+
+            if (MoneyFields::dehydrateCents($value) !== $summed) {
+                $fail(__('shops-purchasing::purchaseorder.fields.supplier_invoice_total_mismatch', [
+                    'summed' => MoneyFields::formatCents($summed),
+                ]));
+            }
+        };
     }
 
     /**

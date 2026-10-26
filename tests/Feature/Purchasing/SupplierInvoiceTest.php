@@ -22,7 +22,7 @@ final class SupplierInvoiceTest extends TestCase
     use RefreshDatabase;
 
     #[Test]
-    public function a_whole_invoice_is_stored_with_its_summary_as_integer_rows_in_one_key_order(): void
+    public function a_whole_invoice_is_stored_with_its_summary_as_integer_rows(): void
     {
         $order = PurchaseOrder::factory()->create();
 
@@ -36,10 +36,12 @@ final class SupplierInvoiceTest extends TestCase
         $this->assertSame('INV-4471', $stored->supplier_invoice_number);
         $this->assertSame('2026-11-05', $stored->supplier_invoice_date->toDateString());
         $this->assertSame(11412, $stored->supplier_invoice_total);
-        $this->assertSame(
-            '[{"rate_bps":1900,"taxable_base":9590,"tax":1822}]',
-            $stored->getRawOriginal('supplier_invoice_tax_summary'),
-        );
+        // Compared as integers, not as stored bytes: MySQL's JSON column keeps
+        // its own key order and spacing. Readers go through TaxBreakdownLine.
+        $row = $stored->supplier_invoice_tax_summary[0];
+        $this->assertSame(1900, $row['rate_bps']);
+        $this->assertSame(9590, $row['taxable_base']);
+        $this->assertSame(1822, $row['tax']);
     }
 
     #[Test]

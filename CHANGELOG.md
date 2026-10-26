@@ -46,7 +46,9 @@ Two additive migrations, one model boot hook.
   `supplier_invoice_tax_summary`) and its payment (`paid_at`, `amount_paid`),
   with edit-page sections for both. `PurchaseOrder::saving` refuses half an
   invoice, a total its rates do not add up to, and a payment without its date
-  or a positive amount (`SupplierInvoiceException`).
+  or a positive amount (`SupplierInvoiceException`). The form checks the same
+  rules field by field (VAT rows required with a number, the total against the
+  rows), and the edit page turns any refusal left into a notification.
 - New `Support\Filament\ClaimedDay`: a day a person claims, stored as the
   start of that day in Filament's timezone.
 - Not built: the invoice as an attachment (Media's disk is public).

@@ -27,7 +27,9 @@ return [
         'supplier_invoice_date' => 'Invoice date',
         'supplier_invoice_total' => 'Invoice total (gross)',
         'supplier_invoice_total_help' => 'As printed on the invoice. It must equal the net plus VAT of the rates below.',
+        'supplier_invoice_total_mismatch' => 'The rates below add up to :summed (net plus VAT), not this total.',
         'supplier_invoice_tax_summary' => 'VAT per rate',
+        'supplier_invoice_tax_summary_help' => 'One row per VAT rate on the invoice. An invoice without VAT (reverse charge, a small business) is one row at 0 %.',
         'vat_rate' => 'VAT rate',
         'net' => 'Net',
         'vat' => 'VAT',
@@ -51,5 +53,6 @@ return [
         'receive_failed' => 'Could not receive items',
         'cancelled' => 'Purchase order cancelled',
         'cancel_failed' => 'Could not cancel',
+        'invoice_refused' => 'The supplier invoice was not saved',
     ],
 ];

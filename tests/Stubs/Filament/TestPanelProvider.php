@@ -6,6 +6,7 @@ namespace InOtherShops\Tests\Stubs\Filament;
 
 use Filament\Panel;
 use Filament\PanelProvider;
+use InOtherShops\Purchasing\Filament\Resources\PurchaseOrderResource;
 
 /**
  * A bare default Filament panel for the tests that boot Filament (mix in
@@ -26,6 +27,8 @@ final class TestPanelProvider extends PanelProvider
             ->authGuard('web')
             ->resources([
                 StubEditableResource::class,
+                // The package's own pages that carry behaviour of their own.
+                PurchaseOrderResource::class,
             ]);
     }
 }
