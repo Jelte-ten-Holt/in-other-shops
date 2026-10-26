@@ -134,6 +134,38 @@ final class CalculateShipmentValueTest extends TestCase
         $this->assertSame(['rate_bps' => 1900, 'taxable_base' => 604, 'tax' => 115], TaxBreakdownLine::serializeMany([$this->bracket($value, 1900)])[0]);
     }
 
+    /**
+     * in-other-worlds creates a whole-order shipment when the order is placed.
+     * A pre-order cart then sends the in-stock posters first in a shipment of
+     * their own, and the up-front one goes out later with the book: each is
+     * valued by what had gone out before it, not by when it was created.
+     */
+    #[Test]
+    public function shipments_are_valued_in_the_order_they_went_out_not_the_order_they_were_created(): void
+    {
+        $upFront = $this->ship([$this->book->id => 1, $this->poster->id => 2]);
+        $posters = $this->ship([$this->poster->id => 2]);
+        $posters->update(['shipped_at' => '2026-12-03 10:00:00']);
+        $upFront->update(['shipped_at' => '2027-01-10 10:00:00']);
+
+        $first = $this->value($posters);
+        $second = $this->value($upFront);
+
+        $this->assertSame([['rate_bps' => 1900, 'taxable_base' => 1987, 'tax' => 377]], TaxBreakdownLine::serializeMany($first->taxSummary));
+        $this->assertSame([['rate_bps' => 700, 'taxable_base' => 5233, 'tax' => 366]], TaxBreakdownLine::serializeMany($second->taxSummary));
+    }
+
+    #[Test]
+    public function a_shipment_not_yet_dispatched_comes_after_every_dispatched_one(): void
+    {
+        $waiting = $this->ship([$this->book->id => 1, $this->poster->id => 2]);
+        $posters = $this->ship([$this->poster->id => 2]);
+        $posters->update(['shipped_at' => '2026-12-03 10:00:00']);
+
+        $this->assertSame(1987 + 377, $this->value($posters)->amount);
+        $this->assertSame(5233 + 366, $this->value($waiting)->amount);
+    }
+
     #[Test]
     public function an_order_without_a_tax_summary_is_one_bracket_at_its_rate(): void
     {

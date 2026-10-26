@@ -20,12 +20,17 @@ use InOtherShops\Shipping\Models\Shipment;
  * which already carries its share of shipping cost and discount — goes to the
  * shipments in proportion to the bracket's goods they carry (line total ×
  * quantity shipped / quantity ordered). The allocation is cumulative over the
- * order's shipments in id order, each line's shipped quantity capped at what
+ * order's shipments in the order they went out — by `shipped_at`, then id,
+ * those not yet dispatched last — each line's shipped quantity capped at what
  * was ordered, so:
  *
  * - a whole-order shipment carries the order's total and summary unchanged;
  * - the shipments of a fully shipped order add up to it exactly;
- * - a shipment's value does not move when a later shipment is added.
+ * - a dispatched shipment's value does not move when another is added or
+ *   dispatched after it (correcting an earlier `shipped_at` can reorder them);
+ * - a shop that creates a whole-order shipment up front and then sends part of
+ *   the order separately (a pre-order) values the part that went first by
+ *   what it carried, and the up-front shipment by what was left.
  *
  * A bracket no line falls in (an older order whose lines carry no rate) goes
  * with the order's goods as a whole. A re-shipment after a return or a loss
@@ -42,18 +47,16 @@ final class CalculateShipmentValue
         $before = [];
         $after = [];
 
-        foreach ($order->shipments->sortBy('id') as $sibling) {
-            if ($sibling->getKey() > $shipment->getKey()) {
-                continue;
-            }
-
+        foreach ($this->dispatchOrder($order) as $sibling) {
             foreach ($sibling->items as $item) {
                 $after[$item->order_line_id] = ($after[$item->order_line_id] ?? 0) + $item->quantity;
-
-                if ($sibling->getKey() < $shipment->getKey()) {
-                    $before[$item->order_line_id] = ($before[$item->order_line_id] ?? 0) + $item->quantity;
-                }
             }
+
+            if ($sibling->getKey() === $shipment->getKey()) {
+                break;
+            }
+
+            $before = $after;
         }
 
         $summary = [];
@@ -78,6 +81,24 @@ final class CalculateShipmentValue
         }
 
         return new ShipmentValue(amount: $amount, currency: $order->currency, taxSummary: $summary);
+    }
+
+    /**
+     * The order's shipments as they went out: dispatched ones by `shipped_at`,
+     * then id; those not yet dispatched after them, by id.
+     *
+     * @return list<Shipment>
+     */
+    private function dispatchOrder(Order $order): array
+    {
+        return $order->shipments
+            ->sortBy(fn (Shipment $shipment): array => [
+                $shipment->shipped_at === null ? 1 : 0,
+                $shipment->shipped_at?->getTimestamp() ?? 0,
+                $shipment->getKey(),
+            ])
+            ->values()
+            ->all();
     }
 
     /**

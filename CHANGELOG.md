@@ -88,8 +88,11 @@ No migration. Off by default.
 - Each payment, refund and shipment embeds its order; a purchase order its
   lines and supplier. Payments and shipments of orders only.
 - Shipments carry their own value from the new
-  `Shipping\Actions\CalculateShipmentValue`: by the lines they hold, so an
-  order that ships twice splits by rate and adds up to the cent.
+  `Shipping\Actions\CalculateShipmentValue`: by the lines they hold, in the
+  order they went out, so an order that ships twice splits by rate and adds
+  up to the cent.
+- A payment or shipment whose order row is gone is skipped, not a failed
+  page; a read bearer equal to the operator bearer fails closed.
 - The in-other-books fixtures are contract tests here
   (`tests/Fixtures/Books`, `ReadApiContractTest`).
 

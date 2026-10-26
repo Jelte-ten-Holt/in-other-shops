@@ -28,7 +28,13 @@ use InOtherShops\Shipping\Shipping;
  * not touch its order's timestamp, so each resource is paged on its own; each
  * item embeds what its bookkeeping event needs (the order in the first three,
  * the supplier in a purchase order). Payments and shipments are an order's
- * only: those are the ones a shop sale is made of.
+ * only: those are the ones a shop sale is made of. A row whose order is gone
+ * (the morph has no foreign key) is skipped rather than failing its page,
+ * which would stop the client's cursor there for good.
+ *
+ * The client keeps `until` behind the present by its own pull window: a row
+ * stamped at second S can commit after S, and a page read up to now could
+ * pass it by.
  */
 final class ReadApiController
 {
@@ -42,7 +48,10 @@ final class ReadApiController
 
         [$query, $resourceClass] = match ($resource) {
             'payments' => [
-                Payment::query()->where('payable_type', $orderAlias)->with(self::ORDER),
+                Payment::query()
+                    ->where('payable_type', $orderAlias)
+                    ->whereHasMorph('payable', [Commerce::order()])
+                    ->with(self::ORDER),
                 PaymentResource::class,
             ],
             'refunds' => [
@@ -52,6 +61,7 @@ final class ReadApiController
             'shipments' => [
                 Shipping::shipment()::query()
                     ->where('shippable_type', $orderAlias)
+                    ->whereHasMorph('shippable', [Commerce::order()])
                     ->with(['items', 'shippable.customer', 'shippable.lines', 'shippable.addresses', 'shippable.shipments.items']),
                 ShipmentResource::class,
             ],

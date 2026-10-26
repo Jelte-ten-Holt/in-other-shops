@@ -398,6 +398,12 @@ final class AuthenticateAgent
         $bearer = (string) $request->bearerToken();
         $expected = (string) config('agent.read.bearer_token', '');
 
+        // Set to the operator bearer, the "read" credential would be admin on
+        // /mcp: refuse it here too, so the misconfiguration shows at once.
+        if ($expected === (string) config('agent.auth.bearer_token', '')) {
+            return false;
+        }
+
         if ($bearer === '' || $expected === '' || ! hash_equals($expected, $bearer)) {
             return false;
         }

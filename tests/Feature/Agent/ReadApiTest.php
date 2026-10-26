@@ -104,6 +104,14 @@ final class ReadApiTest extends TestCase
     }
 
     #[Test]
+    public function a_read_bearer_set_to_the_operator_bearer_fails_closed(): void
+    {
+        config(['agent.read.bearer_token' => self::OPERATOR_BEARER]);
+
+        $this->withToken(self::OPERATOR_BEARER)->getJson($this->url('payments'))->assertUnauthorized();
+    }
+
+    #[Test]
     public function an_unknown_resource_is_not_found(): void
     {
         $this->withToken(self::READ_BEARER)->getJson($this->url('orders'))->assertNotFound();
@@ -199,6 +207,24 @@ final class ReadApiTest extends TestCase
             ->create(['amount' => 1000, 'updated_at' => '2026-11-10 12:00:00']);
 
         $this->assertSame([$orderPayment->id], array_column($this->page('payments')->json('data'), 'id'));
+    }
+
+    /**
+     * The order link is polymorphic and has no foreign key, so an order row can
+     * be gone under its payment or shipment. Such a row is skipped: failing its
+     * page would stop the client's cursor there for good.
+     */
+    #[Test]
+    public function a_payment_or_shipment_whose_order_is_gone_is_skipped_not_fatal(): void
+    {
+        $kept = $this->payment(updatedAt: '2026-11-10 12:00:00');
+        Payment::factory()->succeeded()->create([
+            'payable_type' => 'order', 'payable_id' => 999_999, 'amount' => 1000, 'gateway' => 'fake', 'updated_at' => '2026-11-10 12:00:00',
+        ]);
+        Shipment::factory()->create(['shippable_type' => 'order', 'shippable_id' => 999_999, 'updated_at' => '2026-11-10 12:00:00']);
+
+        $this->assertSame([$kept->id], array_column($this->page('payments')->json('data'), 'id'));
+        $this->assertSame([], $this->page('shipments')->json('data'));
     }
 
     #[Test]
