@@ -50,12 +50,30 @@ final class AgentServiceProvider extends ServiceProvider
                 $this->registerMcpRoute();
             }
 
+            if ((bool) config('agent.read.enabled', false)) {
+                $this->registerReadRoutes();
+            }
+
             if ((bool) config('agent.auth.oauth.enabled', false)) {
                 $this->registerOauthRoutes();
             }
         });
 
         Event::subscribe(AgentLogSubscriber::class);
+    }
+
+    /**
+     * The bookkeeping read API (P-5). Only the read bearer opens it — the
+     * `read` surface of AuthenticateAgent — and its throttle is its own.
+     */
+    private function registerReadRoutes(): void
+    {
+        Route::middleware([
+            'throttle:'.config('agent.read.throttle', '120,1'),
+            AuthenticateAgent::class.':read',
+        ])
+            ->prefix((string) config('agent.read.path', '/api/read/v1'))
+            ->group(__DIR__.'/Routes/read.php');
     }
 
     private function registerMcpRoute(): void

@@ -76,6 +76,23 @@ No migration.
 - in-other-worlds overrides the order edit page: its bump must gate Delete on
   `Order::isDeletable()` and add `EditOrder::markPaidAction()`.
 
+### P-5 — the bookkeeping read API
+
+No migration. Off by default.
+
+- `GET /api/read/v1/{payments,refunds,shipments,purchase_orders}`, keyset-paged
+  on `(updated_at, id)` with a required `until`, `{data, next, has_more}`.
+  Enabled by `AGENT_READ_ENABLED`; opened only by its own read-only bearer
+  `AGENT_READ_BEARER_TOKEN` (`AuthenticateAgent:read`), which opens nothing
+  else and is never admin. The operator bearer is refused there.
+- Each payment, refund and shipment embeds its order; a purchase order its
+  lines and supplier. Payments and shipments of orders only.
+- Shipments carry their own value from the new
+  `Shipping\Actions\CalculateShipmentValue`: by the lines they hold, so an
+  order that ships twice splits by rate and adds up to the cent.
+- The in-other-books fixtures are contract tests here
+  (`tests/Fixtures/Books`, `ReadApiContractTest`).
+
 ## v0.71.3 — 2026-10-05
 
 Refunds made outside the app are recorded (`docs/briefs/dashboard-refund-brief.md`).
