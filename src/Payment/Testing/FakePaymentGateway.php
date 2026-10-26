@@ -77,6 +77,9 @@ final class FakePaymentGateway implements ListsRefunds, ManagesCustomers, Paymen
 
     private bool $settlementLookupErrors = false;
 
+    /** @var list<string> gateway references whose settlement lookup throws */
+    private array $erroringSettlementReferences = [];
+
     /** @var array<int, PaymentCustomerData> */
     private array $customers = [];
 
@@ -227,14 +230,14 @@ final class FakePaymentGateway implements ListsRefunds, ManagesCustomers, Paymen
 
     public function settlementFor(Payment $payment): ?Settlement
     {
-        $this->lookUpSettlement();
+        $this->lookUpSettlement((string) $payment->gateway_reference);
 
         return $this->paymentSettlements[(string) $payment->gateway_reference] ?? null;
     }
 
     public function refundSettlementFor(string $gatewayRefundId): ?Settlement
     {
-        $this->lookUpSettlement();
+        $this->lookUpSettlement($gatewayRefundId);
 
         return $this->refundSettlements[$gatewayRefundId] ?? null;
     }
@@ -257,6 +260,12 @@ final class FakePaymentGateway implements ListsRefunds, ManagesCustomers, Paymen
         $this->settlementLookupErrors = true;
     }
 
+    /** The settlement lookup for this one payment reference or refund id throws. */
+    public function failSettlementLookupFor(string $reference): void
+    {
+        $this->erroringSettlementReferences[] = $reference;
+    }
+
     /**
      * The DB transaction level at each settlement lookup, in order — so a test
      * can prove the gateway was asked outside any lock.
@@ -268,11 +277,11 @@ final class FakePaymentGateway implements ListsRefunds, ManagesCustomers, Paymen
         return $this->settlementLookups;
     }
 
-    private function lookUpSettlement(): void
+    private function lookUpSettlement(string $reference): void
     {
         $this->settlementLookups[] = DB::transactionLevel();
 
-        if ($this->settlementLookupErrors) {
+        if ($this->settlementLookupErrors || in_array($reference, $this->erroringSettlementReferences, true)) {
             throw new RuntimeException('fake: gateway unavailable');
         }
     }

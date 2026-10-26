@@ -292,9 +292,13 @@ final class StripePaymentGateway implements ListsRefunds, ManagesCustomers, Paym
             return null;
         }
 
-        $intent = $this->client->paymentIntents->retrieve($payment->gateway_reference, [
-            'expand' => ['latest_charge.balance_transaction'],
-        ]);
+        try {
+            $intent = $this->client->paymentIntents->retrieve($payment->gateway_reference, [
+                'expand' => ['latest_charge.balance_transaction'],
+            ]);
+        } catch (InvalidRequestException $e) {
+            return $this->unknownToStripe($e);
+        }
 
         $charge = $intent->latest_charge;
 
@@ -312,13 +316,32 @@ final class StripePaymentGateway implements ListsRefunds, ManagesCustomers, Paym
      */
     public function refundSettlementFor(string $gatewayRefundId): ?Settlement
     {
-        $refund = $this->client->refunds->retrieve($gatewayRefundId, ['expand' => ['balance_transaction']]);
+        try {
+            $refund = $this->client->refunds->retrieve($gatewayRefundId, ['expand' => ['balance_transaction']]);
+        } catch (InvalidRequestException $e) {
+            return $this->unknownToStripe($e);
+        }
 
         if (! $refund->balance_transaction instanceof BalanceTransaction) {
             return null;
         }
 
         return $this->settlement($refund->balance_transaction);
+    }
+
+    /**
+     * An id this Stripe account does not know — a test-mode row under live
+     * keys, a seeded fixture — will never settle. Reported as nothing to
+     * record, so it neither fails every run of the settlement read nor alerts
+     * every one; any other refusal is a real error and is rethrown.
+     */
+    private function unknownToStripe(InvalidRequestException $e): null
+    {
+        if ($e->getStripeCode() !== 'resource_missing') {
+            throw $e;
+        }
+
+        return null;
     }
 
     /**

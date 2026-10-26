@@ -67,7 +67,9 @@ final class CommerceServiceProvider extends DomainServiceProvider
         $this->app->make(FlowChainRegistry::class)->register(AddToCartChain::class);
 
         $this->scheduleWhenEnabled(function (Schedule $schedule): void {
-            $schedule->command('commerce:record-settlements')->everyFiveMinutes();
+            // In the background and never twice at once: it waits on the
+            // gateway, and a slow gateway must not hold up the shop's own tasks.
+            $schedule->command('commerce:record-settlements')->everyFiveMinutes()->withoutOverlapping()->runInBackground();
         });
     }
 

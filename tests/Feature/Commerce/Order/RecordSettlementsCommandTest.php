@@ -7,6 +7,7 @@ namespace InOtherShops\Tests\Feature\Commerce\Order;
 use Carbon\CarbonImmutable;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Exceptions;
 use InOtherShops\Commerce\Order\Models\Order;
 use InOtherShops\Commerce\Order\Models\Refund;
 use InOtherShops\Payment\DTOs\Settlement;
@@ -16,6 +17,7 @@ use InOtherShops\Payment\Testing\FakePaymentGateway;
 use InOtherShops\Tests\TestCase;
 use Orchestra\Testbench\Attributes\DefineEnvironment;
 use PHPUnit\Framework\Attributes\Test;
+use RuntimeException;
 
 /**
  * The scheduled settlement read (bookkeeping brief §12 P-2): which rows it
@@ -206,17 +208,22 @@ final class RecordSettlementsCommandTest extends TestCase
     }
 
     #[Test]
-    public function a_gateway_error_is_reported_the_run_finishes_and_exits_non_zero(): void
+    public function a_gateway_error_on_one_row_is_reported_the_rest_are_still_recorded_and_it_exits_non_zero(): void
     {
-        $payment = $this->payment('pi_unreachable');
-        $this->gateway->settle($payment, $this->settlement('txn_never'));
-        $this->gateway->failSettlementLookups();
+        Exceptions::fake();
+        $unreachable = $this->payment('pi_unreachable');
+        $fine = $this->payment('pi_fine');
+        $this->gateway->settle($unreachable, $this->settlement('txn_never'));
+        $this->gateway->settle($fine, $this->settlement('txn_fine'));
+        $this->gateway->failSettlementLookupFor('pi_unreachable');
 
         $this->artisan('commerce:record-settlements')
-            ->expectsOutputToContain('Recorded 0 settlement(s); 1 gateway error(s).')
+            ->expectsOutputToContain('Recorded 1 settlement(s); 1 gateway error(s).')
             ->assertExitCode(1);
 
-        $this->assertNull($payment->refresh()->settlement_reference);
+        $this->assertNull($unreachable->refresh()->settlement_reference);
+        $this->assertSame('txn_fine', $fine->refresh()->settlement_reference);
+        Exceptions::assertReported(fn (RuntimeException $e): bool => $e->getMessage() === 'fake: gateway unavailable');
     }
 
     #[Test]
@@ -235,6 +242,8 @@ final class RecordSettlementsCommandTest extends TestCase
 
         $this->assertCount(1, $events);
         $this->assertSame('*/5 * * * *', $events->first()->expression);
+        $this->assertTrue($events->first()->withoutOverlapping);
+        $this->assertTrue($events->first()->runInBackground);
     }
 
     #[Test]

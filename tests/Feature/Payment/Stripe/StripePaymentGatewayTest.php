@@ -558,6 +558,40 @@ final class StripePaymentGatewayTest extends TestCase
         $this->assertNull($settlement->chargeReference);
     }
 
+    /**
+     * A test-mode id under live keys, a seeded fixture: Stripe will never know
+     * it, so it is nothing to record rather than an error every run.
+     */
+    #[Test]
+    public function settlement_for_an_id_stripe_does_not_know_is_nothing_to_record(): void
+    {
+        $payment = $this->paymentFor(2500, Currency::EUR);
+        $payment->update(['gateway_reference' => 'seed_pi_missing']);
+        $this->paymentIntents->shouldReceive('retrieve')->once()->andThrow(
+            InvalidRequestException::factory('No such payment_intent', 404, null, null, null, 'resource_missing'),
+        );
+        $this->refunds->shouldReceive('retrieve')->once()->andThrow(
+            InvalidRequestException::factory('No such refund', 404, null, null, null, 'resource_missing'),
+        );
+
+        $this->assertNull($this->gateway->settlementFor($payment));
+        $this->assertNull($this->gateway->refundSettlementFor('re_missing'));
+    }
+
+    #[Test]
+    public function settlement_for_rethrows_any_other_refusal(): void
+    {
+        $payment = $this->paymentFor(2500, Currency::EUR);
+        $payment->update(['gateway_reference' => 'pi_bad']);
+        $this->paymentIntents->shouldReceive('retrieve')->once()->andThrow(
+            InvalidRequestException::factory('Invalid expand', 400, null, null, null, 'parameter_invalid_empty'),
+        );
+
+        $this->expectException(InvalidRequestException::class);
+
+        $this->gateway->settlementFor($payment);
+    }
+
     #[Test]
     public function refund_settlement_for_is_null_without_a_balance_transaction(): void
     {

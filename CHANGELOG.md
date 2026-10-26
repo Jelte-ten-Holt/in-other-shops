@@ -28,7 +28,9 @@ Two additive migrations, one config key, one auto-scheduled command.
   minutes behind the new `commerce.schedule.enabled` (default `true`). It asks
   about settled payments and refunds from the last 30 days that have no
   settlement, outside any transaction, and writes each once. A payment's
-  `paid_at` is written with its settlement.
+  `paid_at` is written with its settlement. It runs in the background and
+  never overlaps itself; an id Stripe does not know is nothing to record, any
+  other gateway error is reported and the run carries on.
 - Why not on `payment_intent.succeeded`, as the brief said: Stripe's
   asynchronous capture leaves the balance transaction empty on that event.
 
