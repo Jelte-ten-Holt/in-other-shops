@@ -6,6 +6,7 @@ namespace InOtherShops\Commerce\Order\Models;
 
 use InOtherShops\Commerce\Commerce;
 use InOtherShops\Commerce\Database\Factories\OrderLineFactory;
+use InOtherShops\Commerce\Exceptions\OrderFrozenException;
 use InOtherShops\Currency\Enums\Currency;
 use InOtherShops\Tax\Enums\TaxCategory;
 use Illuminate\Database\Eloquent\Builder;
@@ -21,6 +22,21 @@ class OrderLine extends Model
     protected $guarded = [];
 
     protected static string $factory = OrderLineFactory::class;
+
+    /** A paid order's lines are part of the record of the sale (Order::isFrozen). */
+    protected static function booted(): void
+    {
+        $guard = function (OrderLine $line): void {
+            $order = $line->order;
+
+            if ($order !== null && $order->isFrozen()) {
+                throw OrderFrozenException::lines($order);
+            }
+        };
+
+        static::saving($guard);
+        static::deleting($guard);
+    }
 
     protected function casts(): array
     {

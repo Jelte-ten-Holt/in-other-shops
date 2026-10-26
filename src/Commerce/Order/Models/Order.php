@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use InOtherShops\Commerce\Commerce;
 use InOtherShops\Commerce\Database\Factories\OrderFactory;
+use InOtherShops\Commerce\Exceptions\OrderFrozenException;
 use InOtherShops\Commerce\Order\Enums\OrderStatus;
 use InOtherShops\Currency\Enums\Currency;
 use InOtherShops\Inventory\Enums\ReservationStatus;
@@ -20,6 +21,7 @@ use InOtherShops\Location\Contracts\HasAddresses;
 use InOtherShops\Location\Enums\AddressType;
 use InOtherShops\Payment\Concerns\InteractsWithPayments;
 use InOtherShops\Payment\Contracts\HasPayments;
+use InOtherShops\Payment\Enums\PaymentStatus;
 use InOtherShops\Pricing\DTOs\TaxBreakdownLine;
 use InOtherShops\Shipping\Concerns\InteractsWithShipment;
 use InOtherShops\Shipping\Contracts\HasShipment;
@@ -35,6 +37,44 @@ class Order extends Model implements HasAddresses, HasPayments, HasShipment
     protected $guarded = [];
 
     protected static string $factory = OrderFactory::class;
+
+    /**
+     * What the customer was charged, and under which number: frozen once the
+     * order is paid ({@see self::isFrozen()}). Notes, email, locale, customer
+     * and status stay editable.
+     */
+    public const FROZEN_WHEN_PAID = [
+        'order_number',
+        'currency',
+        'subtotal',
+        'discount',
+        'voucher_code',
+        'shipping_method_identifier',
+        'shipping_cost',
+        'shipping_cost_currency',
+        'tax',
+        'tax_rate_bps',
+        'tax_rate_country_code',
+        'tax_summary',
+        'total',
+    ];
+
+    protected static function booted(): void
+    {
+        static::updating(function (Order $order): void {
+            $changed = array_values(array_intersect(array_keys($order->getDirty()), self::FROZEN_WHEN_PAID));
+
+            if ($changed !== [] && $order->isFrozen()) {
+                throw OrderFrozenException::fields($order, $changed);
+            }
+        });
+
+        static::deleting(function (Order $order): void {
+            if ($order->isFrozen()) {
+                throw OrderFrozenException::deletion($order);
+            }
+        });
+    }
 
     protected function casts(): array
     {
@@ -81,6 +121,33 @@ class Order extends Model implements HasAddresses, HasPayments, HasShipment
     public function billingAddress(): MorphMany
     {
         return $this->addresses()->whereIn('type', [AddressType::Billing, AddressType::ShippingAndBilling]);
+    }
+
+    /**
+     * Whether money moved for this order: it has a payment that succeeded,
+     * refunded since or not. From then on its money fields, lines and
+     * addresses are the record of the sale (bookkeeping brief §12 P-1): the
+     * model refuses to change them, and refuses to delete the order.
+     */
+    public function isFrozen(): bool
+    {
+        return $this->payments()
+            ->whereIn('status', [PaymentStatus::Succeeded, PaymentStatus::PartiallyRefunded, PaymentStatus::Refunded])
+            ->exists();
+    }
+
+    /**
+     * Whether an admin may record that this order was paid outside a gateway:
+     * it is not cancelled, has something to pay, and has no payment pending or
+     * settled. A failed card attempt does not stand in the way.
+     */
+    public function acceptsManualPayment(): bool
+    {
+        return $this->status !== OrderStatus::Cancelled
+            && $this->total > 0
+            && $this->payments()
+                ->whereIn('status', [PaymentStatus::Pending, PaymentStatus::Succeeded, PaymentStatus::PartiallyRefunded, PaymentStatus::Refunded])
+                ->doesntExist();
     }
 
     public function getPaymentTotalDue(): int

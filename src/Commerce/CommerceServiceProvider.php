@@ -6,6 +6,7 @@ namespace InOtherShops\Commerce;
 
 use InOtherShops\Commerce\Cart\Commands\PruneExpiredCartsCommand;
 use InOtherShops\Commerce\Cart\FlowChains\AddToCartChain;
+use InOtherShops\Commerce\Exceptions\OrderFrozenException;
 use InOtherShops\Commerce\Listeners\CommerceLogSubscriber;
 use InOtherShops\Commerce\Order\Commands\ExpireAbandonedOrdersCommand;
 use InOtherShops\Commerce\Order\Commands\ReconcileRefundsCommand;
@@ -16,7 +17,10 @@ use InOtherShops\Commerce\Order\Listeners\CreateShipmentForNewOrder;
 use InOtherShops\Commerce\Order\Listeners\ReconcileRefundFromWebhook;
 use InOtherShops\Commerce\Order\Listeners\ReleaseVoucherOnOrderCancelled;
 use InOtherShops\Commerce\Order\Listeners\SyncInventoryOnOrderStatusChange;
+use InOtherShops\Commerce\Order\Models\Order;
 use InOtherShops\FlowChain\FlowChainRegistry;
+use InOtherShops\Location\Location;
+use InOtherShops\Location\Models\Address;
 use InOtherShops\Payment\Events\PaymentRefunded;
 use InOtherShops\Support\DomainServiceProvider;
 use Illuminate\Console\Scheduling\Schedule;
@@ -48,6 +52,25 @@ final class CommerceServiceProvider extends DomainServiceProvider
         return CommerceLogSubscriber::class;
     }
 
+    /**
+     * A paid order's addresses are part of the record of the sale, like its
+     * money fields and lines (Order::isFrozen). Location is a generic leaf and
+     * knows nothing of orders, so Commerce registers the guard on its model.
+     */
+    private function freezePaidOrderAddresses(): void
+    {
+        $guard = function (Address $address): void {
+            $order = $address->addressable;
+
+            if ($order instanceof Order && $order->isFrozen()) {
+                throw OrderFrozenException::addresses($order);
+            }
+        };
+
+        Location::address()::saving($guard);
+        Location::address()::deleting($guard);
+    }
+
     protected function domainCommands(): array
     {
         return [PruneExpiredCartsCommand::class, ExpireAbandonedOrdersCommand::class, ReconcileRefundsCommand::class, RecordSettlementsCommand::class];
@@ -65,6 +88,8 @@ final class CommerceServiceProvider extends DomainServiceProvider
         Event::listen(PaymentRefunded::class, ReconcileRefundFromWebhook::class);
 
         $this->app->make(FlowChainRegistry::class)->register(AddToCartChain::class);
+
+        $this->freezePaidOrderAddresses();
 
         $this->scheduleWhenEnabled(function (Schedule $schedule): void {
             // In the background and never twice at once: it waits on the

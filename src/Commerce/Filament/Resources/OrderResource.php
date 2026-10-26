@@ -60,6 +60,7 @@ class OrderResource extends PackageResource
                                 CommerceSchema::orderLinesRepeater(
                                     currencyOptions: static::currencyOptions(),
                                 )
+                                    ->disabled(fn (?Order $record): bool => static::isFrozen($record))
                                     ->live()
                                     ->afterStateUpdated(function (Set $set, Get $get): void {
                                         static::recalculateOrderTotals($set, $get);
@@ -67,7 +68,8 @@ class OrderResource extends PackageResource
                             ]),
                         Tab::make(__('shops-commerce::orders.tabs.addresses'))
                             ->schema([
-                                LocationSchema::addressRepeater(),
+                                LocationSchema::addressRepeater()
+                                    ->disabled(fn (?Order $record): bool => static::isFrozen($record)),
                             ]),
                     ]),
             ]);
@@ -170,6 +172,15 @@ class OrderResource extends PackageResource
     }
 
     /**
+     * A paid order's money fields, lines and addresses are shown but cannot be
+     * edited; the model refuses the change anyway (Order::isFrozen).
+     */
+    protected static function isFrozen(?Order $record): bool
+    {
+        return $record !== null && $record->isFrozen();
+    }
+
+    /**
      * Override in your project to provide currency options.
      *
      * @return array<string, string>
@@ -210,18 +221,21 @@ class OrderResource extends PackageResource
             ...static::orderCurrencyFields(),
             MoneyFields::moneyInput('subtotal', zeroWhenEmpty: true)
                 ->label(__('shops-commerce::orders.fields.subtotal'))
+                ->disabled(fn (?Order $record): bool => static::isFrozen($record))
                 ->live()
                 ->afterStateUpdated(function (Set $set, Get $get): void {
                     static::recalculateTotal($set, $get);
                 }),
             MoneyFields::moneyInput('tax', zeroWhenEmpty: true)
                 ->label(__('shops-commerce::orders.fields.tax'))
+                ->disabled(fn (?Order $record): bool => static::isFrozen($record))
                 ->live()
                 ->afterStateUpdated(function (Set $set, Get $get): void {
                     static::recalculateTotal($set, $get);
                 }),
             MoneyFields::moneyInput('discount', zeroWhenEmpty: true)
                 ->label(__('shops-commerce::orders.fields.discount'))
+                ->disabled(fn (?Order $record): bool => static::isFrozen($record))
                 ->live()
                 ->afterStateUpdated(function (Set $set, Get $get): void {
                     static::recalculateTotal($set, $get);
@@ -247,6 +261,7 @@ class OrderResource extends PackageResource
                 ->dehydrated(),
             MoneyFields::moneyInput('shipping_cost', zeroWhenEmpty: true)
                 ->label(__('shops-commerce::orders.fields.shipping_cost'))
+                ->disabled(fn (?Order $record): bool => static::isFrozen($record))
                 ->live()
                 ->afterStateUpdated(function (Set $set, Get $get): void {
                     static::recalculateTotal($set, $get);
@@ -280,6 +295,7 @@ class OrderResource extends PackageResource
             BackedEnumState::normalize(Select::make('currency'))
                 ->label(__('shops-common::fields.currency'))
                 ->options($options)
+                ->disabled(fn (?Order $record): bool => static::isFrozen($record))
                 ->required(),
         ];
     }

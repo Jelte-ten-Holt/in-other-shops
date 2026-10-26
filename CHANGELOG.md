@@ -53,6 +53,22 @@ Two additive migrations, one model boot hook.
   start of that day in Filament's timezone.
 - Not built: the invoice as an attachment (Media's disk is public).
 
+### P-1 — freeze on payment, and "mark paid"
+
+No migration.
+
+- Once an order has a payment that succeeded (`Order::isFrozen()`), its money
+  fields (`Order::FROZEN_WHEN_PAID`), lines and addresses cannot change and it
+  cannot be deleted (`OrderFrozenException`, from model hooks on `Order`,
+  `OrderLine` and — registered by Commerce — `Address`). Notes, email, locale,
+  customer and status stay editable. The edit page disables those fields and
+  says why.
+- **Mark paid** on the order edit page and `RecordManualPayment`: a `manual`
+  payment for the full total on the day the admin gives, then
+  `PaymentSucceeded`, as for a card payment — the order is confirmed and the
+  customer is sent the order confirmation. Refund actions are hidden for a
+  manual payment.
+
 ## v0.71.3 — 2026-10-05
 
 Refunds made outside the app are recorded (`docs/briefs/dashboard-refund-brief.md`).

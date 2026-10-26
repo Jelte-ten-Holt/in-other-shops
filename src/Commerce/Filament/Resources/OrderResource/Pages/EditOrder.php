@@ -10,8 +10,10 @@ use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
+use InOtherShops\Support\Filament\ClaimedDay;
 use InOtherShops\Support\Filament\PackageEditRecord;
 use InOtherShops\Commerce\Filament\Resources\OrderResource;
+use InOtherShops\Commerce\Order\Actions\RecordManualPayment;
 use InOtherShops\Commerce\Order\Actions\RefundOrder;
 use InOtherShops\Commerce\Order\DTOs\RefundActor;
 use InOtherShops\Commerce\Order\Enums\OrderStatus;
@@ -27,6 +29,7 @@ final class EditOrder extends PackageEditRecord
     protected function getHeaderActions(): array
     {
         return [
+            static::markPaidAction(),
             static::partialRefundAction(),
             static::refundAndCancelAction(),
             // D4/M3: only a fresh Pending, payment-less order is deletable —
@@ -47,6 +50,14 @@ final class EditOrder extends PackageEditRecord
         /** @var Order $order */
         $order = $this->record;
 
+        if ($order->isFrozen()) {
+            Notification::make()
+                ->title(__('shops-commerce::orders.notifications.frozen_title'))
+                ->body(__('shops-commerce::orders.notifications.frozen_body'))
+                ->info()
+                ->send();
+        }
+
         // One sum query instead of the two isRefunded()/isPartiallyRefunded()
         // would each fire; same derivation as the model predicates.
         $refunded = $order->refundedTotal();
@@ -64,6 +75,38 @@ final class EditOrder extends PackageEditRecord
                 ->warning()
                 ->send();
         }
+    }
+
+    /**
+     * Records that the order was paid outside a gateway — a bank transfer — on
+     * the day the admin gives, for its full total (bookkeeping brief §12 P-1).
+     * The modal says what follows, because it is what a card payment does: the
+     * order is confirmed and the customer is sent the confirmation.
+     */
+    public static function markPaidAction(): Actions\Action
+    {
+        return Actions\Action::make('markPaid')
+            ->label(__('shops-commerce::orders.actions.mark_paid'))
+            ->icon('heroicon-o-banknotes')
+            ->color('success')
+            ->visible(fn (Order $record): bool => $record->acceptsManualPayment())
+            ->modalDescription(__('shops-commerce::orders.actions.mark_paid_modal'))
+            ->form([
+                ClaimedDay::picker('paid_on')
+                    ->label(__('shops-commerce::orders.fields.paid_on'))
+                    ->required(),
+            ])
+            ->action(function (Order $record, array $data): void {
+                try {
+                    app(RecordManualPayment::class)($record, $data['paid_on']);
+                } catch (DomainException $e) {
+                    Notification::make()->title(__('shops-commerce::orders.notifications.mark_paid_refused'))->body($e->getMessage())->danger()->send();
+
+                    return;
+                }
+
+                Notification::make()->title(__('shops-commerce::orders.notifications.marked_paid'))->success()->send();
+            });
     }
 
     /**
@@ -139,11 +182,16 @@ final class EditOrder extends PackageEditRecord
             });
     }
 
+    /**
+     * A gateway payment only: a manual payment has no gateway to send money
+     * back through, and recording a bank refund is not built.
+     */
     private static function isRefundable(Order $record): bool
     {
         return $record->refundedTotal() < $record->total
             && $record->payments()
                 ->whereIn('status', [PaymentStatus::Succeeded, PaymentStatus::PartiallyRefunded])
+                ->where('gateway', '!=', RecordManualPayment::GATEWAY)
                 ->exists();
     }
 
