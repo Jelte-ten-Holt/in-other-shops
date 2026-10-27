@@ -56,7 +56,7 @@ return [
         'refund_and_cancel' => 'Refund & cancel order',
         'refund_and_cancel_modal' => 'Refunds the full remaining balance, cancels the order, and releases all its reserved stock.',
         'mark_paid' => 'Mark paid',
-        'mark_paid_modal' => 'Records a payment of the full total, received outside the card checkout (a bank transfer), on the day you give. The order is then handled as if paid by card: it is confirmed and the customer is sent the order confirmation. Its prices, lines and addresses can no longer be changed afterwards.',
+        'mark_paid_modal' => 'Records a payment of the full total, received outside the card checkout (a bank transfer), on the day you give. The order is then handled as if paid by card: it is confirmed and the customer is sent the order confirmation. Its prices, lines and addresses can no longer be changed afterwards. Stock is not adjusted: an order created here holds no stock, so keep the pieces\' availability right yourself.',
     ],
     'notifications' => [
         'fully_refunded_title' => 'This order is fully refunded',
