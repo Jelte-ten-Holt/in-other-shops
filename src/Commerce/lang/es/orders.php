@@ -55,7 +55,7 @@ return [
         'refund_and_cancel' => 'Reembolsar y cancelar pedido',
         'refund_and_cancel_modal' => 'Reembolsa el saldo restante completo, cancela el pedido y libera todo el stock reservado.',
         'mark_paid' => 'Marcar como pagado',
-        'mark_paid_modal' => 'Registra un pago del total completo, recibido fuera del pago con tarjeta (una transferencia bancaria), en el día que indiques. El pedido se trata entonces como si se hubiera pagado con tarjeta: se confirma y el cliente recibe la confirmación del pedido. Después ya no se pueden cambiar sus precios, líneas ni direcciones.',
+        'mark_paid_modal' => 'Registra un pago del total completo, recibido fuera del pago con tarjeta (una transferencia bancaria), en el día que indiques. El pedido se trata entonces como si se hubiera pagado con tarjeta: se confirma y el cliente recibe la confirmación del pedido. Después ya no se pueden cambiar sus precios, líneas ni direcciones. El stock no se ajusta: un pedido creado aquí no reserva existencias, así que mantén tú la disponibilidad de las piezas.',
     ],
     'notifications' => [
         'fully_refunded_title' => 'Este pedido está totalmente reembolsado',
