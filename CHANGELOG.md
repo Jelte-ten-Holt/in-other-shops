@@ -8,10 +8,11 @@ The format is loosely [Keep a Changelog](https://keepachangelog.com/); the
 package is pre-1.0, so minor versions may carry breaking changes (all consumers
 are pre-launch — single-release-window policy, no deprecation bridges).
 
-## Unreleased — bookkeeping read API and its prerequisites
+## v0.72.0 — 2026-10-27
 
-For the in-other-books app (`in-other-books/docs/brief.md` §12): P-2, P-4, P-1
-and P-5, built as stacked PRs and released together.
+The bookkeeping read API and its prerequisites, for the in-other-books app
+(`in-other-books/docs/brief.md` §12): P-2, P-4, P-1 and P-5, built as one PR
+(#34) and released together — plus one order-page fix found on the way.
 
 ### P-2 — settlement fields
 
@@ -95,6 +96,17 @@ No migration. Off by default.
   page; a read bearer equal to the operator bearer fails closed.
 - The in-other-books fixtures are contract tests here
   (`tests/Fixtures/Books`, `ReadApiContractTest`).
+
+### Order admin page — currency options default
+
+- `OrderResource::currencyOptions()` defaults to `Currency::enabledOptions()`
+  instead of `[]`. With the empty default a consumer that mounted the package
+  order page unchanged (bianka-shop-one) could not save an order at all: the
+  required currency select validated against no options, so every save failed
+  with "The selected currency is invalid". One enabled currency
+  (`currency.enabled`) still takes the fixed-field path; a consumer override
+  (in-other-worlds narrows to EUR) still applies. Pinned by
+  `EditOrderCurrencyTest`.
 
 ## v0.71.3 — 2026-10-05
 
