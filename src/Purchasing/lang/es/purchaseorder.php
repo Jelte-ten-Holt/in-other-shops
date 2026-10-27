@@ -14,12 +14,26 @@ return [
     'section' => [
         'details' => 'Detalles',
         'lines' => 'Líneas',
+        'supplier_invoice' => 'Factura del proveedor',
+        'payment' => 'Pago',
     ],
     'fields' => [
         'supplier' => 'Proveedor',
         'expected_delivery' => 'Entrega esperada',
         'shipping_cost' => 'Costo de envío',
         'customs_cost' => 'Costo de aduana',
+        'supplier_invoice_number' => 'Número de factura',
+        'supplier_invoice_date' => 'Fecha de factura',
+        'supplier_invoice_total' => 'Total de la factura (bruto)',
+        'supplier_invoice_total_help' => 'Tal como figura en la factura. Debe ser igual a la base más el IVA de los tipos de abajo.',
+        'supplier_invoice_total_mismatch' => 'Los tipos de abajo suman :summed (base más IVA), no este total.',
+        'supplier_invoice_tax_summary' => 'IVA por tipo',
+        'supplier_invoice_tax_summary_help' => 'Una fila por tipo de IVA de la factura. Una factura sin IVA (inversión del sujeto pasivo, pequeña empresa) es una fila al 0 %.',
+        'vat_rate' => 'Tipo de IVA',
+        'net' => 'Base',
+        'vat' => 'IVA',
+        'paid_on' => 'Pagado el',
+        'amount_paid' => 'Importe pagado',
     ],
     'columns' => [
         'total' => 'Total',
@@ -29,6 +43,7 @@ return [
         'place' => 'Marcar como pedido',
         'receive' => 'Recibir',
         'cancel' => 'Cancelar',
+        'add_rate' => 'Añadir un tipo de IVA',
     ],
     'notifications' => [
         'placed' => 'Orden de compra realizada',
@@ -37,5 +52,6 @@ return [
         'receive_failed' => 'No se pudieron recibir los artículos',
         'cancelled' => 'Orden de compra cancelada',
         'cancel_failed' => 'No se pudo cancelar',
+        'invoice_refused' => 'La factura del proveedor no se guardó',
     ],
 ];

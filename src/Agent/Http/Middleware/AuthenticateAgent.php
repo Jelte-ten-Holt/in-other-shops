@@ -81,8 +81,19 @@ final class AuthenticateAgent
         private readonly LogContext $logContext,
     ) {}
 
-    public function handle(Request $request, Closure $next): Response
+    /**
+     * `$surface` is `read` on the bookkeeping read API's route group
+     * (`AuthenticateAgent:read`): there only the read bearer is accepted, and
+     * nothing else this middleware knows. Everywhere else it is null.
+     */
+    public function handle(Request $request, Closure $next, ?string $surface = null): Response
     {
+        if ($surface === 'read') {
+            return $this->authenticateViaReadBearer($request)
+                ? $next($request)
+                : $this->unauthorized(advertiseOauth: false);
+        }
+
         $bearer = (string) $request->bearerToken();
 
         if ($bearer !== '' && $this->oauthEnabled()) {
@@ -377,6 +388,38 @@ final class AuthenticateAgent
         return [];
     }
 
+    /**
+     * The read API's own bearer (`agent.read.bearer_token`): read-only, and
+     * valid on the read route group alone. Never admin; an empty config value
+     * fails closed.
+     */
+    private function authenticateViaReadBearer(Request $request): bool
+    {
+        $bearer = (string) $request->bearerToken();
+        $expected = (string) config('agent.read.bearer_token', '');
+
+        // Set to the operator bearer, the "read" credential would be admin on
+        // /mcp: refuse it here too, so the misconfiguration shows at once.
+        if ($expected === (string) config('agent.auth.bearer_token', '')) {
+            return false;
+        }
+
+        if ($bearer === '' || $expected === '' || ! hash_equals($expected, $bearer)) {
+            return false;
+        }
+
+        $this->stamp(
+            request: $request,
+            user: null,
+            scopes: ['read'],
+            isAdmin: false,
+            bearerHash: substr(hash('sha256', $bearer), 0, 12),
+            label: 'read bearer',
+        );
+
+        return true;
+    }
+
     private function authenticateViaStaticBearer(string $bearer, Request $request): bool
     {
         $expected = (string) config('agent.auth.bearer_token', '');
@@ -423,6 +466,7 @@ final class AuthenticateAgent
         array $scopes,
         bool $isAdmin,
         string $bearerHash,
+        ?string $label = null,
     ): void {
         $request->attributes->set('agent.user', $user);
         $request->attributes->set('agent.scopes', $scopes);
@@ -435,7 +479,7 @@ final class AuthenticateAgent
         // OAuth requests additionally name their authenticated principal.
         $this->logContext->setActor(LogActor::agent(
             id: $bearerHash,
-            label: $user !== null ? 'oauth:'.$user->getAuthIdentifier() : 'bearer operator',
+            label: $label ?? ($user !== null ? 'oauth:'.$user->getAuthIdentifier() : 'bearer operator'),
         ));
     }
 
@@ -447,11 +491,11 @@ final class AuthenticateAgent
         ]);
     }
 
-    private function unauthorized(): Response
+    private function unauthorized(bool $advertiseOauth = true): Response
     {
         $header = 'Bearer';
 
-        if ($this->oauthEnabled()) {
+        if ($advertiseOauth && $this->oauthEnabled()) {
             $metadataUrl = CanonicalUrl::issuer().'/.well-known/oauth-protected-resource';
             $header = sprintf('Bearer resource_metadata="%s"', $metadataUrl);
         }

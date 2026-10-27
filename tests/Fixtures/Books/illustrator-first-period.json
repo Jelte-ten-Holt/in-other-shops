@@ -1,0 +1,1234 @@
+{
+  "fixture": "illustrator-first-period",
+  "describes": "In Other Worlds UG, December 2026 and January 2027. Four card sales in euros, three carrying the illustrator's art (see `payees_note`), one to the Netherlands at 21 %. The last is paid at 23:30 UTC on 31 Dec, which is 1 Jan in Berlin. The December statement is paid on 8 Jan; on 12 Jan a poster from the Dutch order comes back and is refunded. Page size 2, so the first pull pages.",
+  "about": "A full in-other-shops read-API exchange set (brief §12 P-5) across two pulls. Column names are the package's own; fields marked in docs/schema-proposal.md §6 as P-2, P-4, P-5 or P-7 do not exist in the package yet and are the shape phase C builds. The package's contract test must reproduce every `response` byte-for-byte from the rows it describes; the app's shop driver is tested against the same file.",
+  "tenant": "in-other-worlds",
+  "payees_note": "Not in the responses: the payee snapshot is P-7, designed with the creator ledger (phase G). The illustrator's art is on order lines 3301, 3303, 3304 and 3305; lines 3302 and 3306 (dice) carry no payee.",
+  "source": {
+    "kind": "shop",
+    "driver": "shop",
+    "settings": {
+      "base_url": "https://inotherworlds.net",
+      "page_size": 2
+    }
+  },
+  "pulls": [
+    {
+      "at": "2027-01-02T03:00:00Z",
+      "until": "2027-01-02T02:59:00Z",
+      "exchanges": [
+        {
+          "resource": "payments",
+          "path": "/api/read/v1/payments",
+          "query": {
+            "until": "2027-01-02T02:59:00Z",
+            "limit": 2
+          },
+          "response": {
+            "data": [
+              {
+                "id": 501,
+                "payable_type": "order",
+                "payable_id": 2041,
+                "amount": 5290,
+                "amount_refunded": 0,
+                "currency": "EUR",
+                "status": "succeeded",
+                "gateway": "stripe",
+                "gateway_reference": "pi_fixture_ill_0001",
+                "charge_reference": "ch_fixture_ill_0001",
+                "settlement_reference": "txn_fixture_ill_0001",
+                "paid_at": "2026-12-05T13:03:59Z",
+                "fee": 104,
+                "net": 5186,
+                "settled_amount": 5290,
+                "settled_currency": "EUR",
+                "exchange_rate": null,
+                "created_at": "2026-12-05T13:02:12Z",
+                "updated_at": "2026-12-05T13:04:00Z",
+                "order": {
+                  "id": 2041,
+                  "order_number": "ORD-Q8D2LM7Z",
+                  "status": "confirmed",
+                  "currency": "EUR",
+                  "locale": "de",
+                  "email": "lena.hoffmann@example.com",
+                  "customer": {
+                    "id": 301,
+                    "name": "Lena Hoffmann",
+                    "email": "lena.hoffmann@example.com",
+                    "phone": null
+                  },
+                  "subtotal": 4800,
+                  "discount": 0,
+                  "voucher_code": null,
+                  "shipping_method_identifier": "dhl-paket",
+                  "shipping_cost": 490,
+                  "shipping_cost_currency": "EUR",
+                  "tax": 845,
+                  "tax_rate_bps": 1900,
+                  "tax_rate_country_code": "DE",
+                  "tax_summary": [
+                    {
+                      "rate_bps": 1900,
+                      "taxable_base": 4445,
+                      "tax": 845
+                    }
+                  ],
+                  "total": 5290,
+                  "lines": [
+                    {
+                      "id": 3301,
+                      "orderable_type": "product",
+                      "orderable_id": 51,
+                      "description": "Art print — The Drowned Orchard (A3)",
+                      "sku": "ART-ORCH-A3",
+                      "currency": "EUR",
+                      "unit_price": 2900,
+                      "quantity": 1,
+                      "line_total": 2900,
+                      "tax_category": "physical_goods",
+                      "tax_rate_bps": 1900,
+                      "tax_amount": null,
+                      "is_pre_order": false,
+                      "expected_ship_date": null,
+                      "created_at": "2026-12-05T13:02:10Z",
+                      "updated_at": "2026-12-05T13:02:10Z"
+                    },
+                    {
+                      "id": 3302,
+                      "orderable_type": "product",
+                      "orderable_id": 60,
+                      "description": "Dice set — brass",
+                      "sku": "DICE-BRASS",
+                      "currency": "EUR",
+                      "unit_price": 1900,
+                      "quantity": 1,
+                      "line_total": 1900,
+                      "tax_category": "physical_goods",
+                      "tax_rate_bps": 1900,
+                      "tax_amount": null,
+                      "is_pre_order": false,
+                      "expected_ship_date": null,
+                      "created_at": "2026-12-05T13:02:10Z",
+                      "updated_at": "2026-12-05T13:02:10Z"
+                    }
+                  ],
+                  "addresses": [
+                    {
+                      "type": "shipping_and_billing",
+                      "first_name": "Lena",
+                      "last_name": "Hoffmann",
+                      "line_1": "Körnerstraße 22",
+                      "line_2": null,
+                      "city": "Leipzig",
+                      "state": null,
+                      "postal_code": "04107",
+                      "country_code": "DE",
+                      "phone": null
+                    }
+                  ],
+                  "created_at": "2026-12-05T13:02:10Z",
+                  "updated_at": "2026-12-05T13:04:00Z"
+                }
+              },
+              {
+                "id": 502,
+                "payable_type": "order",
+                "payable_id": 2042,
+                "amount": 6190,
+                "amount_refunded": 0,
+                "currency": "EUR",
+                "status": "succeeded",
+                "gateway": "stripe",
+                "gateway_reference": "pi_fixture_ill_0002",
+                "charge_reference": "ch_fixture_ill_0002",
+                "settlement_reference": "txn_fixture_ill_0002",
+                "paid_at": "2026-12-11T19:47:11Z",
+                "fee": 118,
+                "net": 6072,
+                "settled_amount": 6190,
+                "settled_currency": "EUR",
+                "exchange_rate": null,
+                "created_at": "2026-12-11T19:45:35Z",
+                "updated_at": "2026-12-11T19:47:12Z",
+                "order": {
+                  "id": 2042,
+                  "order_number": "ORD-H3N7VC1P",
+                  "status": "confirmed",
+                  "currency": "EUR",
+                  "locale": "en",
+                  "email": "sanne.devries@example.com",
+                  "customer": {
+                    "id": 302,
+                    "name": "Sanne de Vries",
+                    "email": "sanne.devries@example.com",
+                    "phone": "+31 6 5550 1234"
+                  },
+                  "subtotal": 5300,
+                  "discount": 0,
+                  "voucher_code": null,
+                  "shipping_method_identifier": "dhl-europaket",
+                  "shipping_cost": 890,
+                  "shipping_cost_currency": "EUR",
+                  "tax": 1074,
+                  "tax_rate_bps": 2100,
+                  "tax_rate_country_code": "NL",
+                  "tax_summary": [
+                    {
+                      "rate_bps": 2100,
+                      "taxable_base": 5116,
+                      "tax": 1074
+                    }
+                  ],
+                  "total": 6190,
+                  "lines": [
+                    {
+                      "id": 3303,
+                      "orderable_type": "product",
+                      "orderable_id": 52,
+                      "description": "Persistence map poster (A2)",
+                      "sku": "ART-MAP-A2",
+                      "currency": "EUR",
+                      "unit_price": 2400,
+                      "quantity": 1,
+                      "line_total": 2400,
+                      "tax_category": "physical_goods",
+                      "tax_rate_bps": 2100,
+                      "tax_amount": null,
+                      "is_pre_order": false,
+                      "expected_ship_date": null,
+                      "created_at": "2026-12-11T19:45:33Z",
+                      "updated_at": "2026-12-11T19:45:33Z"
+                    },
+                    {
+                      "id": 3304,
+                      "orderable_type": "product",
+                      "orderable_id": 51,
+                      "description": "Art print — The Drowned Orchard (A3)",
+                      "sku": "ART-ORCH-A3",
+                      "currency": "EUR",
+                      "unit_price": 2900,
+                      "quantity": 1,
+                      "line_total": 2900,
+                      "tax_category": "physical_goods",
+                      "tax_rate_bps": 2100,
+                      "tax_amount": null,
+                      "is_pre_order": false,
+                      "expected_ship_date": null,
+                      "created_at": "2026-12-11T19:45:33Z",
+                      "updated_at": "2026-12-11T19:45:33Z"
+                    }
+                  ],
+                  "addresses": [
+                    {
+                      "type": "shipping_and_billing",
+                      "first_name": "Sanne",
+                      "last_name": "de Vries",
+                      "line_1": "Oudegracht 140",
+                      "line_2": null,
+                      "city": "Utrecht",
+                      "state": null,
+                      "postal_code": "3511 AZ",
+                      "country_code": "NL",
+                      "phone": "+31 6 5550 1234"
+                    }
+                  ],
+                  "created_at": "2026-12-11T19:45:33Z",
+                  "updated_at": "2026-12-11T19:47:12Z"
+                }
+              }
+            ],
+            "next": {
+              "updated_at": "2026-12-11T19:47:12Z",
+              "id": 502
+            },
+            "has_more": true
+          }
+        },
+        {
+          "resource": "payments",
+          "path": "/api/read/v1/payments",
+          "query": {
+            "after_updated_at": "2026-12-11T19:47:12Z",
+            "after_id": 502,
+            "until": "2027-01-02T02:59:00Z",
+            "limit": 2
+          },
+          "response": {
+            "data": [
+              {
+                "id": 503,
+                "payable_type": "order",
+                "payable_id": 2043,
+                "amount": 6290,
+                "amount_refunded": 0,
+                "currency": "EUR",
+                "status": "succeeded",
+                "gateway": "stripe",
+                "gateway_reference": "pi_fixture_ill_0003",
+                "charge_reference": "ch_fixture_ill_0003",
+                "settlement_reference": "txn_fixture_ill_0003",
+                "paid_at": "2026-12-18T08:31:29Z",
+                "fee": 119,
+                "net": 6171,
+                "settled_amount": 6290,
+                "settled_currency": "EUR",
+                "exchange_rate": null,
+                "created_at": "2026-12-18T08:30:04Z",
+                "updated_at": "2026-12-18T08:31:30Z",
+                "order": {
+                  "id": 2043,
+                  "order_number": "ORD-T6R4YB9K",
+                  "status": "confirmed",
+                  "currency": "EUR",
+                  "locale": "de",
+                  "email": "tobias.brandt@example.com",
+                  "customer": {
+                    "id": 303,
+                    "name": "Tobias Brandt",
+                    "email": "tobias.brandt@example.com",
+                    "phone": null
+                  },
+                  "subtotal": 5800,
+                  "discount": 0,
+                  "voucher_code": null,
+                  "shipping_method_identifier": "dhl-paket",
+                  "shipping_cost": 490,
+                  "shipping_cost_currency": "EUR",
+                  "tax": 1004,
+                  "tax_rate_bps": 1900,
+                  "tax_rate_country_code": "DE",
+                  "tax_summary": [
+                    {
+                      "rate_bps": 1900,
+                      "taxable_base": 5286,
+                      "tax": 1004
+                    }
+                  ],
+                  "total": 6290,
+                  "lines": [
+                    {
+                      "id": 3305,
+                      "orderable_type": "product",
+                      "orderable_id": 51,
+                      "description": "Art print — The Drowned Orchard (A3)",
+                      "sku": "ART-ORCH-A3",
+                      "currency": "EUR",
+                      "unit_price": 2900,
+                      "quantity": 2,
+                      "line_total": 5800,
+                      "tax_category": "physical_goods",
+                      "tax_rate_bps": 1900,
+                      "tax_amount": null,
+                      "is_pre_order": false,
+                      "expected_ship_date": null,
+                      "created_at": "2026-12-18T08:30:02Z",
+                      "updated_at": "2026-12-18T08:30:02Z"
+                    }
+                  ],
+                  "addresses": [
+                    {
+                      "type": "shipping_and_billing",
+                      "first_name": "Tobias",
+                      "last_name": "Brandt",
+                      "line_1": "Am Wehrhahn 15",
+                      "line_2": null,
+                      "city": "Düsseldorf",
+                      "state": null,
+                      "postal_code": "40211",
+                      "country_code": "DE",
+                      "phone": null
+                    }
+                  ],
+                  "created_at": "2026-12-18T08:30:02Z",
+                  "updated_at": "2026-12-18T08:31:30Z"
+                }
+              },
+              {
+                "id": 504,
+                "payable_type": "order",
+                "payable_id": 2044,
+                "amount": 2390,
+                "amount_refunded": 0,
+                "currency": "EUR",
+                "status": "succeeded",
+                "gateway": "stripe",
+                "gateway_reference": "pi_fixture_ill_0004",
+                "charge_reference": "ch_fixture_ill_0004",
+                "settlement_reference": "txn_fixture_ill_0004",
+                "paid_at": "2026-12-31T23:30:00Z",
+                "fee": 61,
+                "net": 2329,
+                "settled_amount": 2390,
+                "settled_currency": "EUR",
+                "exchange_rate": null,
+                "created_at": "2026-12-31T23:28:42Z",
+                "updated_at": "2026-12-31T23:30:01Z",
+                "order": {
+                  "id": 2044,
+                  "order_number": "ORD-W1Z5E8JD",
+                  "status": "confirmed",
+                  "currency": "EUR",
+                  "locale": "de",
+                  "email": "pia.neumann@example.com",
+                  "customer": {
+                    "id": 304,
+                    "name": "Pia Neumann",
+                    "email": "pia.neumann@example.com",
+                    "phone": null
+                  },
+                  "subtotal": 1900,
+                  "discount": 0,
+                  "voucher_code": null,
+                  "shipping_method_identifier": "dhl-paket",
+                  "shipping_cost": 490,
+                  "shipping_cost_currency": "EUR",
+                  "tax": 382,
+                  "tax_rate_bps": 1900,
+                  "tax_rate_country_code": "DE",
+                  "tax_summary": [
+                    {
+                      "rate_bps": 1900,
+                      "taxable_base": 2008,
+                      "tax": 382
+                    }
+                  ],
+                  "total": 2390,
+                  "lines": [
+                    {
+                      "id": 3306,
+                      "orderable_type": "product",
+                      "orderable_id": 60,
+                      "description": "Dice set — brass",
+                      "sku": "DICE-BRASS",
+                      "currency": "EUR",
+                      "unit_price": 1900,
+                      "quantity": 1,
+                      "line_total": 1900,
+                      "tax_category": "physical_goods",
+                      "tax_rate_bps": 1900,
+                      "tax_amount": null,
+                      "is_pre_order": false,
+                      "expected_ship_date": null,
+                      "created_at": "2026-12-31T23:28:40Z",
+                      "updated_at": "2026-12-31T23:28:40Z"
+                    }
+                  ],
+                  "addresses": [
+                    {
+                      "type": "shipping_and_billing",
+                      "first_name": "Pia",
+                      "last_name": "Neumann",
+                      "line_1": "Lindenallee 3",
+                      "line_2": null,
+                      "city": "Köln",
+                      "state": null,
+                      "postal_code": "50968",
+                      "country_code": "DE",
+                      "phone": null
+                    }
+                  ],
+                  "created_at": "2026-12-31T23:28:40Z",
+                  "updated_at": "2026-12-31T23:30:01Z"
+                }
+              }
+            ],
+            "next": {
+              "updated_at": "2026-12-31T23:30:01Z",
+              "id": 504
+            },
+            "has_more": false
+          }
+        },
+        {
+          "resource": "refunds",
+          "path": "/api/read/v1/refunds",
+          "query": {
+            "until": "2027-01-02T02:59:00Z",
+            "limit": 2
+          },
+          "response": {
+            "data": [],
+            "next": null,
+            "has_more": false
+          }
+        },
+        {
+          "resource": "shipments",
+          "path": "/api/read/v1/shipments",
+          "query": {
+            "until": "2027-01-02T02:59:00Z",
+            "limit": 2
+          },
+          "response": {
+            "data": [
+              {
+                "id": 601,
+                "shippable_type": "order",
+                "shippable_id": 2041,
+                "status": "in_transit",
+                "method": "dhl-paket",
+                "carrier": "DHL",
+                "tracking_number": "00340434161094043001",
+                "tracking_url": null,
+                "shipped_at": "2026-12-06T10:15:00Z",
+                "delivered_at": null,
+                "amount": 5290,
+                "currency": "EUR",
+                "tax_summary": [
+                  {
+                    "rate_bps": 1900,
+                    "taxable_base": 4445,
+                    "tax": 845
+                  }
+                ],
+                "items": [
+                  {
+                    "id": 701,
+                    "order_line_id": 3301,
+                    "quantity": 1
+                  },
+                  {
+                    "id": 702,
+                    "order_line_id": 3302,
+                    "quantity": 1
+                  }
+                ],
+                "created_at": "2026-12-06T09:50:00Z",
+                "updated_at": "2026-12-06T10:15:01Z",
+                "order": {
+                  "id": 2041,
+                  "order_number": "ORD-Q8D2LM7Z",
+                  "status": "confirmed",
+                  "currency": "EUR",
+                  "locale": "de",
+                  "email": "lena.hoffmann@example.com",
+                  "customer": {
+                    "id": 301,
+                    "name": "Lena Hoffmann",
+                    "email": "lena.hoffmann@example.com",
+                    "phone": null
+                  },
+                  "subtotal": 4800,
+                  "discount": 0,
+                  "voucher_code": null,
+                  "shipping_method_identifier": "dhl-paket",
+                  "shipping_cost": 490,
+                  "shipping_cost_currency": "EUR",
+                  "tax": 845,
+                  "tax_rate_bps": 1900,
+                  "tax_rate_country_code": "DE",
+                  "tax_summary": [
+                    {
+                      "rate_bps": 1900,
+                      "taxable_base": 4445,
+                      "tax": 845
+                    }
+                  ],
+                  "total": 5290,
+                  "lines": [
+                    {
+                      "id": 3301,
+                      "orderable_type": "product",
+                      "orderable_id": 51,
+                      "description": "Art print — The Drowned Orchard (A3)",
+                      "sku": "ART-ORCH-A3",
+                      "currency": "EUR",
+                      "unit_price": 2900,
+                      "quantity": 1,
+                      "line_total": 2900,
+                      "tax_category": "physical_goods",
+                      "tax_rate_bps": 1900,
+                      "tax_amount": null,
+                      "is_pre_order": false,
+                      "expected_ship_date": null,
+                      "created_at": "2026-12-05T13:02:10Z",
+                      "updated_at": "2026-12-05T13:02:10Z"
+                    },
+                    {
+                      "id": 3302,
+                      "orderable_type": "product",
+                      "orderable_id": 60,
+                      "description": "Dice set — brass",
+                      "sku": "DICE-BRASS",
+                      "currency": "EUR",
+                      "unit_price": 1900,
+                      "quantity": 1,
+                      "line_total": 1900,
+                      "tax_category": "physical_goods",
+                      "tax_rate_bps": 1900,
+                      "tax_amount": null,
+                      "is_pre_order": false,
+                      "expected_ship_date": null,
+                      "created_at": "2026-12-05T13:02:10Z",
+                      "updated_at": "2026-12-05T13:02:10Z"
+                    }
+                  ],
+                  "addresses": [
+                    {
+                      "type": "shipping_and_billing",
+                      "first_name": "Lena",
+                      "last_name": "Hoffmann",
+                      "line_1": "Körnerstraße 22",
+                      "line_2": null,
+                      "city": "Leipzig",
+                      "state": null,
+                      "postal_code": "04107",
+                      "country_code": "DE",
+                      "phone": null
+                    }
+                  ],
+                  "created_at": "2026-12-05T13:02:10Z",
+                  "updated_at": "2026-12-05T13:04:00Z"
+                }
+              },
+              {
+                "id": 602,
+                "shippable_type": "order",
+                "shippable_id": 2042,
+                "status": "in_transit",
+                "method": "dhl-europaket",
+                "carrier": "DHL",
+                "tracking_number": "00340434161094043002",
+                "tracking_url": null,
+                "shipped_at": "2026-12-12T11:00:00Z",
+                "delivered_at": null,
+                "amount": 6190,
+                "currency": "EUR",
+                "tax_summary": [
+                  {
+                    "rate_bps": 2100,
+                    "taxable_base": 5116,
+                    "tax": 1074
+                  }
+                ],
+                "items": [
+                  {
+                    "id": 703,
+                    "order_line_id": 3303,
+                    "quantity": 1
+                  },
+                  {
+                    "id": 704,
+                    "order_line_id": 3304,
+                    "quantity": 1
+                  }
+                ],
+                "created_at": "2026-12-12T10:40:00Z",
+                "updated_at": "2026-12-12T11:00:01Z",
+                "order": {
+                  "id": 2042,
+                  "order_number": "ORD-H3N7VC1P",
+                  "status": "confirmed",
+                  "currency": "EUR",
+                  "locale": "en",
+                  "email": "sanne.devries@example.com",
+                  "customer": {
+                    "id": 302,
+                    "name": "Sanne de Vries",
+                    "email": "sanne.devries@example.com",
+                    "phone": "+31 6 5550 1234"
+                  },
+                  "subtotal": 5300,
+                  "discount": 0,
+                  "voucher_code": null,
+                  "shipping_method_identifier": "dhl-europaket",
+                  "shipping_cost": 890,
+                  "shipping_cost_currency": "EUR",
+                  "tax": 1074,
+                  "tax_rate_bps": 2100,
+                  "tax_rate_country_code": "NL",
+                  "tax_summary": [
+                    {
+                      "rate_bps": 2100,
+                      "taxable_base": 5116,
+                      "tax": 1074
+                    }
+                  ],
+                  "total": 6190,
+                  "lines": [
+                    {
+                      "id": 3303,
+                      "orderable_type": "product",
+                      "orderable_id": 52,
+                      "description": "Persistence map poster (A2)",
+                      "sku": "ART-MAP-A2",
+                      "currency": "EUR",
+                      "unit_price": 2400,
+                      "quantity": 1,
+                      "line_total": 2400,
+                      "tax_category": "physical_goods",
+                      "tax_rate_bps": 2100,
+                      "tax_amount": null,
+                      "is_pre_order": false,
+                      "expected_ship_date": null,
+                      "created_at": "2026-12-11T19:45:33Z",
+                      "updated_at": "2026-12-11T19:45:33Z"
+                    },
+                    {
+                      "id": 3304,
+                      "orderable_type": "product",
+                      "orderable_id": 51,
+                      "description": "Art print — The Drowned Orchard (A3)",
+                      "sku": "ART-ORCH-A3",
+                      "currency": "EUR",
+                      "unit_price": 2900,
+                      "quantity": 1,
+                      "line_total": 2900,
+                      "tax_category": "physical_goods",
+                      "tax_rate_bps": 2100,
+                      "tax_amount": null,
+                      "is_pre_order": false,
+                      "expected_ship_date": null,
+                      "created_at": "2026-12-11T19:45:33Z",
+                      "updated_at": "2026-12-11T19:45:33Z"
+                    }
+                  ],
+                  "addresses": [
+                    {
+                      "type": "shipping_and_billing",
+                      "first_name": "Sanne",
+                      "last_name": "de Vries",
+                      "line_1": "Oudegracht 140",
+                      "line_2": null,
+                      "city": "Utrecht",
+                      "state": null,
+                      "postal_code": "3511 AZ",
+                      "country_code": "NL",
+                      "phone": "+31 6 5550 1234"
+                    }
+                  ],
+                  "created_at": "2026-12-11T19:45:33Z",
+                  "updated_at": "2026-12-11T19:47:12Z"
+                }
+              }
+            ],
+            "next": {
+              "updated_at": "2026-12-12T11:00:01Z",
+              "id": 602
+            },
+            "has_more": true
+          }
+        },
+        {
+          "resource": "shipments",
+          "path": "/api/read/v1/shipments",
+          "query": {
+            "after_updated_at": "2026-12-12T11:00:01Z",
+            "after_id": 602,
+            "until": "2027-01-02T02:59:00Z",
+            "limit": 2
+          },
+          "response": {
+            "data": [
+              {
+                "id": 603,
+                "shippable_type": "order",
+                "shippable_id": 2043,
+                "status": "in_transit",
+                "method": "dhl-paket",
+                "carrier": "DHL",
+                "tracking_number": "00340434161094043003",
+                "tracking_url": null,
+                "shipped_at": "2026-12-19T09:30:00Z",
+                "delivered_at": null,
+                "amount": 6290,
+                "currency": "EUR",
+                "tax_summary": [
+                  {
+                    "rate_bps": 1900,
+                    "taxable_base": 5286,
+                    "tax": 1004
+                  }
+                ],
+                "items": [
+                  {
+                    "id": 705,
+                    "order_line_id": 3305,
+                    "quantity": 2
+                  }
+                ],
+                "created_at": "2026-12-19T09:10:00Z",
+                "updated_at": "2026-12-19T09:30:01Z",
+                "order": {
+                  "id": 2043,
+                  "order_number": "ORD-T6R4YB9K",
+                  "status": "confirmed",
+                  "currency": "EUR",
+                  "locale": "de",
+                  "email": "tobias.brandt@example.com",
+                  "customer": {
+                    "id": 303,
+                    "name": "Tobias Brandt",
+                    "email": "tobias.brandt@example.com",
+                    "phone": null
+                  },
+                  "subtotal": 5800,
+                  "discount": 0,
+                  "voucher_code": null,
+                  "shipping_method_identifier": "dhl-paket",
+                  "shipping_cost": 490,
+                  "shipping_cost_currency": "EUR",
+                  "tax": 1004,
+                  "tax_rate_bps": 1900,
+                  "tax_rate_country_code": "DE",
+                  "tax_summary": [
+                    {
+                      "rate_bps": 1900,
+                      "taxable_base": 5286,
+                      "tax": 1004
+                    }
+                  ],
+                  "total": 6290,
+                  "lines": [
+                    {
+                      "id": 3305,
+                      "orderable_type": "product",
+                      "orderable_id": 51,
+                      "description": "Art print — The Drowned Orchard (A3)",
+                      "sku": "ART-ORCH-A3",
+                      "currency": "EUR",
+                      "unit_price": 2900,
+                      "quantity": 2,
+                      "line_total": 5800,
+                      "tax_category": "physical_goods",
+                      "tax_rate_bps": 1900,
+                      "tax_amount": null,
+                      "is_pre_order": false,
+                      "expected_ship_date": null,
+                      "created_at": "2026-12-18T08:30:02Z",
+                      "updated_at": "2026-12-18T08:30:02Z"
+                    }
+                  ],
+                  "addresses": [
+                    {
+                      "type": "shipping_and_billing",
+                      "first_name": "Tobias",
+                      "last_name": "Brandt",
+                      "line_1": "Am Wehrhahn 15",
+                      "line_2": null,
+                      "city": "Düsseldorf",
+                      "state": null,
+                      "postal_code": "40211",
+                      "country_code": "DE",
+                      "phone": null
+                    }
+                  ],
+                  "created_at": "2026-12-18T08:30:02Z",
+                  "updated_at": "2026-12-18T08:31:30Z"
+                }
+              }
+            ],
+            "next": {
+              "updated_at": "2026-12-19T09:30:01Z",
+              "id": 603
+            },
+            "has_more": false
+          }
+        },
+        {
+          "resource": "purchase_orders",
+          "path": "/api/read/v1/purchase_orders",
+          "query": {
+            "until": "2027-01-02T02:59:00Z",
+            "limit": 2
+          },
+          "response": {
+            "data": [],
+            "next": null,
+            "has_more": false
+          }
+        }
+      ]
+    },
+    {
+      "at": "2027-01-15T03:00:00Z",
+      "until": "2027-01-15T02:59:00Z",
+      "exchanges": [
+        {
+          "resource": "payments",
+          "path": "/api/read/v1/payments",
+          "query": {
+            "after_updated_at": "2026-12-31T23:30:01Z",
+            "after_id": 504,
+            "until": "2027-01-15T02:59:00Z",
+            "limit": 2
+          },
+          "response": {
+            "data": [
+              {
+                "id": 502,
+                "payable_type": "order",
+                "payable_id": 2042,
+                "amount": 6190,
+                "amount_refunded": 2400,
+                "currency": "EUR",
+                "status": "partially_refunded",
+                "gateway": "stripe",
+                "gateway_reference": "pi_fixture_ill_0002",
+                "charge_reference": "ch_fixture_ill_0002",
+                "settlement_reference": "txn_fixture_ill_0002",
+                "paid_at": "2026-12-11T19:47:11Z",
+                "fee": 118,
+                "net": 6072,
+                "settled_amount": 6190,
+                "settled_currency": "EUR",
+                "exchange_rate": null,
+                "created_at": "2026-12-11T19:45:35Z",
+                "updated_at": "2027-01-12T11:05:02Z",
+                "order": {
+                  "id": 2042,
+                  "order_number": "ORD-H3N7VC1P",
+                  "status": "confirmed",
+                  "currency": "EUR",
+                  "locale": "en",
+                  "email": "sanne.devries@example.com",
+                  "customer": {
+                    "id": 302,
+                    "name": "Sanne de Vries",
+                    "email": "sanne.devries@example.com",
+                    "phone": "+31 6 5550 1234"
+                  },
+                  "subtotal": 5300,
+                  "discount": 0,
+                  "voucher_code": null,
+                  "shipping_method_identifier": "dhl-europaket",
+                  "shipping_cost": 890,
+                  "shipping_cost_currency": "EUR",
+                  "tax": 1074,
+                  "tax_rate_bps": 2100,
+                  "tax_rate_country_code": "NL",
+                  "tax_summary": [
+                    {
+                      "rate_bps": 2100,
+                      "taxable_base": 5116,
+                      "tax": 1074
+                    }
+                  ],
+                  "total": 6190,
+                  "lines": [
+                    {
+                      "id": 3303,
+                      "orderable_type": "product",
+                      "orderable_id": 52,
+                      "description": "Persistence map poster (A2)",
+                      "sku": "ART-MAP-A2",
+                      "currency": "EUR",
+                      "unit_price": 2400,
+                      "quantity": 1,
+                      "line_total": 2400,
+                      "tax_category": "physical_goods",
+                      "tax_rate_bps": 2100,
+                      "tax_amount": null,
+                      "is_pre_order": false,
+                      "expected_ship_date": null,
+                      "created_at": "2026-12-11T19:45:33Z",
+                      "updated_at": "2026-12-11T19:45:33Z"
+                    },
+                    {
+                      "id": 3304,
+                      "orderable_type": "product",
+                      "orderable_id": 51,
+                      "description": "Art print — The Drowned Orchard (A3)",
+                      "sku": "ART-ORCH-A3",
+                      "currency": "EUR",
+                      "unit_price": 2900,
+                      "quantity": 1,
+                      "line_total": 2900,
+                      "tax_category": "physical_goods",
+                      "tax_rate_bps": 2100,
+                      "tax_amount": null,
+                      "is_pre_order": false,
+                      "expected_ship_date": null,
+                      "created_at": "2026-12-11T19:45:33Z",
+                      "updated_at": "2026-12-11T19:45:33Z"
+                    }
+                  ],
+                  "addresses": [
+                    {
+                      "type": "shipping_and_billing",
+                      "first_name": "Sanne",
+                      "last_name": "de Vries",
+                      "line_1": "Oudegracht 140",
+                      "line_2": null,
+                      "city": "Utrecht",
+                      "state": null,
+                      "postal_code": "3511 AZ",
+                      "country_code": "NL",
+                      "phone": "+31 6 5550 1234"
+                    }
+                  ],
+                  "created_at": "2026-12-11T19:45:33Z",
+                  "updated_at": "2026-12-11T19:47:12Z"
+                }
+              }
+            ],
+            "next": {
+              "updated_at": "2027-01-12T11:05:02Z",
+              "id": 502
+            },
+            "has_more": false
+          }
+        },
+        {
+          "resource": "refunds",
+          "path": "/api/read/v1/refunds",
+          "query": {
+            "until": "2027-01-15T02:59:00Z",
+            "limit": 2
+          },
+          "response": {
+            "data": [
+              {
+                "id": 71,
+                "order_id": 2042,
+                "payment_id": 502,
+                "gateway": "stripe",
+                "gateway_refund_id": "re_fixture_ill_0005",
+                "amount": 2400,
+                "currency": "EUR",
+                "tax_summary": [
+                  {
+                    "rate_bps": 2100,
+                    "taxable_base": 1983,
+                    "tax": 417
+                  }
+                ],
+                "reason": "Poster returned unopened",
+                "actor_source": "admin",
+                "actor_label": "Shop admin",
+                "settlement_reference": "txn_fixture_ill_0005",
+                "fee": 0,
+                "settled_amount": 2400,
+                "settled_currency": "EUR",
+                "exchange_rate": null,
+                "created_at": "2027-01-12T11:05:00Z",
+                "updated_at": "2027-01-12T11:05:00Z",
+                "order": {
+                  "id": 2042,
+                  "order_number": "ORD-H3N7VC1P",
+                  "status": "confirmed",
+                  "currency": "EUR",
+                  "locale": "en",
+                  "email": "sanne.devries@example.com",
+                  "customer": {
+                    "id": 302,
+                    "name": "Sanne de Vries",
+                    "email": "sanne.devries@example.com",
+                    "phone": "+31 6 5550 1234"
+                  },
+                  "subtotal": 5300,
+                  "discount": 0,
+                  "voucher_code": null,
+                  "shipping_method_identifier": "dhl-europaket",
+                  "shipping_cost": 890,
+                  "shipping_cost_currency": "EUR",
+                  "tax": 1074,
+                  "tax_rate_bps": 2100,
+                  "tax_rate_country_code": "NL",
+                  "tax_summary": [
+                    {
+                      "rate_bps": 2100,
+                      "taxable_base": 5116,
+                      "tax": 1074
+                    }
+                  ],
+                  "total": 6190,
+                  "lines": [
+                    {
+                      "id": 3303,
+                      "orderable_type": "product",
+                      "orderable_id": 52,
+                      "description": "Persistence map poster (A2)",
+                      "sku": "ART-MAP-A2",
+                      "currency": "EUR",
+                      "unit_price": 2400,
+                      "quantity": 1,
+                      "line_total": 2400,
+                      "tax_category": "physical_goods",
+                      "tax_rate_bps": 2100,
+                      "tax_amount": null,
+                      "is_pre_order": false,
+                      "expected_ship_date": null,
+                      "created_at": "2026-12-11T19:45:33Z",
+                      "updated_at": "2026-12-11T19:45:33Z"
+                    },
+                    {
+                      "id": 3304,
+                      "orderable_type": "product",
+                      "orderable_id": 51,
+                      "description": "Art print — The Drowned Orchard (A3)",
+                      "sku": "ART-ORCH-A3",
+                      "currency": "EUR",
+                      "unit_price": 2900,
+                      "quantity": 1,
+                      "line_total": 2900,
+                      "tax_category": "physical_goods",
+                      "tax_rate_bps": 2100,
+                      "tax_amount": null,
+                      "is_pre_order": false,
+                      "expected_ship_date": null,
+                      "created_at": "2026-12-11T19:45:33Z",
+                      "updated_at": "2026-12-11T19:45:33Z"
+                    }
+                  ],
+                  "addresses": [
+                    {
+                      "type": "shipping_and_billing",
+                      "first_name": "Sanne",
+                      "last_name": "de Vries",
+                      "line_1": "Oudegracht 140",
+                      "line_2": null,
+                      "city": "Utrecht",
+                      "state": null,
+                      "postal_code": "3511 AZ",
+                      "country_code": "NL",
+                      "phone": "+31 6 5550 1234"
+                    }
+                  ],
+                  "created_at": "2026-12-11T19:45:33Z",
+                  "updated_at": "2026-12-11T19:47:12Z"
+                }
+              }
+            ],
+            "next": {
+              "updated_at": "2027-01-12T11:05:00Z",
+              "id": 71
+            },
+            "has_more": false
+          }
+        },
+        {
+          "resource": "shipments",
+          "path": "/api/read/v1/shipments",
+          "query": {
+            "after_updated_at": "2026-12-19T09:30:01Z",
+            "after_id": 603,
+            "until": "2027-01-15T02:59:00Z",
+            "limit": 2
+          },
+          "response": {
+            "data": [
+              {
+                "id": 604,
+                "shippable_type": "order",
+                "shippable_id": 2044,
+                "status": "in_transit",
+                "method": "dhl-paket",
+                "carrier": "DHL",
+                "tracking_number": "00340434161094043004",
+                "tracking_url": null,
+                "shipped_at": "2027-01-04T10:05:00Z",
+                "delivered_at": null,
+                "amount": 2390,
+                "currency": "EUR",
+                "tax_summary": [
+                  {
+                    "rate_bps": 1900,
+                    "taxable_base": 2008,
+                    "tax": 382
+                  }
+                ],
+                "items": [
+                  {
+                    "id": 706,
+                    "order_line_id": 3306,
+                    "quantity": 1
+                  }
+                ],
+                "created_at": "2027-01-04T09:40:00Z",
+                "updated_at": "2027-01-04T10:05:01Z",
+                "order": {
+                  "id": 2044,
+                  "order_number": "ORD-W1Z5E8JD",
+                  "status": "confirmed",
+                  "currency": "EUR",
+                  "locale": "de",
+                  "email": "pia.neumann@example.com",
+                  "customer": {
+                    "id": 304,
+                    "name": "Pia Neumann",
+                    "email": "pia.neumann@example.com",
+                    "phone": null
+                  },
+                  "subtotal": 1900,
+                  "discount": 0,
+                  "voucher_code": null,
+                  "shipping_method_identifier": "dhl-paket",
+                  "shipping_cost": 490,
+                  "shipping_cost_currency": "EUR",
+                  "tax": 382,
+                  "tax_rate_bps": 1900,
+                  "tax_rate_country_code": "DE",
+                  "tax_summary": [
+                    {
+                      "rate_bps": 1900,
+                      "taxable_base": 2008,
+                      "tax": 382
+                    }
+                  ],
+                  "total": 2390,
+                  "lines": [
+                    {
+                      "id": 3306,
+                      "orderable_type": "product",
+                      "orderable_id": 60,
+                      "description": "Dice set — brass",
+                      "sku": "DICE-BRASS",
+                      "currency": "EUR",
+                      "unit_price": 1900,
+                      "quantity": 1,
+                      "line_total": 1900,
+                      "tax_category": "physical_goods",
+                      "tax_rate_bps": 1900,
+                      "tax_amount": null,
+                      "is_pre_order": false,
+                      "expected_ship_date": null,
+                      "created_at": "2026-12-31T23:28:40Z",
+                      "updated_at": "2026-12-31T23:28:40Z"
+                    }
+                  ],
+                  "addresses": [
+                    {
+                      "type": "shipping_and_billing",
+                      "first_name": "Pia",
+                      "last_name": "Neumann",
+                      "line_1": "Lindenallee 3",
+                      "line_2": null,
+                      "city": "Köln",
+                      "state": null,
+                      "postal_code": "50968",
+                      "country_code": "DE",
+                      "phone": null
+                    }
+                  ],
+                  "created_at": "2026-12-31T23:28:40Z",
+                  "updated_at": "2026-12-31T23:30:01Z"
+                }
+              }
+            ],
+            "next": {
+              "updated_at": "2027-01-04T10:05:01Z",
+              "id": 604
+            },
+            "has_more": false
+          }
+        },
+        {
+          "resource": "purchase_orders",
+          "path": "/api/read/v1/purchase_orders",
+          "query": {
+            "until": "2027-01-15T02:59:00Z",
+            "limit": 2
+          },
+          "response": {
+            "data": [],
+            "next": null,
+            "has_more": false
+          }
+        }
+      ]
+    }
+  ]
+}

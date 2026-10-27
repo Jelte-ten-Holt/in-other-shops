@@ -50,6 +50,35 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Read API
+    |--------------------------------------------------------------------------
+    |
+    | A read-only HTTP surface for the bookkeeping app (in-other-books brief
+    | §12 P-5): `GET {path}/{payments|refunds|shipments|purchase_orders}`,
+    | keyset-paged on `(updated_at, id)`. Off by default and independent of
+    | the MCP route above, so a shop can run it with MCP off.
+    |
+    | `bearer_token` is its own credential and the only one it accepts — not
+    | the operator bearer (which is admin and unlocks every MCP write tool),
+    | and it opens nothing but this route group. Empty, or equal to the
+    | operator bearer, fails closed.
+    |
+    | Every page is bounded by the client's `until`, which the client keeps
+    | behind the present by its own pull window (in-other-books sends
+    | now − 60 s): a row stamped at second S can commit after S.
+    |
+    */
+
+    'read' => [
+        'enabled' => (bool) env('AGENT_READ_ENABLED', false),
+        'path' => '/api/read/v1',
+        'bearer_token' => env('AGENT_READ_BEARER_TOKEN'),
+        'throttle' => env('AGENT_READ_THROTTLE', '120,1'),
+        'max_limit' => 500,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Canonical URL
     |--------------------------------------------------------------------------
     |

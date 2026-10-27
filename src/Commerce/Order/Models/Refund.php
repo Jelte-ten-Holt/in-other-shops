@@ -35,6 +35,9 @@ class Refund extends Model
             'amount' => 'integer',
             'tax_summary' => 'array',
             'actor_source' => RefundActorSource::class,
+            'fee' => 'integer',
+            'settled_amount' => 'integer',
+            'exchange_rate' => 'decimal:10',
         ];
     }
 

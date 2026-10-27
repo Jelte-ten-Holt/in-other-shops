@@ -90,6 +90,7 @@ Current: `ResolveTaxRate`. ✅ Compliant.
 - `Refund` — terminal state action.
 - `Retrieve` — re-fetch session for re-rendering.
 - `Process` — handle an inbound webhook event.
+- `Record` — write onto our own row what the gateway reports happened, once (`RecordPaymentSettlement`; Commerce's `RecordRefund` and `RecordRefundSettlement` use it the same way).
 - Banned: `Capture` is reserved for the auth-then-capture pattern if/when we add it; do not use it loosely. `Confirm`/`Release` belong to Inventory (state-machine semantics differ — payments use lifecycle verbs).
 
 Current actions: `InitiatePayment`, `RefundPayment`, `RetrievePaymentSession`, `HandlePaymentWebhook`.

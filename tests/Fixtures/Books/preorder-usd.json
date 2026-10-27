@@ -1,0 +1,516 @@
+{
+  "fixture": "preorder-usd",
+  "describes": "In Other Worlds UG. A US customer pre-orders the core rulebook in US dollars on 20 Nov 2026 (export, 0 %); Stripe settles it in euros. It ships on 3 Dec; 15 USD is refunded on 10 Dec, settled at that day's rate, after the November payout. Pull 2 re-reads the payment because the refund changed it.",
+  "about": "A full in-other-shops read-API exchange set (brief §12 P-5) across two pulls. Column names are the package's own; fields marked in docs/schema-proposal.md §6 as P-2, P-4, P-5 or P-7 do not exist in the package yet and are the shape phase C builds. The package's contract test must reproduce every `response` byte-for-byte from the rows it describes; the app's shop driver is tested against the same file.",
+  "tenant": "in-other-worlds",
+  "source": {
+    "kind": "shop",
+    "driver": "shop",
+    "settings": {
+      "base_url": "https://inotherworlds.net",
+      "page_size": 100
+    }
+  },
+  "pulls": [
+    {
+      "at": "2026-11-21T03:00:00Z",
+      "until": "2026-11-21T02:59:00Z",
+      "exchanges": [
+        {
+          "resource": "payments",
+          "path": "/api/read/v1/payments",
+          "query": {
+            "until": "2026-11-21T02:59:00Z",
+            "limit": 100
+          },
+          "response": {
+            "data": [
+              {
+                "id": 412,
+                "payable_type": "order",
+                "payable_id": 1031,
+                "amount": 6400,
+                "amount_refunded": 0,
+                "currency": "USD",
+                "status": "succeeded",
+                "gateway": "stripe",
+                "gateway_reference": "pi_fixture_usd_0001",
+                "charge_reference": "ch_fixture_usd_0001",
+                "settlement_reference": "txn_fixture_usd_0001",
+                "paid_at": "2026-11-20T18:42:07Z",
+                "fee": 334,
+                "net": 5554,
+                "settled_amount": 5888,
+                "settled_currency": "EUR",
+                "exchange_rate": "0.9200000000",
+                "created_at": "2026-11-20T18:40:33Z",
+                "updated_at": "2026-11-20T18:42:08Z",
+                "order": {
+                  "id": 1031,
+                  "order_number": "ORD-7KQ2M9XA",
+                  "status": "confirmed",
+                  "currency": "USD",
+                  "locale": "en",
+                  "email": "dana.whitfield@example.com",
+                  "customer": {
+                    "id": 88,
+                    "name": "Dana Whitfield",
+                    "email": "dana.whitfield@example.com",
+                    "phone": "+1 503 555 0142"
+                  },
+                  "subtotal": 5500,
+                  "discount": 0,
+                  "voucher_code": null,
+                  "shipping_method_identifier": "international-tracked",
+                  "shipping_cost": 900,
+                  "shipping_cost_currency": "USD",
+                  "tax": 0,
+                  "tax_rate_bps": 0,
+                  "tax_rate_country_code": "US",
+                  "tax_summary": [
+                    {
+                      "rate_bps": 0,
+                      "taxable_base": 6400,
+                      "tax": 0
+                    }
+                  ],
+                  "total": 6400,
+                  "lines": [
+                    {
+                      "id": 2207,
+                      "orderable_type": "product",
+                      "orderable_id": 41,
+                      "description": "The Persistence — Core Rulebook (hardcover, pre-order)",
+                      "sku": "PER-CORE-HC",
+                      "currency": "USD",
+                      "unit_price": 5500,
+                      "quantity": 1,
+                      "line_total": 5500,
+                      "tax_category": "physical_goods",
+                      "tax_rate_bps": 0,
+                      "tax_amount": null,
+                      "is_pre_order": true,
+                      "expected_ship_date": "2026-12-01",
+                      "created_at": "2026-11-20T18:40:31Z",
+                      "updated_at": "2026-11-20T18:40:31Z"
+                    }
+                  ],
+                  "addresses": [
+                    {
+                      "type": "shipping_and_billing",
+                      "first_name": "Dana",
+                      "last_name": "Whitfield",
+                      "line_1": "2214 SE Clinton St",
+                      "line_2": null,
+                      "city": "Portland",
+                      "state": "OR",
+                      "postal_code": "97202",
+                      "country_code": "US",
+                      "phone": "+1 503 555 0142"
+                    }
+                  ],
+                  "created_at": "2026-11-20T18:40:31Z",
+                  "updated_at": "2026-11-20T18:42:08Z"
+                }
+              }
+            ],
+            "next": {
+              "updated_at": "2026-11-20T18:42:08Z",
+              "id": 412
+            },
+            "has_more": false
+          }
+        },
+        {
+          "resource": "refunds",
+          "path": "/api/read/v1/refunds",
+          "query": {
+            "until": "2026-11-21T02:59:00Z",
+            "limit": 100
+          },
+          "response": {
+            "data": [],
+            "next": null,
+            "has_more": false
+          }
+        },
+        {
+          "resource": "shipments",
+          "path": "/api/read/v1/shipments",
+          "query": {
+            "until": "2026-11-21T02:59:00Z",
+            "limit": 100
+          },
+          "response": {
+            "data": [],
+            "next": null,
+            "has_more": false
+          }
+        },
+        {
+          "resource": "purchase_orders",
+          "path": "/api/read/v1/purchase_orders",
+          "query": {
+            "until": "2026-11-21T02:59:00Z",
+            "limit": 100
+          },
+          "response": {
+            "data": [],
+            "next": null,
+            "has_more": false
+          }
+        }
+      ]
+    },
+    {
+      "at": "2026-12-15T03:00:00Z",
+      "until": "2026-12-15T02:59:00Z",
+      "exchanges": [
+        {
+          "resource": "payments",
+          "path": "/api/read/v1/payments",
+          "query": {
+            "after_updated_at": "2026-11-20T18:42:08Z",
+            "after_id": 412,
+            "until": "2026-12-15T02:59:00Z",
+            "limit": 100
+          },
+          "response": {
+            "data": [
+              {
+                "id": 412,
+                "payable_type": "order",
+                "payable_id": 1031,
+                "amount": 6400,
+                "amount_refunded": 1500,
+                "currency": "USD",
+                "status": "partially_refunded",
+                "gateway": "stripe",
+                "gateway_reference": "pi_fixture_usd_0001",
+                "charge_reference": "ch_fixture_usd_0001",
+                "settlement_reference": "txn_fixture_usd_0001",
+                "paid_at": "2026-11-20T18:42:07Z",
+                "fee": 334,
+                "net": 5554,
+                "settled_amount": 5888,
+                "settled_currency": "EUR",
+                "exchange_rate": "0.9200000000",
+                "created_at": "2026-11-20T18:40:33Z",
+                "updated_at": "2026-12-10T09:30:02Z",
+                "order": {
+                  "id": 1031,
+                  "order_number": "ORD-7KQ2M9XA",
+                  "status": "confirmed",
+                  "currency": "USD",
+                  "locale": "en",
+                  "email": "dana.whitfield@example.com",
+                  "customer": {
+                    "id": 88,
+                    "name": "Dana Whitfield",
+                    "email": "dana.whitfield@example.com",
+                    "phone": "+1 503 555 0142"
+                  },
+                  "subtotal": 5500,
+                  "discount": 0,
+                  "voucher_code": null,
+                  "shipping_method_identifier": "international-tracked",
+                  "shipping_cost": 900,
+                  "shipping_cost_currency": "USD",
+                  "tax": 0,
+                  "tax_rate_bps": 0,
+                  "tax_rate_country_code": "US",
+                  "tax_summary": [
+                    {
+                      "rate_bps": 0,
+                      "taxable_base": 6400,
+                      "tax": 0
+                    }
+                  ],
+                  "total": 6400,
+                  "lines": [
+                    {
+                      "id": 2207,
+                      "orderable_type": "product",
+                      "orderable_id": 41,
+                      "description": "The Persistence — Core Rulebook (hardcover, pre-order)",
+                      "sku": "PER-CORE-HC",
+                      "currency": "USD",
+                      "unit_price": 5500,
+                      "quantity": 1,
+                      "line_total": 5500,
+                      "tax_category": "physical_goods",
+                      "tax_rate_bps": 0,
+                      "tax_amount": null,
+                      "is_pre_order": true,
+                      "expected_ship_date": "2026-12-01",
+                      "created_at": "2026-11-20T18:40:31Z",
+                      "updated_at": "2026-11-20T18:40:31Z"
+                    }
+                  ],
+                  "addresses": [
+                    {
+                      "type": "shipping_and_billing",
+                      "first_name": "Dana",
+                      "last_name": "Whitfield",
+                      "line_1": "2214 SE Clinton St",
+                      "line_2": null,
+                      "city": "Portland",
+                      "state": "OR",
+                      "postal_code": "97202",
+                      "country_code": "US",
+                      "phone": "+1 503 555 0142"
+                    }
+                  ],
+                  "created_at": "2026-11-20T18:40:31Z",
+                  "updated_at": "2026-11-20T18:42:08Z"
+                }
+              }
+            ],
+            "next": {
+              "updated_at": "2026-12-10T09:30:02Z",
+              "id": 412
+            },
+            "has_more": false
+          }
+        },
+        {
+          "resource": "refunds",
+          "path": "/api/read/v1/refunds",
+          "query": {
+            "until": "2026-12-15T02:59:00Z",
+            "limit": 100
+          },
+          "response": {
+            "data": [
+              {
+                "id": 57,
+                "order_id": 1031,
+                "payment_id": 412,
+                "gateway": "stripe",
+                "gateway_refund_id": "re_fixture_usd_0002",
+                "amount": 1500,
+                "currency": "USD",
+                "tax_summary": [
+                  {
+                    "rate_bps": 0,
+                    "taxable_base": 1500,
+                    "tax": 0
+                  }
+                ],
+                "reason": "Damaged corner on arrival",
+                "actor_source": "admin",
+                "actor_label": "Shop admin",
+                "settlement_reference": "txn_fixture_usd_0002",
+                "fee": 0,
+                "settled_amount": 1425,
+                "settled_currency": "EUR",
+                "exchange_rate": "0.9500000000",
+                "created_at": "2026-12-10T09:30:00Z",
+                "updated_at": "2026-12-10T09:30:00Z",
+                "order": {
+                  "id": 1031,
+                  "order_number": "ORD-7KQ2M9XA",
+                  "status": "confirmed",
+                  "currency": "USD",
+                  "locale": "en",
+                  "email": "dana.whitfield@example.com",
+                  "customer": {
+                    "id": 88,
+                    "name": "Dana Whitfield",
+                    "email": "dana.whitfield@example.com",
+                    "phone": "+1 503 555 0142"
+                  },
+                  "subtotal": 5500,
+                  "discount": 0,
+                  "voucher_code": null,
+                  "shipping_method_identifier": "international-tracked",
+                  "shipping_cost": 900,
+                  "shipping_cost_currency": "USD",
+                  "tax": 0,
+                  "tax_rate_bps": 0,
+                  "tax_rate_country_code": "US",
+                  "tax_summary": [
+                    {
+                      "rate_bps": 0,
+                      "taxable_base": 6400,
+                      "tax": 0
+                    }
+                  ],
+                  "total": 6400,
+                  "lines": [
+                    {
+                      "id": 2207,
+                      "orderable_type": "product",
+                      "orderable_id": 41,
+                      "description": "The Persistence — Core Rulebook (hardcover, pre-order)",
+                      "sku": "PER-CORE-HC",
+                      "currency": "USD",
+                      "unit_price": 5500,
+                      "quantity": 1,
+                      "line_total": 5500,
+                      "tax_category": "physical_goods",
+                      "tax_rate_bps": 0,
+                      "tax_amount": null,
+                      "is_pre_order": true,
+                      "expected_ship_date": "2026-12-01",
+                      "created_at": "2026-11-20T18:40:31Z",
+                      "updated_at": "2026-11-20T18:40:31Z"
+                    }
+                  ],
+                  "addresses": [
+                    {
+                      "type": "shipping_and_billing",
+                      "first_name": "Dana",
+                      "last_name": "Whitfield",
+                      "line_1": "2214 SE Clinton St",
+                      "line_2": null,
+                      "city": "Portland",
+                      "state": "OR",
+                      "postal_code": "97202",
+                      "country_code": "US",
+                      "phone": "+1 503 555 0142"
+                    }
+                  ],
+                  "created_at": "2026-11-20T18:40:31Z",
+                  "updated_at": "2026-11-20T18:42:08Z"
+                }
+              }
+            ],
+            "next": {
+              "updated_at": "2026-12-10T09:30:00Z",
+              "id": 57
+            },
+            "has_more": false
+          }
+        },
+        {
+          "resource": "shipments",
+          "path": "/api/read/v1/shipments",
+          "query": {
+            "until": "2026-12-15T02:59:00Z",
+            "limit": 100
+          },
+          "response": {
+            "data": [
+              {
+                "id": 301,
+                "shippable_type": "order",
+                "shippable_id": 1031,
+                "status": "in_transit",
+                "method": "international-tracked",
+                "carrier": "Deutsche Post",
+                "tracking_number": "LX123456789DE",
+                "tracking_url": null,
+                "shipped_at": "2026-12-03T14:10:00Z",
+                "delivered_at": null,
+                "amount": 6400,
+                "currency": "USD",
+                "tax_summary": [
+                  {
+                    "rate_bps": 0,
+                    "taxable_base": 6400,
+                    "tax": 0
+                  }
+                ],
+                "items": [
+                  {
+                    "id": 455,
+                    "order_line_id": 2207,
+                    "quantity": 1
+                  }
+                ],
+                "created_at": "2026-12-02T16:00:00Z",
+                "updated_at": "2026-12-04T08:15:00Z",
+                "order": {
+                  "id": 1031,
+                  "order_number": "ORD-7KQ2M9XA",
+                  "status": "confirmed",
+                  "currency": "USD",
+                  "locale": "en",
+                  "email": "dana.whitfield@example.com",
+                  "customer": {
+                    "id": 88,
+                    "name": "Dana Whitfield",
+                    "email": "dana.whitfield@example.com",
+                    "phone": "+1 503 555 0142"
+                  },
+                  "subtotal": 5500,
+                  "discount": 0,
+                  "voucher_code": null,
+                  "shipping_method_identifier": "international-tracked",
+                  "shipping_cost": 900,
+                  "shipping_cost_currency": "USD",
+                  "tax": 0,
+                  "tax_rate_bps": 0,
+                  "tax_rate_country_code": "US",
+                  "tax_summary": [
+                    {
+                      "rate_bps": 0,
+                      "taxable_base": 6400,
+                      "tax": 0
+                    }
+                  ],
+                  "total": 6400,
+                  "lines": [
+                    {
+                      "id": 2207,
+                      "orderable_type": "product",
+                      "orderable_id": 41,
+                      "description": "The Persistence — Core Rulebook (hardcover, pre-order)",
+                      "sku": "PER-CORE-HC",
+                      "currency": "USD",
+                      "unit_price": 5500,
+                      "quantity": 1,
+                      "line_total": 5500,
+                      "tax_category": "physical_goods",
+                      "tax_rate_bps": 0,
+                      "tax_amount": null,
+                      "is_pre_order": true,
+                      "expected_ship_date": "2026-12-01",
+                      "created_at": "2026-11-20T18:40:31Z",
+                      "updated_at": "2026-11-20T18:40:31Z"
+                    }
+                  ],
+                  "addresses": [
+                    {
+                      "type": "shipping_and_billing",
+                      "first_name": "Dana",
+                      "last_name": "Whitfield",
+                      "line_1": "2214 SE Clinton St",
+                      "line_2": null,
+                      "city": "Portland",
+                      "state": "OR",
+                      "postal_code": "97202",
+                      "country_code": "US",
+                      "phone": "+1 503 555 0142"
+                    }
+                  ],
+                  "created_at": "2026-11-20T18:40:31Z",
+                  "updated_at": "2026-11-20T18:42:08Z"
+                }
+              }
+            ],
+            "next": {
+              "updated_at": "2026-12-04T08:15:00Z",
+              "id": 301
+            },
+            "has_more": false
+          }
+        },
+        {
+          "resource": "purchase_orders",
+          "path": "/api/read/v1/purchase_orders",
+          "query": {
+            "until": "2026-12-15T02:59:00Z",
+            "limit": 100
+          },
+          "response": {
+            "data": [],
+            "next": null,
+            "has_more": false
+          }
+        }
+      ]
+    }
+  ]
+}

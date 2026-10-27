@@ -7,16 +7,21 @@ namespace InOtherShops\Payment\Drivers\Stripe;
 use InOtherShops\Payment\Contracts\ListsRefunds;
 use InOtherShops\Payment\Contracts\ManagesCustomers;
 use InOtherShops\Payment\Contracts\PaymentGateway;
+use InOtherShops\Payment\Contracts\ReportsSettlements;
 use InOtherShops\Payment\DTOs\GatewayRefund;
 use InOtherShops\Payment\DTOs\PaymentCustomerData;
 use InOtherShops\Payment\DTOs\PaymentSession;
+use InOtherShops\Payment\DTOs\Settlement;
 use InOtherShops\Payment\DTOs\WebhookPayload;
 use InOtherShops\Payment\Enums\PaymentStatus;
 use InOtherShops\Payment\Exceptions\PaymentNotCancelableException;
 use InOtherShops\Payment\Models\Payment;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
+use Stripe\BalanceTransaction;
+use Stripe\Charge;
 use Stripe\Event;
 use Stripe\Exception\InvalidRequestException;
 use Stripe\Exception\SignatureVerificationException;
@@ -33,7 +38,7 @@ use Stripe\Webhook;
  * Shipped only when `stripe/stripe-php` is installed — see
  * {@see StripeGatewayServiceProvider} for the gated registration.
  */
-final class StripePaymentGateway implements ListsRefunds, ManagesCustomers, PaymentGateway
+final class StripePaymentGateway implements ListsRefunds, ManagesCustomers, PaymentGateway, ReportsSettlements
 {
     private ?Event $verifiedEvent = null;
 
@@ -273,6 +278,88 @@ final class StripePaymentGateway implements ListsRefunds, ManagesCustomers, Paym
         }
 
         return $refunds;
+    }
+
+    /**
+     * The balance transaction of the intent's latest charge. Null until Stripe
+     * has written it: under asynchronous capture, the default on the API
+     * version stripe-php ^21 pins, it is still empty when
+     * `payment_intent.succeeded` arrives and lands with `charge.updated`.
+     */
+    public function settlementFor(Payment $payment): ?Settlement
+    {
+        if ($payment->gateway_reference === null) {
+            return null;
+        }
+
+        try {
+            $intent = $this->client->paymentIntents->retrieve($payment->gateway_reference, [
+                'expand' => ['latest_charge.balance_transaction'],
+            ]);
+        } catch (InvalidRequestException $e) {
+            return $this->unknownToStripe($e);
+        }
+
+        $charge = $intent->latest_charge;
+
+        if (! $charge instanceof Charge || ! $charge->balance_transaction instanceof BalanceTransaction) {
+            return null;
+        }
+
+        return $this->settlement($charge->balance_transaction, chargeReference: $charge->id);
+    }
+
+    /**
+     * The refund's own balance transaction, whatever the refund's status: the
+     * package keeps a Refund row for every refund Stripe accepted, and a refund
+     * that later fails is a gap of that row, not of its settlement.
+     */
+    public function refundSettlementFor(string $gatewayRefundId): ?Settlement
+    {
+        try {
+            $refund = $this->client->refunds->retrieve($gatewayRefundId, ['expand' => ['balance_transaction']]);
+        } catch (InvalidRequestException $e) {
+            return $this->unknownToStripe($e);
+        }
+
+        if (! $refund->balance_transaction instanceof BalanceTransaction) {
+            return null;
+        }
+
+        return $this->settlement($refund->balance_transaction);
+    }
+
+    /**
+     * An id this Stripe account does not know — a test-mode row under live
+     * keys, a seeded fixture — will never settle. Reported as nothing to
+     * record, so it neither fails every run of the settlement read nor alerts
+     * every one; any other refusal is a real error and is rethrown.
+     */
+    private function unknownToStripe(InvalidRequestException $e): null
+    {
+        if ($e->getStripeCode() !== 'resource_missing') {
+            throw $e;
+        }
+
+        return null;
+    }
+
+    /**
+     * A refund's transaction carries negative amounts; the settlement carries
+     * magnitudes. The fee stays as Stripe gives it.
+     */
+    private function settlement(BalanceTransaction $transaction, ?string $chargeReference = null): Settlement
+    {
+        return new Settlement(
+            reference: $transaction->id,
+            settledAt: CarbonImmutable::createFromTimestampUTC($transaction->created),
+            amount: abs($transaction->amount),
+            currency: strtoupper($transaction->currency),
+            fee: $transaction->fee,
+            net: abs($transaction->net),
+            exchangeRate: $transaction->exchange_rate === null ? null : number_format((float) $transaction->exchange_rate, 10, '.', ''),
+            chargeReference: $chargeReference,
+        );
     }
 
     public function createCustomer(PaymentCustomerData $data): string

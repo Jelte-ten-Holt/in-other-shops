@@ -51,14 +51,14 @@ Middle band — depend only on leaves:
 
 Shop core — one unit; moves together if ever split; internal coupling is expected, not drift:
   Commerce ────── depends on Currency, Location, Payment, Pricing, Shipping, Tax, FlowChain (registers AddToCartChain); Inventory contracts + InsufficientStockException
-  Shipping ────── depends on Currency; hard-dep on Commerce (OrderLine in ShipmentItem) — cycle with Commerce, ACCEPTED within shop core. The Shippable-polymorphism fix is only needed if a non-order shipment use case appears (warehouse transfer, B2B sample, returns)
-  Purchasing ──── depends on Inventory (AdjustStock action, StockMovementReason enum), Tax (TaxCategory enum)
+  Shipping ────── depends on Currency, Pricing (TaxBreakdownLine DTO in CalculateShipmentValue); hard-dep on Commerce (OrderLine in ShipmentItem, Order in CalculateShipmentValue) — cycle with Commerce, ACCEPTED within shop core. The Shippable-polymorphism fix is only needed if a non-order shipment use case appears (warehouse transfer, B2B sample, returns)
+  Purchasing ──── depends on Inventory (AdjustStock action, StockMovementReason enum), Tax (TaxCategory enum), Pricing (TaxBreakdownLine DTO for the supplier invoice's per-rate summary)
   Tracking ────── depends on Commerce (CartItem/OrderLine via the Commerce registry; AddToCartPayload), FlowChain (AbstractFlowStep). Both attribution tables FK into Commerce tables, so it moves with the shop core
 
 Integration tier — not extractable by design:
   Storefront ──── depends on Currency, Inventory, Pricing, Taxonomy, Translation
   Variants ────── depends on Commerce (package Variant implements HasCart), Inventory, Media, Pricing, Translation; also READS currency.default config. No cycle — Commerce does not depend on Variants. Adopted only by consumers with variant catalogs (bianka), not in-other-worlds (flat SKUs)
-  Agent ────────── depends on Commerce, Inventory, Storefront, Taxonomy — top of the graph
+  Agent ────────── depends on Commerce, Inventory, Storefront, Taxonomy; the bookkeeping read API adds Payment, Purchasing, Shipping, Location, Pricing — top of the graph
 ```
 
 Drift cases and fix shapes are tracked in [docs/audits/2026-05-13/dep-graph-audit.md](docs/audits/2026-05-13/dep-graph-audit.md) (read its top banner — its "blocking for a split" framing predates the modular-monolith reframe).
@@ -134,7 +134,7 @@ How to write tests for this package — trust principles, what each Action/Liste
 
 ## Commands
 
-The package does not ship application-level CLI commands. Exceptions: inventory housekeeping (`inventory:release-expired` and the read-only tripwire `inventory:reconcile`, both gated behind `inventory.schedule.enabled`), cart cleanup (`commerce:prune-carts`, prunes expired guest carts), webhook ledger pruning (`payment:prune-webhook-events`, retention via `payment.webhook_retention_days`, default 90), and two read-only tripwires the package registers but does not schedule: `commerce:reconcile-refunds` (payment `amount_refunded` vs its `Refund` rows; both consumers schedule it daily) and `purchasing:reconcile-receipts` (purchase-order `quantity_received` vs the Received movements; in-other-worlds schedules it, bianka-shop-one does not). The full catalog of commands, their schedule state, and every other periphery actor this package contributes to consumers lives in [docs/periphery.md](docs/periphery.md).
+The package does not ship application-level CLI commands. Exceptions: inventory housekeeping (`inventory:release-expired` and the read-only tripwire `inventory:reconcile`, both gated behind `inventory.schedule.enabled`), cart cleanup (`commerce:prune-carts`, prunes expired guest carts), webhook ledger pruning (`payment:prune-webhook-events`, retention via `payment.webhook_retention_days`, default 90), the settlement read (`commerce:record-settlements`, every five minutes behind `commerce.schedule.enabled`: what each settled payment and refund did to the gateway balance, for the bookkeeping read API), and two read-only tripwires the package registers but does not schedule: `commerce:reconcile-refunds` (payment `amount_refunded` vs its `Refund` rows; both consumers schedule it daily) and `purchasing:reconcile-receipts` (purchase-order `quantity_received` vs the Received movements; in-other-worlds schedules it, bianka-shop-one does not). The full catalog of commands, their schedule state, and every other periphery actor this package contributes to consumers lives in [docs/periphery.md](docs/periphery.md).
 
 ## Periphery
 

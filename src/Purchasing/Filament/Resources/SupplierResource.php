@@ -60,6 +60,32 @@ class SupplierResource extends PackageResource
                             ->columnSpanFull(),
                     ])
                     ->columns(2),
+                // What its invoices are booked by: the VAT-ID and country decide
+                // the VAT treatment of a purchase, the address is on the invoice.
+                Section::make(__('shops-purchasing::supplier.section.invoicing'))
+                    ->schema([
+                        TextInput::make('vat_id')
+                            ->label(__('shops-purchasing::supplier.fields.vat_id'))
+                            ->maxLength(32),
+                        TextInput::make('country_code')
+                            ->label(__('shops-purchasing::supplier.fields.country_code'))
+                            ->helperText(__('shops-purchasing::supplier.fields.country_code_help'))
+                            ->regex('/^[A-Za-z]{2}$/')
+                            ->dehydrateStateUsing(fn (?string $state): ?string => $state === null || $state === '' ? null : strtoupper($state)),
+                        TextInput::make('address_line_1')
+                            ->label(__('shops-purchasing::supplier.fields.address_line_1'))
+                            ->maxLength(255),
+                        TextInput::make('address_line_2')
+                            ->label(__('shops-purchasing::supplier.fields.address_line_2'))
+                            ->maxLength(255),
+                        TextInput::make('postal_code')
+                            ->label(__('shops-purchasing::supplier.fields.postal_code'))
+                            ->maxLength(20),
+                        TextInput::make('city')
+                            ->label(__('shops-purchasing::supplier.fields.city'))
+                            ->maxLength(255),
+                    ])
+                    ->columns(2),
             ]);
     }
 

@@ -1,0 +1,1039 @@
+{
+  "fixture": "bianka-month",
+  "describes": "Bianka's business (Einzelunternehmen, EÜR, §19), November 2026. Three shop sales: two by card through her own Stripe account, one by bank transfer marked paid in the admin; one to Spain with a voucher. A yarn purchase received with its invoice and paid a week later. One shipped date is corrected after the first pull. Outside the shop, and so not in this file: a foreign software subscription and a market cash day (see `outside_the_shop`).",
+  "about": "A full in-other-shops read-API exchange set (brief §12 P-5) across two pulls. Column names are the package's own; fields marked in docs/schema-proposal.md §6 as P-2, P-4, P-5 or P-7 do not exist in the package yet and are the shape phase C builds. The package's contract test must reproduce every `response` byte-for-byte from the rows it describes; the app's shop driver is tested against the same file.",
+  "tenant": "bianka",
+  "source": {
+    "kind": "shop",
+    "driver": "shop",
+    "settings": {
+      "base_url": "https://mayangna.com",
+      "page_size": 100
+    }
+  },
+  "pulls": [
+    {
+      "at": "2026-11-10T03:00:00Z",
+      "until": "2026-11-10T02:59:00Z",
+      "exchanges": [
+        {
+          "resource": "payments",
+          "path": "/api/read/v1/payments",
+          "query": {
+            "until": "2026-11-10T02:59:00Z",
+            "limit": 100
+          },
+          "response": {
+            "data": [
+              {
+                "id": 401,
+                "payable_type": "order",
+                "payable_id": 3101,
+                "amount": 7150,
+                "amount_refunded": 0,
+                "currency": "EUR",
+                "status": "succeeded",
+                "gateway": "stripe",
+                "gateway_reference": "pi_fixture_bia_0001",
+                "charge_reference": "ch_fixture_bia_0001",
+                "settlement_reference": "txn_fixture_bia_0001",
+                "paid_at": "2026-11-03T10:12:44Z",
+                "fee": 132,
+                "net": 7018,
+                "settled_amount": 7150,
+                "settled_currency": "EUR",
+                "exchange_rate": null,
+                "created_at": "2026-11-03T10:10:53Z",
+                "updated_at": "2026-11-03T10:12:45Z",
+                "order": {
+                  "id": 3101,
+                  "order_number": "ORD-B4X9QT2L",
+                  "status": "confirmed",
+                  "currency": "EUR",
+                  "locale": "en",
+                  "email": "jonas.albrecht@example.com",
+                  "customer": {
+                    "id": 201,
+                    "name": "Jonas Albrecht",
+                    "email": "jonas.albrecht@example.com",
+                    "phone": null
+                  },
+                  "subtotal": 6600,
+                  "discount": 0,
+                  "voucher_code": null,
+                  "shipping_method_identifier": "dhl-paket",
+                  "shipping_cost": 550,
+                  "shipping_cost_currency": "EUR",
+                  "tax": 0,
+                  "tax_rate_bps": 0,
+                  "tax_rate_country_code": "DE",
+                  "tax_summary": [
+                    {
+                      "rate_bps": 0,
+                      "taxable_base": 7150,
+                      "tax": 0
+                    }
+                  ],
+                  "total": 7150,
+                  "lines": [
+                    {
+                      "id": 5101,
+                      "orderable_type": "product",
+                      "orderable_id": 12,
+                      "description": "Tejido Mayangna — table runner",
+                      "sku": "MAY-RUN-01",
+                      "currency": "EUR",
+                      "unit_price": 3800,
+                      "quantity": 1,
+                      "line_total": 3800,
+                      "tax_category": "physical_goods",
+                      "tax_rate_bps": 0,
+                      "tax_amount": null,
+                      "is_pre_order": false,
+                      "expected_ship_date": null,
+                      "created_at": "2026-11-03T10:10:51Z",
+                      "updated_at": "2026-11-03T10:10:51Z"
+                    },
+                    {
+                      "id": 5102,
+                      "orderable_type": "product",
+                      "orderable_id": 17,
+                      "description": "Jícaro cup",
+                      "sku": "MAY-JIC-02",
+                      "currency": "EUR",
+                      "unit_price": 1400,
+                      "quantity": 2,
+                      "line_total": 2800,
+                      "tax_category": "physical_goods",
+                      "tax_rate_bps": 0,
+                      "tax_amount": null,
+                      "is_pre_order": false,
+                      "expected_ship_date": null,
+                      "created_at": "2026-11-03T10:10:51Z",
+                      "updated_at": "2026-11-03T10:10:51Z"
+                    }
+                  ],
+                  "addresses": [
+                    {
+                      "type": "shipping_and_billing",
+                      "first_name": "Jonas",
+                      "last_name": "Albrecht",
+                      "line_1": "Lange Reihe 41",
+                      "line_2": null,
+                      "city": "Hamburg",
+                      "state": null,
+                      "postal_code": "20099",
+                      "country_code": "DE",
+                      "phone": null
+                    }
+                  ],
+                  "created_at": "2026-11-03T10:10:51Z",
+                  "updated_at": "2026-11-03T10:12:45Z"
+                }
+              },
+              {
+                "id": 402,
+                "payable_type": "order",
+                "payable_id": 3102,
+                "amount": 5250,
+                "amount_refunded": 0,
+                "currency": "EUR",
+                "status": "succeeded",
+                "gateway": "stripe",
+                "gateway_reference": "pi_fixture_bia_0002",
+                "charge_reference": "ch_fixture_bia_0002",
+                "settlement_reference": "txn_fixture_bia_0002",
+                "paid_at": "2026-11-08T16:20:05Z",
+                "fee": 104,
+                "net": 5146,
+                "settled_amount": 5250,
+                "settled_currency": "EUR",
+                "exchange_rate": null,
+                "created_at": "2026-11-08T16:18:42Z",
+                "updated_at": "2026-11-08T16:20:06Z",
+                "order": {
+                  "id": 3102,
+                  "order_number": "ORD-B7MZ2KQ8",
+                  "status": "confirmed",
+                  "currency": "EUR",
+                  "locale": "es",
+                  "email": "lucia.ortega@example.com",
+                  "customer": {
+                    "id": 202,
+                    "name": "Lucía Ortega",
+                    "email": "lucia.ortega@example.com",
+                    "phone": "+34 600 555 017"
+                  },
+                  "subtotal": 4500,
+                  "discount": 450,
+                  "voucher_code": "BIENVENIDA10",
+                  "shipping_method_identifier": "dhl-europaket",
+                  "shipping_cost": 1200,
+                  "shipping_cost_currency": "EUR",
+                  "tax": 0,
+                  "tax_rate_bps": 0,
+                  "tax_rate_country_code": "DE",
+                  "tax_summary": [
+                    {
+                      "rate_bps": 0,
+                      "taxable_base": 5250,
+                      "tax": 0
+                    }
+                  ],
+                  "total": 5250,
+                  "lines": [
+                    {
+                      "id": 5103,
+                      "orderable_type": "product",
+                      "orderable_id": 23,
+                      "description": "Bolso de pita — small",
+                      "sku": "MAY-PIT-S",
+                      "currency": "EUR",
+                      "unit_price": 4500,
+                      "quantity": 1,
+                      "line_total": 4500,
+                      "tax_category": "physical_goods",
+                      "tax_rate_bps": 0,
+                      "tax_amount": null,
+                      "is_pre_order": false,
+                      "expected_ship_date": null,
+                      "created_at": "2026-11-08T16:18:40Z",
+                      "updated_at": "2026-11-08T16:18:40Z"
+                    }
+                  ],
+                  "addresses": [
+                    {
+                      "type": "shipping_and_billing",
+                      "first_name": "Lucía",
+                      "last_name": "Ortega",
+                      "line_1": "Calle Elvira 12",
+                      "line_2": null,
+                      "city": "Granada",
+                      "state": null,
+                      "postal_code": "18010",
+                      "country_code": "ES",
+                      "phone": "+34 600 555 017"
+                    }
+                  ],
+                  "created_at": "2026-11-08T16:18:40Z",
+                  "updated_at": "2026-11-08T16:20:06Z"
+                }
+              }
+            ],
+            "next": {
+              "updated_at": "2026-11-08T16:20:06Z",
+              "id": 402
+            },
+            "has_more": false
+          }
+        },
+        {
+          "resource": "refunds",
+          "path": "/api/read/v1/refunds",
+          "query": {
+            "until": "2026-11-10T02:59:00Z",
+            "limit": 100
+          },
+          "response": {
+            "data": [],
+            "next": null,
+            "has_more": false
+          }
+        },
+        {
+          "resource": "shipments",
+          "path": "/api/read/v1/shipments",
+          "query": {
+            "until": "2026-11-10T02:59:00Z",
+            "limit": 100
+          },
+          "response": {
+            "data": [
+              {
+                "id": 91,
+                "shippable_type": "order",
+                "shippable_id": 3101,
+                "status": "in_transit",
+                "method": "dhl-paket",
+                "carrier": "DHL",
+                "tracking_number": "00340434161094042557",
+                "tracking_url": null,
+                "shipped_at": "2026-11-04T09:20:00Z",
+                "delivered_at": null,
+                "amount": 7150,
+                "currency": "EUR",
+                "tax_summary": [
+                  {
+                    "rate_bps": 0,
+                    "taxable_base": 7150,
+                    "tax": 0
+                  }
+                ],
+                "items": [
+                  {
+                    "id": 181,
+                    "order_line_id": 5101,
+                    "quantity": 1
+                  },
+                  {
+                    "id": 182,
+                    "order_line_id": 5102,
+                    "quantity": 2
+                  }
+                ],
+                "created_at": "2026-11-04T09:05:00Z",
+                "updated_at": "2026-11-04T09:20:01Z",
+                "order": {
+                  "id": 3101,
+                  "order_number": "ORD-B4X9QT2L",
+                  "status": "confirmed",
+                  "currency": "EUR",
+                  "locale": "en",
+                  "email": "jonas.albrecht@example.com",
+                  "customer": {
+                    "id": 201,
+                    "name": "Jonas Albrecht",
+                    "email": "jonas.albrecht@example.com",
+                    "phone": null
+                  },
+                  "subtotal": 6600,
+                  "discount": 0,
+                  "voucher_code": null,
+                  "shipping_method_identifier": "dhl-paket",
+                  "shipping_cost": 550,
+                  "shipping_cost_currency": "EUR",
+                  "tax": 0,
+                  "tax_rate_bps": 0,
+                  "tax_rate_country_code": "DE",
+                  "tax_summary": [
+                    {
+                      "rate_bps": 0,
+                      "taxable_base": 7150,
+                      "tax": 0
+                    }
+                  ],
+                  "total": 7150,
+                  "lines": [
+                    {
+                      "id": 5101,
+                      "orderable_type": "product",
+                      "orderable_id": 12,
+                      "description": "Tejido Mayangna — table runner",
+                      "sku": "MAY-RUN-01",
+                      "currency": "EUR",
+                      "unit_price": 3800,
+                      "quantity": 1,
+                      "line_total": 3800,
+                      "tax_category": "physical_goods",
+                      "tax_rate_bps": 0,
+                      "tax_amount": null,
+                      "is_pre_order": false,
+                      "expected_ship_date": null,
+                      "created_at": "2026-11-03T10:10:51Z",
+                      "updated_at": "2026-11-03T10:10:51Z"
+                    },
+                    {
+                      "id": 5102,
+                      "orderable_type": "product",
+                      "orderable_id": 17,
+                      "description": "Jícaro cup",
+                      "sku": "MAY-JIC-02",
+                      "currency": "EUR",
+                      "unit_price": 1400,
+                      "quantity": 2,
+                      "line_total": 2800,
+                      "tax_category": "physical_goods",
+                      "tax_rate_bps": 0,
+                      "tax_amount": null,
+                      "is_pre_order": false,
+                      "expected_ship_date": null,
+                      "created_at": "2026-11-03T10:10:51Z",
+                      "updated_at": "2026-11-03T10:10:51Z"
+                    }
+                  ],
+                  "addresses": [
+                    {
+                      "type": "shipping_and_billing",
+                      "first_name": "Jonas",
+                      "last_name": "Albrecht",
+                      "line_1": "Lange Reihe 41",
+                      "line_2": null,
+                      "city": "Hamburg",
+                      "state": null,
+                      "postal_code": "20099",
+                      "country_code": "DE",
+                      "phone": null
+                    }
+                  ],
+                  "created_at": "2026-11-03T10:10:51Z",
+                  "updated_at": "2026-11-03T10:12:45Z"
+                }
+              },
+              {
+                "id": 92,
+                "shippable_type": "order",
+                "shippable_id": 3102,
+                "status": "in_transit",
+                "method": "dhl-europaket",
+                "carrier": "DHL",
+                "tracking_number": "00340434161094042601",
+                "tracking_url": null,
+                "shipped_at": "2026-11-09T10:00:00Z",
+                "delivered_at": null,
+                "amount": 5250,
+                "currency": "EUR",
+                "tax_summary": [
+                  {
+                    "rate_bps": 0,
+                    "taxable_base": 5250,
+                    "tax": 0
+                  }
+                ],
+                "items": [
+                  {
+                    "id": 183,
+                    "order_line_id": 5103,
+                    "quantity": 1
+                  }
+                ],
+                "created_at": "2026-11-09T09:58:00Z",
+                "updated_at": "2026-11-09T10:00:01Z",
+                "order": {
+                  "id": 3102,
+                  "order_number": "ORD-B7MZ2KQ8",
+                  "status": "confirmed",
+                  "currency": "EUR",
+                  "locale": "es",
+                  "email": "lucia.ortega@example.com",
+                  "customer": {
+                    "id": 202,
+                    "name": "Lucía Ortega",
+                    "email": "lucia.ortega@example.com",
+                    "phone": "+34 600 555 017"
+                  },
+                  "subtotal": 4500,
+                  "discount": 450,
+                  "voucher_code": "BIENVENIDA10",
+                  "shipping_method_identifier": "dhl-europaket",
+                  "shipping_cost": 1200,
+                  "shipping_cost_currency": "EUR",
+                  "tax": 0,
+                  "tax_rate_bps": 0,
+                  "tax_rate_country_code": "DE",
+                  "tax_summary": [
+                    {
+                      "rate_bps": 0,
+                      "taxable_base": 5250,
+                      "tax": 0
+                    }
+                  ],
+                  "total": 5250,
+                  "lines": [
+                    {
+                      "id": 5103,
+                      "orderable_type": "product",
+                      "orderable_id": 23,
+                      "description": "Bolso de pita — small",
+                      "sku": "MAY-PIT-S",
+                      "currency": "EUR",
+                      "unit_price": 4500,
+                      "quantity": 1,
+                      "line_total": 4500,
+                      "tax_category": "physical_goods",
+                      "tax_rate_bps": 0,
+                      "tax_amount": null,
+                      "is_pre_order": false,
+                      "expected_ship_date": null,
+                      "created_at": "2026-11-08T16:18:40Z",
+                      "updated_at": "2026-11-08T16:18:40Z"
+                    }
+                  ],
+                  "addresses": [
+                    {
+                      "type": "shipping_and_billing",
+                      "first_name": "Lucía",
+                      "last_name": "Ortega",
+                      "line_1": "Calle Elvira 12",
+                      "line_2": null,
+                      "city": "Granada",
+                      "state": null,
+                      "postal_code": "18010",
+                      "country_code": "ES",
+                      "phone": "+34 600 555 017"
+                    }
+                  ],
+                  "created_at": "2026-11-08T16:18:40Z",
+                  "updated_at": "2026-11-08T16:20:06Z"
+                }
+              }
+            ],
+            "next": {
+              "updated_at": "2026-11-09T10:00:01Z",
+              "id": 92
+            },
+            "has_more": false
+          }
+        },
+        {
+          "resource": "purchase_orders",
+          "path": "/api/read/v1/purchase_orders",
+          "query": {
+            "until": "2026-11-10T02:59:00Z",
+            "limit": 100
+          },
+          "response": {
+            "data": [
+              {
+                "id": 7,
+                "reference": "PO-2026-0007",
+                "status": "received",
+                "currency": "EUR",
+                "ordered_at": "2026-11-02T11:30:00Z",
+                "expected_delivery_at": "2026-11-06",
+                "shipping_cost": 490,
+                "customs_cost": 0,
+                "subtotal": 9100,
+                "total": 9590,
+                "supplier_invoice_number": "INV-4471",
+                "supplier_invoice_date": "2026-11-05",
+                "supplier_invoice_total": 11412,
+                "supplier_invoice_tax_summary": [
+                  {
+                    "rate_bps": 1900,
+                    "taxable_base": 9590,
+                    "tax": 1822
+                  }
+                ],
+                "paid_at": null,
+                "amount_paid": null,
+                "lines": [
+                  {
+                    "id": 61,
+                    "purchasable_type": null,
+                    "purchasable_id": null,
+                    "description": "Baumwollgarn natur, 1 kg",
+                    "sku": "HT-BW-1000",
+                    "quantity_ordered": 4,
+                    "quantity_received": 4,
+                    "unit_cost": 1800,
+                    "input_vat": 1368,
+                    "tax_category": "physical_goods",
+                    "line_cost": 7200
+                  },
+                  {
+                    "id": 62,
+                    "purchasable_type": null,
+                    "purchasable_id": null,
+                    "description": "Pflanzenfarbe Indigo, 250 g",
+                    "sku": "HT-IND-250",
+                    "quantity_ordered": 2,
+                    "quantity_received": 2,
+                    "unit_cost": 950,
+                    "input_vat": 361,
+                    "tax_category": "physical_goods",
+                    "line_cost": 1900
+                  }
+                ],
+                "supplier": {
+                  "id": 4,
+                  "name": "Hilos & Tintes GmbH",
+                  "contact_email": "auftrag@hilos-tintes.example",
+                  "default_currency": "EUR",
+                  "payment_terms": "14 days net",
+                  "vat_id": "DE298765432",
+                  "country_code": "DE",
+                  "address": {
+                    "line_1": "Färberweg 3",
+                    "line_2": null,
+                    "city": "Krefeld",
+                    "postal_code": "47798",
+                    "country_code": "DE"
+                  }
+                },
+                "created_at": "2026-11-02T11:20:00Z",
+                "updated_at": "2026-11-06T15:12:30Z"
+              }
+            ],
+            "next": {
+              "updated_at": "2026-11-06T15:12:30Z",
+              "id": 7
+            },
+            "has_more": false
+          }
+        }
+      ]
+    },
+    {
+      "at": "2026-12-01T03:00:00Z",
+      "until": "2026-12-01T02:59:00Z",
+      "exchanges": [
+        {
+          "resource": "payments",
+          "path": "/api/read/v1/payments",
+          "query": {
+            "after_updated_at": "2026-11-08T16:20:06Z",
+            "after_id": 402,
+            "until": "2026-12-01T02:59:00Z",
+            "limit": 100
+          },
+          "response": {
+            "data": [
+              {
+                "id": 403,
+                "payable_type": "order",
+                "payable_id": 3103,
+                "amount": 9590,
+                "amount_refunded": 0,
+                "currency": "EUR",
+                "status": "succeeded",
+                "gateway": "manual",
+                "gateway_reference": null,
+                "charge_reference": null,
+                "settlement_reference": null,
+                "paid_at": "2026-11-23T23:00:00Z",
+                "fee": null,
+                "net": null,
+                "settled_amount": null,
+                "settled_currency": null,
+                "exchange_rate": null,
+                "created_at": "2026-11-24T09:01:11Z",
+                "updated_at": "2026-11-24T09:01:12Z",
+                "order": {
+                  "id": 3103,
+                  "order_number": "ORD-BQ2W8N4R",
+                  "status": "confirmed",
+                  "currency": "EUR",
+                  "locale": "en",
+                  "email": "miriam.kaya@example.com",
+                  "customer": {
+                    "id": 203,
+                    "name": "Miriam Kaya",
+                    "email": "miriam.kaya@example.com",
+                    "phone": null
+                  },
+                  "subtotal": 8900,
+                  "discount": 0,
+                  "voucher_code": null,
+                  "shipping_method_identifier": "dhl-paket",
+                  "shipping_cost": 690,
+                  "shipping_cost_currency": "EUR",
+                  "tax": 0,
+                  "tax_rate_bps": 0,
+                  "tax_rate_country_code": "DE",
+                  "tax_summary": [
+                    {
+                      "rate_bps": 0,
+                      "taxable_base": 9590,
+                      "tax": 0
+                    }
+                  ],
+                  "total": 9590,
+                  "lines": [
+                    {
+                      "id": 5104,
+                      "orderable_type": "product",
+                      "orderable_id": 31,
+                      "description": "Hamaca — child size",
+                      "sku": "MAY-HAM-K",
+                      "currency": "EUR",
+                      "unit_price": 8900,
+                      "quantity": 1,
+                      "line_total": 8900,
+                      "tax_category": "physical_goods",
+                      "tax_rate_bps": 0,
+                      "tax_amount": null,
+                      "is_pre_order": false,
+                      "expected_ship_date": null,
+                      "created_at": "2026-11-21T08:02:10Z",
+                      "updated_at": "2026-11-21T08:02:10Z"
+                    }
+                  ],
+                  "addresses": [
+                    {
+                      "type": "shipping",
+                      "first_name": "Miriam",
+                      "last_name": "Kaya",
+                      "line_1": "Bergmannstraße 7",
+                      "line_2": null,
+                      "city": "Berlin",
+                      "state": null,
+                      "postal_code": "10961",
+                      "country_code": "DE",
+                      "phone": null
+                    },
+                    {
+                      "type": "billing",
+                      "first_name": "Miriam",
+                      "last_name": "Kaya",
+                      "line_1": "Bergmannstraße 7",
+                      "line_2": null,
+                      "city": "Berlin",
+                      "state": null,
+                      "postal_code": "10961",
+                      "country_code": "DE",
+                      "phone": null
+                    }
+                  ],
+                  "created_at": "2026-11-21T08:02:10Z",
+                  "updated_at": "2026-11-24T09:01:12Z"
+                }
+              }
+            ],
+            "next": {
+              "updated_at": "2026-11-24T09:01:12Z",
+              "id": 403
+            },
+            "has_more": false
+          }
+        },
+        {
+          "resource": "refunds",
+          "path": "/api/read/v1/refunds",
+          "query": {
+            "until": "2026-12-01T02:59:00Z",
+            "limit": 100
+          },
+          "response": {
+            "data": [],
+            "next": null,
+            "has_more": false
+          }
+        },
+        {
+          "resource": "shipments",
+          "path": "/api/read/v1/shipments",
+          "query": {
+            "after_updated_at": "2026-11-09T10:00:01Z",
+            "after_id": 92,
+            "until": "2026-12-01T02:59:00Z",
+            "limit": 100
+          },
+          "response": {
+            "data": [
+              {
+                "id": 92,
+                "shippable_type": "order",
+                "shippable_id": 3102,
+                "status": "in_transit",
+                "method": "dhl-europaket",
+                "carrier": "DHL",
+                "tracking_number": "00340434161094042601",
+                "tracking_url": null,
+                "shipped_at": "2026-11-10T09:30:00Z",
+                "delivered_at": null,
+                "amount": 5250,
+                "currency": "EUR",
+                "tax_summary": [
+                  {
+                    "rate_bps": 0,
+                    "taxable_base": 5250,
+                    "tax": 0
+                  }
+                ],
+                "items": [
+                  {
+                    "id": 183,
+                    "order_line_id": 5103,
+                    "quantity": 1
+                  }
+                ],
+                "created_at": "2026-11-09T09:58:00Z",
+                "updated_at": "2026-11-10T09:45:20Z",
+                "order": {
+                  "id": 3102,
+                  "order_number": "ORD-B7MZ2KQ8",
+                  "status": "confirmed",
+                  "currency": "EUR",
+                  "locale": "es",
+                  "email": "lucia.ortega@example.com",
+                  "customer": {
+                    "id": 202,
+                    "name": "Lucía Ortega",
+                    "email": "lucia.ortega@example.com",
+                    "phone": "+34 600 555 017"
+                  },
+                  "subtotal": 4500,
+                  "discount": 450,
+                  "voucher_code": "BIENVENIDA10",
+                  "shipping_method_identifier": "dhl-europaket",
+                  "shipping_cost": 1200,
+                  "shipping_cost_currency": "EUR",
+                  "tax": 0,
+                  "tax_rate_bps": 0,
+                  "tax_rate_country_code": "DE",
+                  "tax_summary": [
+                    {
+                      "rate_bps": 0,
+                      "taxable_base": 5250,
+                      "tax": 0
+                    }
+                  ],
+                  "total": 5250,
+                  "lines": [
+                    {
+                      "id": 5103,
+                      "orderable_type": "product",
+                      "orderable_id": 23,
+                      "description": "Bolso de pita — small",
+                      "sku": "MAY-PIT-S",
+                      "currency": "EUR",
+                      "unit_price": 4500,
+                      "quantity": 1,
+                      "line_total": 4500,
+                      "tax_category": "physical_goods",
+                      "tax_rate_bps": 0,
+                      "tax_amount": null,
+                      "is_pre_order": false,
+                      "expected_ship_date": null,
+                      "created_at": "2026-11-08T16:18:40Z",
+                      "updated_at": "2026-11-08T16:18:40Z"
+                    }
+                  ],
+                  "addresses": [
+                    {
+                      "type": "shipping_and_billing",
+                      "first_name": "Lucía",
+                      "last_name": "Ortega",
+                      "line_1": "Calle Elvira 12",
+                      "line_2": null,
+                      "city": "Granada",
+                      "state": null,
+                      "postal_code": "18010",
+                      "country_code": "ES",
+                      "phone": "+34 600 555 017"
+                    }
+                  ],
+                  "created_at": "2026-11-08T16:18:40Z",
+                  "updated_at": "2026-11-08T16:20:06Z"
+                }
+              },
+              {
+                "id": 93,
+                "shippable_type": "order",
+                "shippable_id": 3103,
+                "status": "in_transit",
+                "method": "dhl-paket",
+                "carrier": "DHL",
+                "tracking_number": "00340434161094042777",
+                "tracking_url": null,
+                "shipped_at": "2026-11-25T08:40:00Z",
+                "delivered_at": null,
+                "amount": 9590,
+                "currency": "EUR",
+                "tax_summary": [
+                  {
+                    "rate_bps": 0,
+                    "taxable_base": 9590,
+                    "tax": 0
+                  }
+                ],
+                "items": [
+                  {
+                    "id": 184,
+                    "order_line_id": 5104,
+                    "quantity": 1
+                  }
+                ],
+                "created_at": "2026-11-25T08:31:00Z",
+                "updated_at": "2026-11-25T08:40:02Z",
+                "order": {
+                  "id": 3103,
+                  "order_number": "ORD-BQ2W8N4R",
+                  "status": "confirmed",
+                  "currency": "EUR",
+                  "locale": "en",
+                  "email": "miriam.kaya@example.com",
+                  "customer": {
+                    "id": 203,
+                    "name": "Miriam Kaya",
+                    "email": "miriam.kaya@example.com",
+                    "phone": null
+                  },
+                  "subtotal": 8900,
+                  "discount": 0,
+                  "voucher_code": null,
+                  "shipping_method_identifier": "dhl-paket",
+                  "shipping_cost": 690,
+                  "shipping_cost_currency": "EUR",
+                  "tax": 0,
+                  "tax_rate_bps": 0,
+                  "tax_rate_country_code": "DE",
+                  "tax_summary": [
+                    {
+                      "rate_bps": 0,
+                      "taxable_base": 9590,
+                      "tax": 0
+                    }
+                  ],
+                  "total": 9590,
+                  "lines": [
+                    {
+                      "id": 5104,
+                      "orderable_type": "product",
+                      "orderable_id": 31,
+                      "description": "Hamaca — child size",
+                      "sku": "MAY-HAM-K",
+                      "currency": "EUR",
+                      "unit_price": 8900,
+                      "quantity": 1,
+                      "line_total": 8900,
+                      "tax_category": "physical_goods",
+                      "tax_rate_bps": 0,
+                      "tax_amount": null,
+                      "is_pre_order": false,
+                      "expected_ship_date": null,
+                      "created_at": "2026-11-21T08:02:10Z",
+                      "updated_at": "2026-11-21T08:02:10Z"
+                    }
+                  ],
+                  "addresses": [
+                    {
+                      "type": "shipping",
+                      "first_name": "Miriam",
+                      "last_name": "Kaya",
+                      "line_1": "Bergmannstraße 7",
+                      "line_2": null,
+                      "city": "Berlin",
+                      "state": null,
+                      "postal_code": "10961",
+                      "country_code": "DE",
+                      "phone": null
+                    },
+                    {
+                      "type": "billing",
+                      "first_name": "Miriam",
+                      "last_name": "Kaya",
+                      "line_1": "Bergmannstraße 7",
+                      "line_2": null,
+                      "city": "Berlin",
+                      "state": null,
+                      "postal_code": "10961",
+                      "country_code": "DE",
+                      "phone": null
+                    }
+                  ],
+                  "created_at": "2026-11-21T08:02:10Z",
+                  "updated_at": "2026-11-24T09:01:12Z"
+                }
+              }
+            ],
+            "next": {
+              "updated_at": "2026-11-25T08:40:02Z",
+              "id": 93
+            },
+            "has_more": false
+          }
+        },
+        {
+          "resource": "purchase_orders",
+          "path": "/api/read/v1/purchase_orders",
+          "query": {
+            "after_updated_at": "2026-11-06T15:12:30Z",
+            "after_id": 7,
+            "until": "2026-12-01T02:59:00Z",
+            "limit": 100
+          },
+          "response": {
+            "data": [
+              {
+                "id": 7,
+                "reference": "PO-2026-0007",
+                "status": "received",
+                "currency": "EUR",
+                "ordered_at": "2026-11-02T11:30:00Z",
+                "expected_delivery_at": "2026-11-06",
+                "shipping_cost": 490,
+                "customs_cost": 0,
+                "subtotal": 9100,
+                "total": 9590,
+                "supplier_invoice_number": "INV-4471",
+                "supplier_invoice_date": "2026-11-05",
+                "supplier_invoice_total": 11412,
+                "supplier_invoice_tax_summary": [
+                  {
+                    "rate_bps": 1900,
+                    "taxable_base": 9590,
+                    "tax": 1822
+                  }
+                ],
+                "paid_at": "2026-11-11T23:00:00Z",
+                "amount_paid": 11412,
+                "lines": [
+                  {
+                    "id": 61,
+                    "purchasable_type": null,
+                    "purchasable_id": null,
+                    "description": "Baumwollgarn natur, 1 kg",
+                    "sku": "HT-BW-1000",
+                    "quantity_ordered": 4,
+                    "quantity_received": 4,
+                    "unit_cost": 1800,
+                    "input_vat": 1368,
+                    "tax_category": "physical_goods",
+                    "line_cost": 7200
+                  },
+                  {
+                    "id": 62,
+                    "purchasable_type": null,
+                    "purchasable_id": null,
+                    "description": "Pflanzenfarbe Indigo, 250 g",
+                    "sku": "HT-IND-250",
+                    "quantity_ordered": 2,
+                    "quantity_received": 2,
+                    "unit_cost": 950,
+                    "input_vat": 361,
+                    "tax_category": "physical_goods",
+                    "line_cost": 1900
+                  }
+                ],
+                "supplier": {
+                  "id": 4,
+                  "name": "Hilos & Tintes GmbH",
+                  "contact_email": "auftrag@hilos-tintes.example",
+                  "default_currency": "EUR",
+                  "payment_terms": "14 days net",
+                  "vat_id": "DE298765432",
+                  "country_code": "DE",
+                  "address": {
+                    "line_1": "Färberweg 3",
+                    "line_2": null,
+                    "city": "Krefeld",
+                    "postal_code": "47798",
+                    "country_code": "DE"
+                  }
+                },
+                "created_at": "2026-11-02T11:20:00Z",
+                "updated_at": "2026-11-12T18:03:41Z"
+              }
+            ],
+            "next": {
+              "updated_at": "2026-11-12T18:03:41Z",
+              "id": 7
+            },
+            "has_more": false
+          }
+        }
+      ]
+    }
+  ],
+  "outside_the_shop": [
+    {
+      "what": "Software subscription from a foreign business",
+      "recorded_through": "S3 manual entry (phase E)",
+      "date": "2026-11-01",
+      "party": "Google Cloud EMEA Ltd (IE)",
+      "net": 680,
+      "currency": "EUR",
+      "note": "Invoiced without VAT to her USt-IdNr with a reverse-charge note. §13b Abs. 5 S. 4: as a §19 business she owes 19 % (129) herself, cannot deduct it, books 809 as cost and files a UStVA for November."
+    },
+    {
+      "what": "Market cash day",
+      "recorded_through": "S5 daily cash count (phase E)",
+      "date": "2026-11-15",
+      "account": "cash till",
+      "amount": 31250,
+      "currency": "EUR",
+      "note": "One count event on the till account with the day's Kassenbericht as its document; categorised as market sales it becomes income on the day received."
+    }
+  ]
+}

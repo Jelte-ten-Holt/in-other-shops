@@ -8,6 +8,94 @@ The format is loosely [Keep a Changelog](https://keepachangelog.com/); the
 package is pre-1.0, so minor versions may carry breaking changes (all consumers
 are pre-launch — single-release-window policy, no deprecation bridges).
 
+## Unreleased — bookkeeping read API and its prerequisites
+
+For the in-other-books app (`in-other-books/docs/brief.md` §12): P-2, P-4, P-1
+and P-5, built as stacked PRs and released together.
+
+### P-2 — settlement fields
+
+Two additive migrations, one config key, one auto-scheduled command.
+
+- `payments` gains `charge_reference`, `settlement_reference`, `paid_at`, `fee`,
+  `net`, `settled_amount`, `settled_currency`, `exchange_rate`; `refunds` gains
+  `settlement_reference`, `fee`, `settled_amount`, `settled_currency`,
+  `exchange_rate`. All nullable; nothing in the shop reads them.
+- New optional gateway capability `Payment\Contracts\ReportsSettlements` with
+  the `Settlement` DTO; the Stripe driver implements it from the balance
+  transaction, `FakePaymentGateway` from `settle()` / `settleRefund()`.
+- New `commerce:record-settlements`, scheduled by the package every five
+  minutes behind the new `commerce.schedule.enabled` (default `true`). It asks
+  about settled payments and refunds from the last 30 days that have no
+  settlement, outside any transaction, and writes each once. A payment's
+  `paid_at` is written with its settlement. It runs in the background and
+  never overlaps itself; an id Stripe does not know is nothing to record, any
+  other gateway error is reported and the run carries on.
+- Why not on `payment_intent.succeeded`, as the brief said: Stripe's
+  asynchronous capture leaves the balance transaction empty on that event.
+
+### P-4 — purchasing fields
+
+Two additive migrations, one model boot hook.
+
+- `suppliers` gains `vat_id`, `country_code`, `address_line_1`,
+  `address_line_2`, `city`, `postal_code`; the supplier form gains a
+  "VAT and address" section.
+- `purchase_orders` gains the supplier invoice (`supplier_invoice_number`,
+  `supplier_invoice_date`, gross `supplier_invoice_total`, per-rate
+  `supplier_invoice_tax_summary`) and its payment (`paid_at`, `amount_paid`),
+  with edit-page sections for both. `PurchaseOrder::saving` refuses half an
+  invoice, a total its rates do not add up to, and a payment without its date
+  or a positive amount (`SupplierInvoiceException`). The form checks the same
+  rules field by field (VAT rows required with a number, the total against the
+  rows), and the edit page turns any refusal left into a notification.
+- New `Support\Filament\ClaimedDay`: a day a person claims, stored as the
+  start of that day in Filament's timezone.
+- Not built: the invoice as an attachment (Media's disk is public).
+
+### P-1 — freeze on payment, and "mark paid"
+
+No migration.
+
+- Once an order has a payment that succeeded (`Order::isFrozen()`), its money
+  fields (`Order::FROZEN_WHEN_PAID`), lines and addresses cannot change and it
+  cannot be deleted (`OrderFrozenException`, from model hooks on `Order`,
+  `OrderLine` and — registered by Commerce — `Address`). Notes, email, locale,
+  customer and status stay editable. The edit page disables those fields and
+  says why.
+- **Mark paid** on the order edit page and `RecordManualPayment`: a `manual`
+  payment for the full total on the day the admin gives, then
+  `PaymentSucceeded`, as for a card payment — the order is confirmed and the
+  customer is sent the order confirmation. It first closes any open card intent
+  of the order (new `CancelOpenGatewaySessions`, shared with expiry), so a
+  declined attempt cannot be retried into a second charge. Refund actions are
+  hidden for a manual payment.
+- **`commerce:expire-orders` leaves an order with no payment row alone**: an
+  order created in the admin waits for Mark paid or a manual cancel, however
+  long the transfer takes. Checkout orders always open a payment.
+- in-other-worlds overrides the order edit page: its bump must gate Delete on
+  `Order::isDeletable()` and add `EditOrder::markPaidAction()`.
+
+### P-5 — the bookkeeping read API
+
+No migration. Off by default.
+
+- `GET /api/read/v1/{payments,refunds,shipments,purchase_orders}`, keyset-paged
+  on `(updated_at, id)` with a required `until`, `{data, next, has_more}`.
+  Enabled by `AGENT_READ_ENABLED`; opened only by its own read-only bearer
+  `AGENT_READ_BEARER_TOKEN` (`AuthenticateAgent:read`), which opens nothing
+  else and is never admin. The operator bearer is refused there.
+- Each payment, refund and shipment embeds its order; a purchase order its
+  lines and supplier. Payments and shipments of orders only.
+- Shipments carry their own value from the new
+  `Shipping\Actions\CalculateShipmentValue`: by the lines they hold, in the
+  order they went out, so an order that ships twice splits by rate and adds
+  up to the cent.
+- A payment or shipment whose order row is gone is skipped, not a failed
+  page; a read bearer equal to the operator bearer fails closed.
+- The in-other-books fixtures are contract tests here
+  (`tests/Fixtures/Books`, `ReadApiContractTest`).
+
 ## v0.71.3 — 2026-10-05
 
 Refunds made outside the app are recorded (`docs/briefs/dashboard-refund-brief.md`).
