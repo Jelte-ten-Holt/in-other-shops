@@ -26,6 +26,7 @@ use InOtherShops\Commerce\Filament\Resources\OrderResource\Pages;
 use InOtherShops\Commerce\Order\Actions\UpdateOrderStatus;
 use InOtherShops\Commerce\Order\Enums\OrderStatus;
 use InOtherShops\Commerce\Order\Models\Order;
+use InOtherShops\Currency\Enums\Currency;
 use InOtherShops\Location\Filament\LocationSchema;
 use InOtherShops\Payment\Filament\RelationManagers\PaymentsRelationManager;
 use InOtherShops\Shipping\Filament\RelationManagers\ShipmentsRelationManager;
@@ -181,13 +182,17 @@ class OrderResource extends PackageResource
     }
 
     /**
-     * Override in your project to provide currency options.
+     * The currencies an order may be in: the enabled ones (`currency.enabled`,
+     * else every case). One enabled currency fixes the field; more give a
+     * select. Override to narrow the list. The default was `[]` until v0.72.0,
+     * which made the required select reject every value — a consumer that
+     * mounted this page unchanged could not save an order at all.
      *
      * @return array<string, string>
      */
     protected static function currencyOptions(): array
     {
-        return [];
+        return Currency::enabledOptions();
     }
 
     /**
