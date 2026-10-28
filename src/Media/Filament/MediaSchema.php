@@ -51,6 +51,10 @@ final class MediaSchema
                 // Size cap is 10 MB; raise per-collection if a use case justifies it.
                 ->acceptedFileTypes(self::allowedUploadMimeTypes())
                 ->maxSize(10240)
+                // The client's name for the file, beside the generated one it
+                // is stored under: `media.filename` records it, and a consumer
+                // offering the file as a download saves it under that name.
+                ->storeFileNamesIn('original_filename')
                 ->columnSpanFull()
                 ->visible(fn ($get) => $get('type') === MediaType::Upload->value),
             TextInput::make('url')
@@ -412,12 +416,22 @@ final class MediaSchema
         // uploaded and then referenced by nothing while the site kept serving
         // the old one. Writing `path` is all that is needed; the model refreshes
         // the metadata and removes the replaced file (`Media::refreshFileMetadata`,
-        // `Media::deleteReplacedFile`).
+        // `Media::deleteReplacedFile`). The model can only take the stored
+        // basename for `filename`, so the client's name, which the upload
+        // carries, goes on afterwards in a save of its own: set alongside
+        // `path`, a replacement under the same name would not be dirty and the
+        // refresh would overwrite it.
         if ($type === MediaType::Upload) {
             $path = self::normalizeFileUploadPath($item['path'] ?? null);
 
             if ($path !== null && $path !== $media->path) {
                 $media->forceFill(['path' => $path])->save();
+
+                $originalFilename = self::originalFilename($item);
+
+                if ($originalFilename !== null) {
+                    $media->forceFill(['filename' => $originalFilename])->save();
+                }
             }
         }
 
@@ -483,7 +497,7 @@ final class MediaSchema
             'type' => MediaType::Upload,
             'disk' => $disk,
             'path' => $path,
-            'filename' => basename($path),
+            'filename' => self::originalFilename($item) ?? basename($path),
             'mime_type' => $storage->mimeType($path) ?: 'application/octet-stream',
             'size' => $storage->size($path) ?: 0,
         ]);
@@ -511,6 +525,18 @@ final class MediaSchema
         }
 
         return $path;
+    }
+
+    /**
+     * The name the file had on the uploader's machine, which `storeFileNamesIn`
+     * writes beside `path` when Filament stores a new upload. Absent for a row
+     * whose file was not uploaded in this form session.
+     */
+    private static function originalFilename(array $item): ?string
+    {
+        $name = $item['original_filename'] ?? null;
+
+        return is_string($name) && $name !== '' ? $name : null;
     }
 
     private static function createExternalMedia(array $item): ?Media

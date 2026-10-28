@@ -8,6 +8,18 @@ The format is loosely [Keep a Changelog](https://keepachangelog.com/); the
 package is pre-1.0, so minor versions may carry breaking changes (all consumers
 are pre-launch — single-release-window policy, no deprecation bridges).
 
+## Unreleased
+
+- **`media.filename` is the uploader's name for the file**, as the Media README
+  always said it was. `MediaSchema`'s upload field now `storeFileNamesIn()` the
+  client's filename, and `saveFormData` records it on create and when a row's
+  file is replaced — so a consumer offering a file as a download can save it as
+  "The Parasite.pdf" rather than the ULID it is stored under. The model's
+  replace refresh still takes the stored basename; the schema writes the
+  client's name in a save of its own, because a replacement uploaded under the
+  same name would not be dirty. No migration; rows uploaded earlier keep the
+  basename.
+
 ## v0.72.0 — 2026-10-27
 
 The bookkeeping read API and its prerequisites, for the in-other-books app
