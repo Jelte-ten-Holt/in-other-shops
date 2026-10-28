@@ -110,8 +110,9 @@ class Media extends Model implements HasTranslations
      *
      * Deliberately updates only — on an insert the creator owns the metadata
      * (an uploader records the *client's* original filename, which the path's
-     * ULID basename would otherwise clobber). A replacement has no client
-     * filename to recover, so it takes the stored basename.
+     * ULID basename would otherwise clobber). The model cannot know the client
+     * filename on a replacement, so it takes the stored basename; a caller
+     * that has the client's name writes it afterwards, as `MediaSchema` does.
      */
     public function refreshFileMetadata(): void
     {

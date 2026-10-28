@@ -15,7 +15,7 @@ Uses `morphToMany` with an explicit **`Mediable` pivot model**. The `media` tabl
 | `id` | bigint | PK |
 | `disk` | string, nullable | filesystem disk (null for external/embed) |
 | `path` | string, nullable | path on disk (null for external/embed) |
-| `filename` | string | original filename |
+| `filename` | string | the uploader's name for the file (`MediaSchema` records it through `storeFileNamesIn`); the stored basename when none is known |
 | `mime_type` | string | MIME type |
 | `size` | unsigned int | file size in bytes |
 | `width`, `height` | unsigned int, nullable | intrinsic pixel dimensions, EXIF-orientation-corrected; filled at save from the file header (uploads on local disks only) |
@@ -57,7 +57,7 @@ It lives here rather than in the admin form because two upload surfaces each had
 
 Two deliberate edges:
 
-- **Updates only.** On an insert the creator owns the metadata — an uploader records the *client's* original filename, which the stored path's generated basename would destroy. A replacement has no client filename to recover, so it takes the stored basename.
+- **Updates only.** On an insert the creator owns the metadata — an uploader records the *client's* original filename, which the stored path's generated basename would destroy. The model cannot know the client's name on a replacement, so it takes the stored basename; `MediaSchema` then writes the name the upload carried, in a save of its own (set alongside `path`, a replacement under the same name would not be dirty and the refresh would overwrite it).
 - **After commit.** A consumer panel may run `->databaseTransactions()` (bianka's does). Deleting the old file before the commit would leave a rolled-back row pointing at a file that is already gone. `DB::afterCommit()` runs the callback immediately when there is no transaction, so the same code is right on both consumers.
 
 `fileIsShared(?string $path = null, ?string $disk = null)` answers the shared-file question for an arbitrary path; called with no arguments it asks about the row's current one, which is what `deleting` does.
