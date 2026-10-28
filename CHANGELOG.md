@@ -8,7 +8,7 @@ The format is loosely [Keep a Changelog](https://keepachangelog.com/); the
 package is pre-1.0, so minor versions may carry breaking changes (all consumers
 are pre-launch — single-release-window policy, no deprecation bridges).
 
-## Unreleased
+## v0.72.1 — 2026-10-28
 
 - **`media.filename` is the uploader's name for the file**, as the Media README
   always said it was. `MediaSchema`'s upload field now `storeFileNamesIn()` the
