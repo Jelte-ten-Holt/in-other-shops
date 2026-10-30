@@ -26,6 +26,11 @@ final class ListOrders extends AgentTool
         return 'List orders';
     }
 
+    public function annotations(): array
+    {
+        return ['readOnlyHint' => true];
+    }
+
     public function description(): string
     {
         return 'List orders with optional status and created-at date-range filters. Returns a summary per order, newest first.';

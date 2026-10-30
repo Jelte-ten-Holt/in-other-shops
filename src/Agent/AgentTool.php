@@ -39,6 +39,14 @@ abstract class AgentTool implements AgentToolContract, ToolInterface
         return static::displayName();
     }
 
+    /**
+     * MCP tool annotations, emitted into `tools/list` when non-empty. A tool
+     * that only reads overrides this with `['readOnlyHint' => true]`, which
+     * lets a client skip its permission prompt for reads. The default says
+     * nothing, and the MCP spec reads an unannotated tool as possibly
+     * destructive — so a new tool that forgets the hint is prompted for, never
+     * waved through. `ToolAnnotationsTest` pins which tools carry the hint.
+     */
     public function annotations(): array
     {
         return [];

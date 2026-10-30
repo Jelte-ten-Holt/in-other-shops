@@ -28,6 +28,11 @@ final class BrowseCatalog extends AgentTool
         return 'Browse catalog';
     }
 
+    public function annotations(): array
+    {
+        return ['readOnlyHint' => true];
+    }
+
     public function description(): string
     {
         return 'List storefront items (products, bundles, etc.) with pagination and optional category, tag, and search filters.';

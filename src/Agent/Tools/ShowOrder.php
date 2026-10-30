@@ -21,6 +21,11 @@ final class ShowOrder extends AgentTool
         return 'Show order';
     }
 
+    public function annotations(): array
+    {
+        return ['readOnlyHint' => true];
+    }
+
     public function description(): string
     {
         return 'Fetch one order by id, including its lines and a payments summary.';

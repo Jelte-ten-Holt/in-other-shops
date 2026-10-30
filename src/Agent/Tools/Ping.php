@@ -18,6 +18,11 @@ final class Ping extends AgentTool
         return 'Ping';
     }
 
+    public function annotations(): array
+    {
+        return ['readOnlyHint' => true];
+    }
+
     public function description(): string
     {
         return 'Health check. Returns pong and the current server time.';

@@ -20,6 +20,11 @@ final class GetStockLevel extends AgentTool
         return 'Get stock level';
     }
 
+    public function annotations(): array
+    {
+        return ['readOnlyHint' => true];
+    }
+
     public function description(): string
     {
         return 'Return availability for a browsable (product, bundle, etc.) identified by type + slug. Admin callers get the exact stock_level; non-admin callers get the in_stock flag only.';

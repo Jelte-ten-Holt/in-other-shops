@@ -7,6 +7,8 @@ namespace InOtherShops\Agent\Support;
 use InOtherShops\Agent\Contracts\AgentToolContract;
 use InOtherShops\Agent\Tools\AdjustStock;
 use InOtherShops\Agent\Tools\BrowseCatalog;
+use InOtherShops\Agent\Tools\CreateCategory;
+use InOtherShops\Agent\Tools\CreateTag;
 use InOtherShops\Agent\Tools\GetRecentProblems;
 use InOtherShops\Agent\Tools\GetStockLevel;
 use InOtherShops\Agent\Tools\ListCategories;
@@ -16,6 +18,8 @@ use InOtherShops\Agent\Tools\ListTags;
 use InOtherShops\Agent\Tools\Ping;
 use InOtherShops\Agent\Tools\ShowBrowsable;
 use InOtherShops\Agent\Tools\ShowOrder;
+use InOtherShops\Agent\Tools\UpdateCategory;
+use InOtherShops\Agent\Tools\UpdateTag;
 
 final class ToolRegistry
 {
@@ -34,6 +38,10 @@ final class ToolRegistry
         ShowBrowsable::class,
         ListCategories::class,
         ListTags::class,
+        CreateTag::class,
+        UpdateTag::class,
+        CreateCategory::class,
+        UpdateCategory::class,
         ListOrders::class,
         ShowOrder::class,
         GetStockLevel::class,

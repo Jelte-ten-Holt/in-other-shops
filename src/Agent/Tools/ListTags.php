@@ -21,6 +21,11 @@ final class ListTags extends AgentTool
         return 'List tags';
     }
 
+    public function annotations(): array
+    {
+        return ['readOnlyHint' => true];
+    }
+
     public function description(): string
     {
         return 'List tags with an optional type filter. Returns active tags only unless include_inactive is true. Tag types are project-defined free-form strings — typical conventions: a type per entity class the tag may be attached to ("content", "product"), or a display-behavior marker ("hidden_on_front", "featured"). To discover what types exist on this site, call without a filter and read the `type` field on each row.';
