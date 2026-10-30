@@ -41,6 +41,11 @@ final class ListStockLevels extends AgentTool
         return 'List stock levels';
     }
 
+    public function annotations(): array
+    {
+        return ['readOnlyHint' => true];
+    }
+
     public function description(): string
     {
         return 'Bulk availability readout for a browsable type. Returns slug, name, in_stock, and tracks_stock for each item from browseQuery(); admin callers additionally get the exact stock_level. low_threshold (restrict to items at or below a stock level, sorted most-urgent-first) is admin-only — it is a quantity oracle.';

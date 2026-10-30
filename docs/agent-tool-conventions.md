@@ -142,6 +142,9 @@ Codes are snake_case. Maintained as tools ship. Current codes:
 | `not_stockable` | Resolved model does not implement `HasStock` |
 | `published_row_refused` | Draft-only mutation attempted on a published row |
 | `invariant_refused` | Generic invariant rejection; prefer a specific code when one fits |
+| `forbidden` | The session is not admin-elevated and the tool requires it |
+| `slug_taken` | A create would reuse an existing slug |
+| `category_cycle` | A category move would put it under itself or one of its descendants |
 
 Add a new code by adding a row here. Don't reuse an existing code for a new meaning.
 
@@ -215,3 +218,4 @@ Add a new code by adding a row here. Don't reuse an existing code for a new mean
 7. `redactInput()` overridden if the input carries sensitive values.
 8. One feature test per meaningful path (happy, each negative branch, each thrown condition).
 9. Tool registered in `config('agent.tools')` of either the package or the consumer project.
+10. A tool that only reads overrides `annotations()` with `['readOnlyHint' => true]` (and joins the pinned list in `ToolAnnotationsTest`, or the consumer's equivalent). A tool that writes leaves it empty — an unannotated tool is prompted for, which is the safe default.

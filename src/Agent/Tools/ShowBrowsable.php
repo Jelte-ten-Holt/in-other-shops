@@ -27,6 +27,11 @@ final class ShowBrowsable extends AgentTool
         return 'Show browsable';
     }
 
+    public function annotations(): array
+    {
+        return ['readOnlyHint' => true];
+    }
+
     public function description(): string
     {
         return 'Fetch one storefront item (product, bundle, etc.) by type and slug.';

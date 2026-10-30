@@ -8,6 +8,7 @@ use Filament\Panel;
 use Filament\PanelProvider;
 use InOtherShops\Commerce\Filament\Resources\OrderResource;
 use InOtherShops\Purchasing\Filament\Resources\PurchaseOrderResource;
+use InOtherShops\Taxonomy\Filament\Resources\CategoryResource;
 
 /**
  * A bare default Filament panel for the tests that boot Filament (mix in
@@ -31,6 +32,7 @@ final class TestPanelProvider extends PanelProvider
                 // The package's own pages that carry behaviour of their own.
                 OrderResource::class,
                 PurchaseOrderResource::class,
+                CategoryResource::class,
             ]);
     }
 }

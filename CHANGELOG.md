@@ -8,6 +8,26 @@ The format is loosely [Keep a Changelog](https://keepachangelog.com/); the
 package is pre-1.0, so minor versions may carry breaking changes (all consumers
 are pre-launch — single-release-window policy, no deprecation bridges).
 
+## v0.73.0 — 2026-10-30
+
+- **Agent tools can create and edit tags and categories**: `create_tag`,
+  `update_tag`, `create_category`, `update_category`, admin-gated like
+  `adjust_stock`. Names and descriptions are locale maps, and create requires
+  the `translation.default` locale so nothing renders nameless. Slugs are set on
+  create and cannot be changed through the agent — they are public URLs with no
+  redirect. When a project declares `taxonomy.tag_types`, `create_tag` requires
+  the type to be stated and lists what each one means, because what an untyped
+  tag means is the project's. No delete tools.
+- **A category can no longer be moved under itself or one of its own
+  descendants.** `CategoryObserver::updating` throws `CategoryCycleException`
+  for any writer, and the admin parent select leaves those categories off the
+  menu. Before this, the admin allowed it, and a consumer that walks the tree
+  recursively would loop.
+- **Read-only agent tools carry `readOnlyHint`** in `tools/list`, so an MCP
+  client can stop asking permission for reads. Write tools stay unannotated,
+  which clients treat as possibly destructive. Consumers can mark their own read
+  tools by overriding `AgentTool::annotations()`.
+
 ## v0.72.1 — 2026-10-28
 
 - **`media.filename` is the uploader's name for the file**, as the Media README

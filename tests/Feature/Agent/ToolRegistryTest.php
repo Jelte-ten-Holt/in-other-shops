@@ -24,7 +24,7 @@ final class ToolRegistryTest extends TestCase
         $this->assertContains(Ping::class, $classes);
         $this->assertContains(AdjustStock::class, $classes);
         $this->assertContains(GetRecentProblems::class, $classes);
-        $this->assertCount(11, $classes);
+        $this->assertCount(15, $classes);
     }
 
     #[Test]
@@ -36,7 +36,7 @@ final class ToolRegistryTest extends TestCase
 
         $this->assertContains(Ping::class, $classes, 'Package tools must survive a consumer publishing its own config/agent.php.');
         $this->assertContains(FakeConsumerTool::class, $classes);
-        $this->assertCount(12, $classes);
+        $this->assertCount(16, $classes);
     }
 
     #[Test]

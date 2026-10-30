@@ -21,6 +21,11 @@ final class ListCategories extends AgentTool
         return 'List categories';
     }
 
+    public function annotations(): array
+    {
+        return ['readOnlyHint' => true];
+    }
+
     public function description(): string
     {
         return 'List root categories with their immediate children.';

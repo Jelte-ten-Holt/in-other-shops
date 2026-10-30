@@ -43,6 +43,11 @@ final class GetRecentProblems extends AgentTool
         return 'Get recent problems';
     }
 
+    public function annotations(): array
+    {
+        return ['readOnlyHint' => true];
+    }
+
     public function description(): string
     {
         return 'Admin only. Recent errors and shop activity from the domain log, grouped by message fingerprint with counts — the data behind the logging dashboard.';

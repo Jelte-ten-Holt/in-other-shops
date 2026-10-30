@@ -1,6 +1,6 @@
 # Agent Domain
 
-Bearer-gated MCP (Streamable HTTP) endpoint for locally-run Claude clients. Ships a `ToolRegistry`, library-adapter base class, audit log subscriber, ten generic shop tools (ping, catalog, taxonomy, orders, stock), and an admin-only logging-dashboard tool (`get_recent_problems` — grouped, sanitised `domain_logs` summaries). Consuming projects append their own tools via `config/agent.php`.
+Bearer-gated MCP (Streamable HTTP) endpoint for locally-run Claude clients. Ships a `ToolRegistry`, library-adapter base class, audit log subscriber, generic shop tools (ping, catalog, taxonomy reads and writes, orders, stock), and an admin-only logging-dashboard tool (`get_recent_problems` — grouped, sanitised `domain_logs` summaries). Consuming projects append their own tools via `config/agent.php`.
 
 **Writing a new tool? Read [docs/agent-tool-conventions.md](../../docs/agent-tool-conventions.md) first.** It defines the input, output, and error conventions every tool — package or project — must follow.
 
@@ -31,7 +31,7 @@ interface AgentToolContract
 
 ### Registry
 
-`ToolRegistry` is a singleton. Its class list is `ToolRegistry::PACKAGE_TOOLS` (the nine generic shop tools) concatenated with `config('agent.tools', [])` (the consumer's own tools). The package list is kept in PHP rather than in `config/agent.php` because `mergeConfigFrom` is a shallow array merge — a consumer that publishes a `config/agent.php` with its own `tools` key would otherwise wipe the package defaults silently. Consumers add to the list, they do not replace it.
+`ToolRegistry` is a singleton. Its class list is `ToolRegistry::PACKAGE_TOOLS` (the package's own tools) concatenated with `config('agent.tools', [])` (the consumer's own tools). The package list is kept in PHP rather than in `config/agent.php` because `mergeConfigFrom` is a shallow array merge — a consumer that publishes a `config/agent.php` with its own `tools` key would otherwise wipe the package defaults silently. Consumers add to the list, they do not replace it.
 
 ### Route
 

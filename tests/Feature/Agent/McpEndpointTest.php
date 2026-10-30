@@ -80,6 +80,22 @@ final class McpEndpointTest extends TestCase
     }
 
     #[Test]
+    public function tools_list_marks_read_tools_read_only_and_leaves_write_tools_unmarked(): void
+    {
+        // An unannotated tool is "possibly destructive" to an MCP client, so it
+        // is prompted for. The hint has to reach the wire for reads to skip it.
+        $body = $this->postJson('/mcp', $this->toolsListPayload(), [
+            'Authorization' => 'Bearer '.self::BEARER,
+        ])->assertStatus(200)->json();
+
+        $tools = collect($body['result']['tools'])->keyBy('name');
+
+        $this->assertTrue($tools['list_tags']['annotations']['readOnlyHint'] ?? false);
+        $this->assertArrayNotHasKey('readOnlyHint', $tools['create_tag']['annotations'] ?? []);
+        $this->assertArrayNotHasKey('readOnlyHint', $tools['adjust_stock']['annotations'] ?? []);
+    }
+
+    #[Test]
     public function it_returns_a_plain_www_authenticate_header_when_oauth_is_disabled(): void
     {
         $this->postJson('/mcp', $this->toolsListPayload())

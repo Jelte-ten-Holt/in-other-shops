@@ -28,6 +28,7 @@ use InOtherShops\Taxonomy\Actions\ListCategoriesInTreeOrder;
 use InOtherShops\Taxonomy\Actions\ListCategoryAttachments;
 use InOtherShops\Taxonomy\Filament\Resources\CategoryResource\Pages;
 use InOtherShops\Taxonomy\Models\Category;
+use InOtherShops\Taxonomy\Support\CategoryAncestry;
 use InOtherShops\Translation\Filament\TranslationSchema;
 
 final class CategoryResource extends PackageResource
@@ -41,6 +42,19 @@ final class CategoryResource extends PackageResource
     protected static function labelKey(): string
     {
         return 'shops-taxonomy::category';
+    }
+
+    /**
+     * Narrow a parent query to the categories this record may sit under: not
+     * itself, and none of its own descendants. A new record has neither.
+     */
+    public static function eligibleParents(Builder $query, ?Model $record): Builder
+    {
+        if ($record === null || ! $record->exists) {
+            return $query;
+        }
+
+        return $query->whereKeyNot(CategoryAncestry::descendants((int) $record->getKey(), CategoryAncestry::parentMap()));
     }
 
     public static function form(Schema $schema): Schema
@@ -64,7 +78,10 @@ final class CategoryResource extends PackageResource
                             ->unique(ignoreRecord: true),
                         Select::make('parent_id')
                             ->label(__('shops-taxonomy::category.fields.parent'))
-                            ->relationship('parent')
+                            // The record and its descendants are left off the menu:
+                            // CategoryObserver refuses a move that would make the tree
+                            // loop, and an editor should never reach that refusal.
+                            ->relationship('parent', modifyQueryUsing: fn (Builder $query, ?Model $record): Builder => static::eligibleParents($query, $record))
                             ->getOptionLabelFromRecordUsing(fn ($record) => $record->translated('name') ?? $record->slug)
                             ->searchable()
                             ->preload()
