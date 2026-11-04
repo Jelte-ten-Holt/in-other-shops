@@ -47,10 +47,10 @@ Middle band — depend only on leaves:
   Taxonomy ────── depends on Translation, Media (Category implements HasMedia for a cover image)
   Payment ─────── depends on Currency
   Tax ─────────── depends on Location
-  Inventory ───── soft-dep on Translation (HasLocaleGroup instanceof in AdjustStock) ⚠ drift — to remove via a SharesInventory contract
+  Inventory ───── soft-dep on Translation (HasLocaleGroup instanceof in Support\StockLocks, the shared-inventory group every stock writer locks) ⚠ drift — to remove via a SharesInventory contract. Reconcile asks a reservation's reference through HasOpenReservations rather than knowing what an order is, so Inventory stays below Commerce
 
 Shop core — one unit; moves together if ever split; internal coupling is expected, not drift:
-  Commerce ────── depends on Currency, Location, Payment, Pricing, Shipping, Tax, FlowChain (registers AddToCartChain); Inventory contracts + InsufficientStockException
+  Commerce ────── depends on Currency, Location, Payment, Pricing, Shipping, Tax, FlowChain (registers AddToCartChain); Inventory (actions, StockHold, Support\StockLocks, contracts, exceptions — the order's stock step and its reverse)
   Shipping ────── depends on Currency, Pricing (TaxBreakdownLine DTO in CalculateShipmentValue); hard-dep on Commerce (OrderLine in ShipmentItem, Order in CalculateShipmentValue) — cycle with Commerce, ACCEPTED within shop core. The Shippable-polymorphism fix is only needed if a non-order shipment use case appears (warehouse transfer, B2B sample, returns)
   Purchasing ──── depends on Inventory (AdjustStock action, StockMovementReason enum), Tax (TaxCategory enum), Pricing (TaxBreakdownLine DTO for the supplier invoice's per-rate summary)
   Tracking ────── depends on Commerce (CartItem/OrderLine via the Commerce registry; AddToCartPayload), FlowChain (AbstractFlowStep). Both attribution tables FK into Commerce tables, so it moves with the shop core

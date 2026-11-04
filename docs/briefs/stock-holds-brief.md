@@ -1,6 +1,8 @@
 # Brief — stock holds, and admin orders that take stock
 
-Status: **BUILD-READY** (draft 3, 2026-11-04). Decisions D1–D9 were settled with Jelte on 2026-11-04;
+Status: **BUILT on branch `feat/stock-holds`** (package, 2026-11-04) — not yet released; IOW's D12
+cleanup is its own PR (in-other-worlds #110); consumer PRs follow the release. §12 records the calls
+the build made where this brief was silent. Was: **BUILD-READY** (draft 3, 2026-11-04). Decisions D1–D9 were settled with Jelte on 2026-11-04;
 critique pass 1 the same day, against the package at v0.73.0 (main) and both consumers,
 produced D10–D15 (settled with Jelte) and the changes marked **Δ**; a fresh pathology
 review of §4.2 and §4.4 followed and produced the changes marked **Δ3** — above all
@@ -666,3 +668,56 @@ and `Halt` semantics, events landing inside the outer transaction, move vs
 order against `ConfirmOrder`, the expiry and expire-orders filters, Mark paid's
 synchronous confirm and after-commit mail, `isDeletable()` / `isFrozen()` /
 `hasReleasedStock()`, and both chains' single transaction.
+
+## 12. Build notes (2026-11-04)
+
+Where the brief was silent or a convention pulled another way, the build chose
+as below. Each is small and reversible; none reopens a D or a §8 lean.
+
+- **Reconcile seam — `HasOpenReservations`, and `staleReferences` instead of
+  `staleOrderIds`.** §4.5 has Inventory's ReconcileStock recognise "an existing
+  order with no payment row". Inventory knowing what an order is would make it
+  depend on Commerce (a cycle; CLAUDE.md's dependency graph). So Inventory asks
+  the reference: `HasOpenReservations::keepsReservationsOpen()` /
+  `reservationsOpenSince()`, implemented by `StockHold` and `Order`. The report
+  carries `staleHoldIds` (Inventory's own) and `staleReferences`
+  (`{type, id}`, e.g. `order#12`) rather than `staleOrderIds`. Behaviour is the
+  brief's; only the name and the seam differ.
+- **`AdjustHold`** names the hold editor's "set each product to N under the
+  lock" (§4.1 named no action). `Adjust` because it computes and applies a
+  signed delta; its target parameter is `$to`. Added to `verb-families.md`.
+- **`ReleaseReservation(reference:)`**, additive: §4.4's "takes the order number
+  from the `$order`" needs the release *movement* to carry the deleted order's
+  reference too, which only the caller still has.
+- **Exceptions:** `StockHoldReleasedException` (Inventory; a move on a released
+  hold, read under the hold-row lock) and `StockHoldChangedException`
+  (Commerce; §4.2 step 3's refusal).
+- **Support classes:** `Inventory\Support\StockLocks` is the lock order (hold
+  row; every stock item, sorted; extracted from AdjustStock, which uses it);
+  `Commerce\Order\Support\OrderStockDemand` is the one arithmetic — lines to
+  stockables, sorted, split between hold and stock — that the page shows and
+  ReserveOrderStock re-runs; `Commerce\Filament\OrderStockPreview` is the
+  page's read side.
+- **"The split shown" (§4.2 step 3)** is a snapshot of what the picked hold
+  holds, taken when it is picked or the lines change; each line's split is
+  shown from it and the save compares, per stock group, what came from the
+  hold against `min(demand, held as shown)`. A hold topped up beyond the lines
+  saves the split shown; a drained one refuses, and the page re-snapshots so
+  the next save goes through.
+- **D11 hint as an error even for a backorderable product.** D11 keys the hint
+  on main stock being short "not on a refusal, because a backorderable product
+  is never refused" — taken to mean the error shows for it too, so it blocks a
+  save that would otherwise backorder. Say if it should be a warning there.
+- **Lock conflicts** are recognised with Laravel's `ConcurrencyErrorDetector`
+  (40001, 1213, 1205). Inside the page's transaction a deadlock arrives as
+  `DeadlockException`, not `QueryException`; the page test caught it.
+- **Mark paid copy:** the holding-none sentence now says "this order holds no
+  stock" instead of "an order created here holds no stock" (no longer true in
+  general); en + es. Spanish uses *apartado* for a hold throughout — drafts
+  for Bianka.
+- **Not done here, flagged:** CLAUDE.md says an existing registry is stripped
+  when its domain gains a model. `StockHold` has no `models` key, as the rule
+  asks, but the `Inventory` registry and its three keys stay: stripping them
+  touches every Inventory callsite and both consumers' configs, which is its
+  own change.
+

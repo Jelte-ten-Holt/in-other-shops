@@ -50,6 +50,10 @@ Unique constraint on `[stockable_type, stockable_id]`.
 
 Indexes: `unique(reserve_movement_id)`, `(status, reserved_until)` for the expiry sweep.
 
+`stock_hold_id` (nullable FK) records the hold an order's reservation was moved from, so the order's cancel or delete gives the units back to that hold while it is open.
+
+**`StockHold`** — stock set aside for a reason ("Markt 15 Nov", "Kept for Ana") so it cannot sell online. `name`, `held_for` (optional day), `notes`, `released_at`. **It has no lines table:** its lines are the Pending, no-TTL reservations that reference it, summed when read. It never expires and ends only by `ReleaseHold`. Design: `docs/briefs/stock-holds-brief.md`.
+
 
 ### Enums
 
@@ -82,11 +86,16 @@ interface HasStock
 - **`ConfirmReservation`** — transitions all pending reservations for a given reference to `Confirmed`. **No new movement**; stock already decremented at reserve time. The original `Reserved` ledger entry stays untouched. Dispatches `ReservationConfirmed` per transition.
 - **`ReleaseReservation`** — releases a single reservation: appends a `+X Released` movement via `AdjustStock`, transitions the reservation `Pending|Confirmed → Released`, sets `release_movement_id`. Works for both Pending (timeout/payment-fail) and Confirmed (order-cancellation) reservations — Confirmed reservations also held stock; confirming only moved the lifecycle marker without touching the ledger. Locked select + `whereIn(status, [Pending, Confirmed])` guard makes it safe under concurrency. Dispatches `ReservationReleased` + `StockReleased`.
 - **`ReleaseExpiredReservations`** — finds pending reservations past `reserved_until` and invokes `ReleaseReservation` for each. Idempotent under concurrent workers.
+- **`AdjustHold`** — sets what a hold holds of a product to exactly N, reading what it holds now under the locks (an increase is one reserve, always refusing oversell; a reduction releases and re-reserves).
+- **`ReserveFromHold`** — the only way units leave a hold for a reference: release, reserve `min(needed, held)` for the reference (recording `stock_hold_id`), re-reserve the rest; returns the shortfall for main stock.
+- **`ReleaseHold`** — gives back everything a hold holds and stamps `released_at`; again is an idempotent sweep.
+
+**Lock order** (`Support\StockLocks`): every reservation actor takes the hold row first (when a hold is involved, reading `released_at` from the locked row), then **every stock item it will touch, sorted** by morph class and key, then reservation rows, then inserts. `ReleaseReservation` locks its stock item before its row. A shared-inventory locale group is one stock: a hold on one sibling is found from another.
 
 ### Commands
 
 - **`inventory:release-expired`** — runs `ReleaseExpiredReservations`. Scheduled every 5 minutes via the service provider.
-- **`inventory:reconcile`** — read-only tripwire. Reports (never repairs) three drift signals: a `stock_level` that no longer equals the sum of its movement ledger, pending reservations with no `reserved_until` (invisible to the expiry sweep), and pending reservations already past theirs. Exits non-zero on drift, logs a warning summary, and dispatches `InventoryDriftDetected`. **Scheduled daily by the package** under the same `inventory.schedule.enabled` switch as the expiry sweep; the cron lives at `inventory.schedule.reconcile` (default `0 3 * * *`). It writes nothing, so scheduling it is safe by construction — and leaving it to consumers meant neither scheduled it and the detection latency was infinite.
+- **`inventory:reconcile`** — read-only tripwire. A pending reservation with no `reserved_until` is not drift when its reference implements `HasOpenReservations` and says it is open (an open `StockHold`, an unpaid admin order); those held past `inventory.hold_warn_after_days` print as warnings and never change the exit code. Reports (never repairs) three drift signals: a `stock_level` that no longer equals the sum of its movement ledger, pending reservations with no `reserved_until` (invisible to the expiry sweep), and pending reservations already past theirs. Exits non-zero on drift, logs a warning summary, and dispatches `InventoryDriftDetected`. **Scheduled daily by the package** under the same `inventory.schedule.enabled` switch as the expiry sweep; the cron lives at `inventory.schedule.reconcile` (default `0 3 * * *`). It writes nothing, so scheduling it is safe by construction — and leaving it to consumers meant neither scheduled it and the detection latency was infinite.
 
 ### Events
 
