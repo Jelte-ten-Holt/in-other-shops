@@ -1,10 +1,11 @@
 # Brief — stock holds, and admin orders that take stock
 
-Status: **draft 2** (2026-11-04). Decisions D1–D9 were settled with Jelte on 2026-11-04;
+Status: **draft 3** (2026-11-04). Decisions D1–D9 were settled with Jelte on 2026-11-04;
 critique pass 1 the same day, against the package at v0.73.0 (main) and both consumers,
-produced D10–D15 (settled with Jelte) and the changes marked **Δ** below; §11 is the
-changelog. §8 holds what is still open, each with a lean. Next: build, in the order
-§10 gives. Nothing built.
+produced D10–D15 (settled with Jelte) and the changes marked **Δ**; a fresh pathology
+review of §4.2 and §4.4 followed and produced the changes marked **Δ3** — above all
+one lock order for every reservation actor. §11 is the changelog. §8 holds what is
+still open, each with a lean. Next: build, in the order §10 gives. Nothing built.
 
 This **reverses the 2026-10-27 ruling** that admin-created orders stay stock-neutral
 (`TODO.md` § Open, bianka `TODO.md`). That ruling asked for a hand procedure
@@ -91,6 +92,17 @@ corrected since draft 1.
   ones become savepoints and the dispatches land inside the outer one.
 - Only `InventoryLogSubscriber` listens to the stock events, in the package and
   in both consumers (re-grepped).
+- Δ3 **Isolation and locks.** Neither consumer sets `isolation_level`, so MySQL's
+  default REPEATABLE READ applies: a transaction's first consistent read fixes
+  its snapshot, only `FOR UPDATE` reads see the latest committed row, and a
+  `FOR UPDATE` range scan on a secondary index takes next-key locks — each
+  matched entry, the gap before it, and the gap after the last.
+  `ReleaseReservation`'s lock is a primary-key equality, a record lock with no
+  gap. `stock_reservations` is indexed on `stock_item_id`,
+  `(reference_type, reference_id)` and `(status, reserved_until)`; which index a
+  scan of a hold's rows uses is the optimizer's choice, so what it gap-locks is
+  data-dependent. bianka's panel transaction also wraps every Filament action
+  (`Panel::databaseTransactions()`); IOW's actions have none unless flagged.
 - Δ **IOW's order pages.** IOW subclasses the package `OrderResource` only to
   pin EUR (May 2026, before `currencyOptions()` read `currency.enabled` in
   v0.72.0). Because the package pages are final and name the package resource,
@@ -189,28 +201,73 @@ corrected since draft 1.
   reserves or releases the difference. An increase is one reserve; a reduction
   is release + re-reserve, three movements. The form never computes a delta.
   Every change is a ledger movement with a description naming the hold.
+- Δ3 **The hold row is the first lock.** Every hold actor — create, edit,
+  release, the move (§4.2), the move-back (§4.4) — takes the `stock_holds` row
+  `FOR UPDATE` before anything else and reads `released_at` from that locked
+  row. A consistent read of it inside a transaction is a snapshot and can say
+  "open" after Release has committed: without this lock a move-back could land
+  a Pending reservation on a released hold, stranding the units (not for sale,
+  on no order, no button to free them). The same lock serialises the editor's
+  zero-rows case, where two saves on a product the hold does not yet list would
+  each read zero and each insert.
+- Δ3 Both `StockHold` pages force `$hasDatabaseTransactions = true` and treat
+  `InsufficientStockException` as the order page does (§4.3): notification,
+  then `Halt` with rollback. Without it, on IOW, a refused second product leaves
+  a hold with only the first.
 - **Release** (`ReleaseHold`, a `Release*` modifier per `docs/verb-families.md`)
-  releases all the hold's Pending reservations and stamps `released_at`, Δ in
-  one transaction with the rows locked first, so a concurrent move cannot
-  interleave between rows. A released hold is read-only. Releasing twice is a
-  no-op.
+  releases whatever is still Pending for the hold and stamps `released_at`, Δ in
+  one transaction, Δ3 hold row first, then its stock items sorted, then the
+  rows (§4.2's order), so a concurrent move cannot interleave between rows. A
+  released hold is read-only. Δ3 Releasing again is an idempotent sweep, not a
+  no-op on the flag: the button stays available while any Pending row still
+  references the hold, which is also the repair for a row that reached a
+  released hold by a path this brief did not foresee (§4.5 names it an error).
 - Δ **Age** is measured from `held_for` when set, else from `created_at` (§4.5).
 
 ### 4.2 Moving units from a hold into an order — `ReserveFromHold`
 
 One package action, the only way units leave a hold for an order:
 
-1. In one transaction, lock the hold's Pending reservations for the stockable
-   (`lockForUpdate`), then let `AdjustStock` take the `stock_items` row lock —
-   **the same order `ReleaseReservation` locks in** (reservation row, then stock
-   item), so the two cannot deadlock each other.
-2. Release them, reserve `min(needed, held)` for the order, and re-reserve the
-   remainder for the hold. `stock_level` ends where it started; the ledger shows
-   release + two reserves, each described "Moved from hold {name} to order {n}".
-   Δ Both re-reserves pass `rejectOversell: false`: they move units, they claim
-   none, and on a product at negative stock the default would throw. The
-   reservation created for the order carries `stock_hold_id` (D10).
+1. Δ3 **One lock order, for every reservation actor**: (1) the hold row, when a
+   hold is involved; (2) every stock item the actor will touch, all of them up
+   front, sorted by morph class and key as `AdjustStock::orderForLocking()`
+   does; (3) reservation rows; (4) inserts. Draft 2 said "reservation row, then
+   stock item — the order `ReleaseReservation` locks in, so the two cannot
+   deadlock". That was wrong: a `FOR UPDATE` scan of a hold's rows takes gap
+   locks (§2); a concurrent checkout already holding the stock item then waits
+   on that gap to insert its own reservation, while the scan waits on the stock
+   item — a deadlock on exactly the last-piece race the mechanism exists for.
+   InnoDB kills one; no corruption, but the loser is a failed checkout or an
+   error dialog. Holding every stock item first closes it: anyone who can insert
+   into, or release from, a stock item's range must hold that stock item. For
+   that to be true of releasers too, `ReleaseReservation` adopts the same order
+   (it knows `stock_item_id` before it locks the row); release-expired, the
+   cancel listener, refund restock, `ReleaseHold` and `ReleaseOrderStock` then
+   all stack the same way, and the optimizer's index choice stops mattering.
+   `ConfirmReservation` never touches a stock item and is unchanged. Any actor
+   touching more than one stock item inside one transaction — the cancel
+   listener, `ReleaseHold`, `ReleaseOrderStock`, refund restock, this action —
+   locks them all first, sorted, never in reservation-row order (a pre-existing
+   cancel-vs-checkout deadlock, which the brief would otherwise have made
+   systematic).
+2. Lock the hold's Pending reservations for the stockable (`lockForUpdate`),
+   Δ3 and take *held* from that result set, never from a separate aggregate: a
+   consistent read inside the page transaction is a snapshot from before the
+   wait and would still show rows another move has since released. Release
+   them, reserve `min(needed, held)` for the order, and re-reserve the remainder
+   for the hold. `stock_level` ends where it started; the ledger shows release +
+   two reserves, each described "Moved from hold {name} to order {n}". Δ Both
+   re-reserves pass `rejectOversell: false`: they move units, they claim none,
+   and on a product at negative stock the default would throw. Δ3 Both pass
+   `expires: false` too, or the remainder goes back on sale 90 minutes later.
+   Δ3 The action asserts every `ReleaseReservation` it issued returned non-null.
+   The reservation created for the order carries `stock_hold_id` (D10).
 3. Return the shortfall to the caller, which reserves it from main stock (D5).
+   Δ3 The caller passes in the split the admin was shown; if the split under
+   the lock differs — the hold was drained or topped up between page load and
+   save — the save is refused (`Halt` with rollback, "the hold changed; review
+   the lines") rather than committing a split the admin never saw. Load-to-save
+   is the wide window; it re-validates.
 
 Δ Everything commits or rolls back together **because the actions nest**: each
 dispatches its events after its own `DB::transaction`, which inside this one is
@@ -218,16 +275,12 @@ a savepoint, so the log subscriber's rows roll back with it. The guarantee is
 the outer transaction's, not the actions'. No listener reacts to the transient
 `+N`, and no reader outside the transaction sees it.
 
-Δ **Lock order across stockables.** The argument in step 1 covers one
-stockable. An order with several lines holds the stock row of A while taking B,
-and checkout holds every row of a cart until its chain commits, in cart
-insertion order. Two writers taking rows A,B and B,A deadlock; InnoDB kills
-one, and the loser's checkout fails or the admin page rolls back. Possible
-between two checkouts today; an admin order is the writer most likely to carry
-several lines. So the Commerce action (§4.3) expands bundles first and then
-**sorts the stockables by morph class and key** — the order
-`AdjustStock::orderForLocking()` already uses for shared-inventory groups — and
-both `ReserveItems` steps adopt the same sort when Q1 moves them to the contract.
+Δ3 On IOW, a hold on one locale sibling of a shared-inventory group must be
+found for an order on another sibling: the picker (§4.3) and this action match
+reservations across the group's stock items — `AdjustStock::resolveTargets()`
+is the seam. Otherwise a DE order neither finds the EN hold nor gets the D11
+hint, and its main-stock reserve is refused on the shared level with no message
+naming the hold.
 
 ### 4.3 Creating an admin order
 
@@ -245,7 +298,9 @@ both `ReserveItems` steps adopt the same sort when Q1 moves them to the contract
   piece between validation and save — throws `InsufficientStockException`.
   Δ `afterCreate()` catches it, shows it as a danger notification, and throws
   Filament's `Halt` with rollback, so the request ends quietly with **nothing
-  created** instead of in Livewire's error dialog.
+  created** instead of in Livewire's error dialog. Δ3 A deadlock or lock-wait
+  `QueryException` (SQLSTATE 40001; errors 1213 and 1205) is caught the same
+  way, with "try again": nothing created, no error dialog.
 - The package's `CreateOrder` forces `$hasDatabaseTransactions = true`, so the
   order, its lines and its reservations commit together in both shops,
   whatever the panel setting. Δ IOW reaches this page after D12; nothing is
@@ -253,7 +308,8 @@ both `ReserveItems` steps adopt the same sort when Q1 moves them to the contract
 - The stock step runs in `afterCreate()` (lines are saved by then) through one
   Commerce action (`ReserveOrderStock`, §8 Q3) that walks the lines: a line
   with no item is skipped, a `tracksStock() === false` stockable is skipped, a
-  bundle line expands to components (§8 Q1), Δ the stockables are sorted (§4.2),
+  bundle line expands to components (§8 Q1), Δ the stockables are sorted and
+  Δ3 every stock item is locked first (§4.2),
   and main-stock reservations use `rejectOversell: ! allowsBackorder()`, as
   checkout does.
 - **Admin-order reservations have no expiry.** A bank transfer can take days;
@@ -288,14 +344,22 @@ both `ReserveItems` steps adopt the same sort when Q1 moves them to the contract
   after the move still gets the units back while it is open, and shows them.
   `SyncInventoryOnOrderStatusChange` calls it on the way to Cancelled instead
   of `ReleaseReservation` per row — identical for checkout orders, which carry
-  no hold id.
+  no hold id. Δ3 It takes the hold row first and locks all the order's stock
+  items sorted (§4.2), its move-back re-reserves with `expires: false`, and it
+  takes the order number from the `$order` it is handed: in the `deleted` hook
+  the row is gone, `$reservation->reference` resolves to null, and the release
+  movement would otherwise carry no reference.
 - **Deleting an unpaid admin order releases its stock** through the same action,
   in an `Order::deleted` hook (`deleted`, not `deleting`: a later `deleting`
   listener may still veto, and stock released for an order that survives would
   make its Mark paid fail). Δ The package `EditOrder` page's Delete action gains
   `->databaseTransaction()`, so on IOW, whose panel has none, the row and the
-  release commit together. If the release still fails, the reservation is
-  orphaned — §4.5 reports it the next morning.
+  release commit together. Δ3 Draft 2 had the failure case backwards: with that
+  transaction a release that fails rolls the delete back and shows the error —
+  nothing is orphaned, and the hook propagates rather than swallows. The orphan
+  case is the non-Filament path (tinker, a test, a future bulk action), where
+  the DELETE autocommits before the hook runs; `isDeletable()` is the only guard
+  there, and §4.5 reports what it leaves.
 
 ### 4.5 Reconcile and detection
 
@@ -314,6 +378,13 @@ both `ReserveItems` steps adopt the same sort when Q1 moves them to the contract
   them. No consumer constructs the report, so the constructor change is safe.
 - Everything else with no TTL stays an error — including a reservation whose
   order was deleted without releasing (§4.4).
+- Δ3 A Pending reservation referencing a **released** hold is an error too; the
+  hold-row lock (§4.1) is meant to make it impossible, and `ReleaseHold`'s sweep
+  is the repair.
+- Δ3 A refused admin order leaves no audit row: `StockReservationFailed` is
+  logged inside the transaction the `Halt` rolls back, as for a refused checkout.
+  Only the notification remains; a one-liner if "how often was a market sale
+  refused" ever matters.
 
 Δ The visible surface is on the panel: the stale badge on the Stock holds page
 (D7), and the same badge on the orders list for a Pending order that has held
@@ -341,6 +412,8 @@ S1). The reconcile report reaches the log, as today.
 |---|---|---|
 | `ReserveStock` | TTL always applied when omitted | `expires: false` gives a reservation with no TTL; default unchanged |
 | `ReleaseReservation` / `ReleaseHold` / `ReserveFromHold` / Δ `ReleaseOrderStock` | — | new movements described per hold; `ReservationReleased` / `StockReleased` / `ReservationCreated` fire during a move, and during a move back |
+| Δ3 `ReleaseReservation` lock order | reservation row, then stock item | stock item first, then the row — every releaser (release-expired, cancel listener, refund restock, hold actors) stacks like every reserver |
+| Δ3 `StockHold` pages | — | forced page transaction; `Halt` on a refused product |
 | `InventoryLogSubscriber` | logs checkout reservations | also logs hold and admin-order movements (more rows per market sale) |
 | `inventory:release-expired` | releases every overdue Pending | unchanged; never sees holds or admin orders (no TTL) |
 | `inventory:reconcile` / `InventoryDriftDetected` | no-TTL Pending = error | holds and admin orders exempt; Δ stale ones listed as warnings, exit 0, no event; orphans still errors |
@@ -430,10 +503,25 @@ contract if Q1 goes ahead.
 - IOW: a products-only admin manages holds; a content-only admin can't.
 - Δ Concurrency: "two concurrent moves serialise" needs two DB connections in
   one process and a lock-wait timeout, which nothing in the suite does today.
-  Replaced by: the lock order asserted on the query log (the reservation
-  `FOR UPDATE` precedes the stock-item one), and "a hold released before the
-  move yields zero; the line takes from stock and says so". A two-connection
-  harness, if ever wanted, is its own small piece of work (§9).
+  Replaced by the lock order asserted on the query log — Δ3 hold row, then the
+  stock items in sorted order, then the reservation rows, and no non-locking
+  read of `stock_reservations` between the lock and the reserve — for the move,
+  the move-back, `ReleaseHold` and `ReleaseReservation`; and Δ3 "the hold
+  changed between load and save: the save is refused, nothing created". A
+  two-connection harness, if ever wanted, is its own small piece of work (§9).
+- Δ3 After a partial move, neither the order's nor the remainder's reservation
+  has a TTL; `release-expired` leaves both.
+- Δ3 Saving notes on an order that holds stock succeeds through the Livewire
+  edit page (the disabled repeater is skipped, not refused) — no package or
+  consumer test drives an edit-page save of a frozen or holding order today.
+- Δ3 A hold create whose second product is refused leaves no hold and no
+  reservation, on a page without panel transactions.
+- Δ3 A deadlock `QueryException` in the order's stock step ends in a "try
+  again" notification with nothing created.
+- Δ3 Reconcile lists a Pending reservation on a released hold as an error;
+  `ReleaseHold` on that hold sweeps it.
+- Δ3 IOW: a hold on the EN edition is found and used by an order for the DE
+  edition of a shared-inventory group.
 
 ## 8. Open questions (leans in brackets)
 
@@ -478,7 +566,8 @@ contract if Q1 goes ahead.
 
 Δ About 4 days (draft 1 said 2; the hold editor, the return-to-hold path, the
 reconcile report, the Halt handling, the bundle contract across three repos and
-the policy rows were under-counted). In order:
+the policy rows were under-counted; Δ3 add half a day for `ReleaseReservation`'s
+lock-order change and its tests). In order:
 
 1. IOW's D12 cleanup, its own half-day PR, first — no package dependency, and it
    is what lets the package pages reach IOW.
@@ -524,3 +613,37 @@ draft 1 asked. Found and folded in:
 page-wide subquery, not a query per row; D10 applies to a hold that no longer
 lists the product; D12 brings the package edit page's `afterFill()` notices to
 IOW.
+
+**Draft 2 → draft 3 (pathology review of §4.2 and §4.4 by a fresh reviewer, 2026-11-04).**
+Ten findings, all folded in:
+
+- The move-back could land a Pending reservation on a released hold (no actor
+  locked the hold row; a consistent read of `released_at` is a snapshot) → the
+  hold row is every hold actor's first lock; `ReleaseHold` is an idempotent
+  sweep; reconcile names the case.
+- "Same order as `ReleaseReservation`, so no deadlock" ignored next-key locks: a
+  hold scan's gap lock vs a checkout's insert, each waiting on the other → one
+  lock order for every actor, stock items first and sorted, `ReleaseReservation`
+  included; a deadlock in the stock step ends in "try again".
+- The sort covered the reserve side only; multi-row releasers locked stock items
+  in row order (pre-existing cancel-vs-checkout, made systematic) → same rule.
+- "Held now" read outside the `FOR UPDATE` result set is a pre-wait snapshot →
+  taken from the locked rows; every release asserted non-null.
+- Hold pages had no forced transaction and no `Halt` → they do.
+- The split shown is not the split saved when the hold moved in between → the
+  shown split is passed in and a difference refuses the save.
+- `expires: false` unstated for the move's re-reserves and the move-back → stated.
+- The delete hook's failure sentence was backwards; `$reservation->reference` is
+  null once the row is gone → corrected; order number from the in-memory order.
+- Shared-inventory siblings on IOW: a hold on one edition invisible to an order
+  on another → matched across the group.
+- The refusal's audit row rolls back with the order → noted.
+
+Verified as holding by that review: D13's writer list (every Eloquent writer of
+`order_lines` runs before `ReserveItems` or on frozen orders; Filament skips a
+disabled relationship repeater on save), the `CreateRecord::create()` ordering
+and `Halt` semantics, events landing inside the outer transaction, move vs
+`ConfirmOrder` (an uncommitted order cannot be found), the cancel path's lock
+order against `ConfirmOrder`, the expiry and expire-orders filters, Mark paid's
+synchronous confirm and after-commit mail, `isDeletable()` / `isFrozen()` /
+`hasReleasedStock()`, and both chains' single transaction.
