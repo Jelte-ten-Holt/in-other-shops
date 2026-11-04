@@ -157,7 +157,7 @@ final class ReserveOrderStockTest extends TestCase
 
         $this->assertSame(0, $hold->heldQuantity($bowl));
         $this->assertSame(0, $hold->heldQuantity($cup));
-        $this->assertSame(3, StockReservation::query()->where('reference_type', 'order')->sum('quantity'));
+        $this->assertSame(3, (int) StockReservation::query()->where('reference_type', 'order')->sum('quantity'));
         $this->assertSame(4, $this->level($bowl));
         $this->assertSame(3, $this->level($cup));
     }
