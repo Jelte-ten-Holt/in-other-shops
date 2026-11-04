@@ -1,6 +1,6 @@
 # Brief — stock holds, and admin orders that take stock
 
-Status: **draft 3** (2026-11-04). Decisions D1–D9 were settled with Jelte on 2026-11-04;
+Status: **BUILD-READY** (draft 3, 2026-11-04). Decisions D1–D9 were settled with Jelte on 2026-11-04;
 critique pass 1 the same day, against the package at v0.73.0 (main) and both consumers,
 produced D10–D15 (settled with Jelte) and the changes marked **Δ**; a fresh pathology
 review of §4.2 and §4.4 followed and produced the changes marked **Δ3** — above all
@@ -11,6 +11,25 @@ This **reverses the 2026-10-27 ruling** that admin-created orders stay stock-neu
 (`TODO.md` § Open, bianka `TODO.md`). That ruling asked for a hand procedure
 (take the piece offline before a market, then record the sale); this brief
 replaces the hand procedure with the mechanism.
+
+**Hand-off — start here.** This brief is the build plan; there is no separate one.
+
+- It lives on the package's local `ride-along` branch only, not on main. Branch
+  the package PR from main and merge `ride-along` into it, so the brief lands
+  with the code (the ride-along convention).
+- Order (§10): (1) IOW's D12 cleanup, its own PR in in-other-worlds, needs
+  nothing from the package; (2) the package PR — one PR for all of §4–§6's
+  package side — then Jelte tags the release; (3) one PR per consumer against
+  the released package.
+- §8's leans are what gets built; a different ruling needs Jelte's word.
+- Conventions that apply: every new guard checked red on the old code first
+  (§7); the MySQL CI leg before tagging (§6); `docs/periphery.md` in all three
+  repos; every CI suite green before a push; `docs/verb-families.md` gets the
+  `Reserve*` line (Q3).
+- Keep clear of the books branches (`feat/books-*`, the other worktrees): a
+  parallel stream.
+- Update this Status line as milestones land (built on branch / released as
+  vX / consumers bumped), as the refund brief did.
 
 ## 1. Goal
 
