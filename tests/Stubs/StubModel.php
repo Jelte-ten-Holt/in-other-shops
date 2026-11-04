@@ -64,6 +64,8 @@ abstract class StubModel extends Model
             'test_taxonomized' => TestTaxonomized::class,
             'test_translatable' => TestTranslatable::class,
             'test_variantable' => TestVariantable::class,
+            'test_stockable_orderable' => TestStockableOrderable::class,
+            'test_stock_bundle' => TestStockBundle::class,
         ];
     }
 

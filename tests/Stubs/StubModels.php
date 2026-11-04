@@ -10,6 +10,8 @@ use InOtherShops\Commerce\Order\Contracts\HasOrders;
 use InOtherShops\Currency\Enums\Currency;
 use InOtherShops\Inventory\Concerns\InteractsWithStock;
 use InOtherShops\Inventory\Contracts\HasStock;
+use InOtherShops\Inventory\Contracts\HasStockComponents;
+use InOtherShops\Inventory\DTOs\StockComponent;
 use InOtherShops\Media\Concerns\InteractsWithMedia;
 use InOtherShops\Media\Contracts\HasMedia;
 use InOtherShops\Payment\Concerns\InteractsWithPayments;
@@ -490,5 +492,86 @@ final class TestEditable extends StubModel implements HasMedia, HasStock, HasTra
     public function tracksStock(): bool
     {
         return (bool) $this->tracks_stock;
+    }
+}
+
+/**
+ * `HasOrders`, `HasStock` — a product an admin order takes stock for (the
+ * stock-holds brief's order-page and ReserveOrderStock tests).
+ */
+final class TestStockableOrderable extends StubModel implements HasOrders, HasStock
+{
+    use InteractsWithStock;
+
+    protected $table = 'test_stockable_orderables';
+
+    public static function capabilities(): array
+    {
+        return ['identity', 'flatPrice', 'stock'];
+    }
+
+    public function tracksStock(): bool
+    {
+        return (bool) $this->tracks_stock;
+    }
+
+    public function toOrderLineData(string $currencyCode): array
+    {
+        return [
+            'description' => $this->name,
+            'sku' => null,
+            'currency' => $currencyCode,
+            'unit_price' => $this->unit_price ?? 0,
+        ];
+    }
+
+    public function availableCurrencies(): array
+    {
+        return [Currency::EUR->value];
+    }
+}
+
+/**
+ * `HasOrders`, `HasStockComponents` — a bundle: no stock of its own; its
+ * `components` column lists `{type, id, quantity}` of stockables.
+ */
+final class TestStockBundle extends StubModel implements HasOrders, HasStockComponents
+{
+    protected $table = 'test_stock_bundles';
+
+    public static function capabilities(): array
+    {
+        return ['identity', 'flatPrice', 'stockComponents'];
+    }
+
+    public function stockComponents(): array
+    {
+        $components = [];
+
+        foreach ($this->components ?? [] as $component) {
+            $class = \Illuminate\Database\Eloquent\Relations\Relation::getMorphedModel($component['type']);
+            $stockable = $class === null ? null : $class::query()->find($component['id']);
+
+            if ($stockable instanceof HasStock && $stockable->tracksStock()) {
+                $components[] = new StockComponent($stockable, (int) $component['quantity']);
+            }
+        }
+
+        return $components;
+    }
+
+    public function toOrderLineData(string $currencyCode): array
+    {
+        return [
+            'description' => $this->name,
+            'sku' => null,
+            'currency' => $currencyCode,
+            'unit_price' => $this->unit_price ?? 0,
+        ];
+    }
+
+    public function availableCurrencies(): array
+    {
+        return [Currency::EUR->value];
     }
 }

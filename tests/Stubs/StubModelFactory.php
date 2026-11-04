@@ -96,6 +96,7 @@ final class StubModelFactory extends Factory
             'shippability' => ['requires_shipping' => true],
             'purchasing' => ['sku' => strtoupper(fake()->bothify('??-####'))],
             'translations' => ['slug' => fake()->unique()->slug()],
+            'stockComponents' => ['components' => []],
             default => [],
         };
     }

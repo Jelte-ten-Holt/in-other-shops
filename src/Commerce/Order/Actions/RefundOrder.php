@@ -9,7 +9,10 @@ use InOtherShops\Commerce\Order\DTOs\RefundActor;
 use InOtherShops\Commerce\Order\Enums\OrderStatus;
 use InOtherShops\Commerce\Order\Models\Order;
 use InOtherShops\Commerce\Order\Models\Refund;
+use Illuminate\Support\Facades\DB;
 use InOtherShops\Inventory\Actions\ReleaseReservation;
+use InOtherShops\Inventory\Contracts\HasStock;
+use InOtherShops\Inventory\Support\StockLocks;
 use InOtherShops\Inventory\Enums\ReservationStatus;
 use InOtherShops\Inventory\Inventory;
 use InOtherShops\Inventory\Models\StockReservation;
@@ -121,9 +124,20 @@ final class RefundOrder
             );
         }
 
-        foreach ($reservations as $reservation) {
-            ($this->releaseReservation)($reservation, "Refund restock for order {$order->order_number}");
-        }
+        // Every stock item first, sorted, then the rows one by one (stock-holds
+        // brief §4.2): restocking several lines inside one transaction — the
+        // panel's, on bianka — must not lock them in row order.
+        DB::transaction(function () use ($order, $reservations): void {
+            StockLocks::lock($reservations
+                ->map(fn (StockReservation $reservation) => $reservation->stockItem?->stockable)
+                ->filter(fn ($stockable): bool => $stockable instanceof HasStock)
+                ->values()
+                ->all());
+
+            foreach ($reservations as $reservation) {
+                ($this->releaseReservation)($reservation, "Refund restock for order {$order->order_number}");
+            }
+        });
     }
 
     /**

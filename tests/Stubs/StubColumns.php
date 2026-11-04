@@ -46,6 +46,7 @@ final class StubColumns
             'payments' => ['total_due' => 'integer'],
             'taxCategory' => ['tax_category' => TaxCategory::class],
             'shippability' => ['requires_shipping' => 'boolean'],
+            'stockComponents' => ['components' => 'array'],
             default => [],
         };
     }
@@ -66,6 +67,7 @@ final class StubColumns
             'shippability' => $table->boolean('requires_shipping')->default(true),
             'purchasing' => $table->string('sku')->nullable(),
             'translations' => $table->string('slug'),
+            'stockComponents' => $table->json('components')->nullable(),
         };
     }
 

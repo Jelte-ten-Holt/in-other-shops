@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace InOtherShops\Tests\Feature\Commerce\Order;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use InOtherShops\Commerce\Order\Actions\ReleaseOrderStock;
 use InOtherShops\Commerce\Order\Actions\UpdateOrderStatus;
 use InOtherShops\Commerce\Order\Enums\OrderStatus;
 use InOtherShops\Commerce\Order\Events\OrderStatusChanged;
@@ -46,7 +47,7 @@ final class SyncInventoryOnOrderStatusChangeTest extends TestCase
         $this->reserve = new ReserveStock($adjust);
         $this->listener = new SyncInventoryOnOrderStatusChange(
             new ConfirmReservation,
-            new ReleaseReservation($adjust),
+            new ReleaseOrderStock(new ReleaseReservation($adjust), $this->reserve),
         );
         $this->updateOrderStatus = new UpdateOrderStatus;
     }

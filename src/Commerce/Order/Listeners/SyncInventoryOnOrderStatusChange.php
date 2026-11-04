@@ -4,13 +4,10 @@ declare(strict_types=1);
 
 namespace InOtherShops\Commerce\Order\Listeners;
 
+use InOtherShops\Commerce\Order\Actions\ReleaseOrderStock;
 use InOtherShops\Commerce\Order\Enums\OrderStatus;
 use InOtherShops\Commerce\Order\Events\OrderStatusChanged;
-use InOtherShops\Commerce\Order\Models\Order;
 use InOtherShops\Inventory\Actions\ConfirmReservation;
-use InOtherShops\Inventory\Actions\ReleaseReservation;
-use InOtherShops\Inventory\Enums\ReservationStatus;
-use InOtherShops\Inventory\Inventory;
 
 /**
  * Default OrderStatusChanged handler. Drives the inventory side-effects of
@@ -20,7 +17,11 @@ use InOtherShops\Inventory\Inventory;
  *
  * Transitions:
  * - Pending → Confirmed: confirms all pending reservations for the order.
- * - * → Cancelled:       releases all pending or confirmed reservations for the order.
+ * - * → Cancelled:       gives back all pending or confirmed reservations for the
+ *                        order through {@see ReleaseOrderStock}: units an admin
+ *                        order took from a hold that is still open go back to
+ *                        it (stock-holds brief D10); the rest are released —
+ *                        for a checkout order, all of them, as before.
  *
  * Both Inventory actions are status-guarded and lock-for-update, so running
  * alongside a consumer listener that also calls them (e.g. an existing
@@ -31,7 +32,7 @@ final class SyncInventoryOnOrderStatusChange
 {
     public function __construct(
         private readonly ConfirmReservation $confirmReservation,
-        private readonly ReleaseReservation $releaseReservation,
+        private readonly ReleaseOrderStock $releaseOrderStock,
     ) {}
 
     public function handle(OrderStatusChanged $event): void
@@ -46,22 +47,7 @@ final class SyncInventoryOnOrderStatusChange
         }
 
         if ($event->to === OrderStatus::Cancelled) {
-            $this->releaseReservationsFor($order);
-        }
-    }
-
-    private function releaseReservationsFor(Order $order): void
-    {
-        $model = Inventory::stockReservation();
-
-        $reservations = $model::query()
-            ->where('reference_type', $order->getMorphClass())
-            ->where('reference_id', $order->getKey())
-            ->whereIn('status', [ReservationStatus::Pending, ReservationStatus::Confirmed])
-            ->get();
-
-        foreach ($reservations as $reservation) {
-            ($this->releaseReservation)($reservation);
+            ($this->releaseOrderStock)($order);
         }
     }
 }
