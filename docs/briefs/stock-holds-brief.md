@@ -1,7 +1,8 @@
 # Brief — stock holds, and admin orders that take stock
 
-Status: **RELEASED as v0.74.0** (2026-11-04; package #39). IOW's D12 cleanup merged and live
-(in-other-worlds #110). Next: one PR per consumer against v0.74.0. §12 records the calls
+Status: **DONE — released as v0.74.0 and both consumers bumped** (2026-11-04). Package #39;
+in-other-worlds #110 (D12) and #111 (bump); bianka-shop-one #37 (bump). Open: the §12 rulings,
+and Bianka's review of the Spanish drafts. §12 records the calls
 the build made where this brief was silent. Was: **BUILD-READY** (draft 3, 2026-11-04). Decisions D1–D9 were settled with Jelte on 2026-11-04;
 critique pass 1 the same day, against the package at v0.73.0 (main) and both consumers,
 produced D10–D15 (settled with Jelte) and the changes marked **Δ**; a fresh pathology
