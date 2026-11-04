@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace InOtherShops\Inventory\Actions;
 
+use Illuminate\Database\Eloquent\Model;
+use InOtherShops\Inventory\Contracts\HasStock;
 use InOtherShops\Inventory\Enums\ReservationStatus;
 use InOtherShops\Inventory\Enums\StockMovementReason;
 use InOtherShops\Inventory\Events\ReservationReleased;
 use InOtherShops\Inventory\Events\StockReleased;
 use InOtherShops\Inventory\Inventory;
 use InOtherShops\Inventory\Models\StockReservation;
+use InOtherShops\Inventory\Support\StockLocks;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -37,6 +40,17 @@ use Illuminate\Support\Facades\DB;
  * pass the *reason* for releasing (e.g. "Payment failed for order …",
  * "Refund restock") so the audit trail records why the stock came back, not
  * the original reservation text. Defaults to the reservation's own description.
+ *
+ * An optional `$reference` overrides the release movement's reference. The
+ * order-deleted hook needs it: the order row is gone by then, so
+ * `$reservation->reference` resolves to null, but the in-memory order still
+ * knows its morph class and key.
+ *
+ * Lock order (stock-holds brief §4.2): the stock items of the reservation's
+ * group first, sorted ({@see StockLocks}), then the reservation row. The
+ * stock item is known before the row is locked — `stock_item_id` never
+ * changes — so every releaser stacks the same way as every reserver, and the
+ * optimizer's choice of index for the row lock stops mattering.
  */
 final class ReleaseReservation
 {
@@ -44,11 +58,21 @@ final class ReleaseReservation
         private readonly AdjustStock $adjustStock,
     ) {}
 
-    public function __invoke(StockReservation $reservation, ?string $description = null, bool $onlyIfExpired = false): ?StockReservation
-    {
-        $released = DB::transaction(
-            fn (): ?StockReservation => $this->release($reservation->getKey(), $description, $onlyIfExpired),
-        );
+    public function __invoke(
+        StockReservation $reservation,
+        ?string $description = null,
+        bool $onlyIfExpired = false,
+        ?Model $reference = null,
+    ): ?StockReservation {
+        $stockable = $this->stockableOf($reservation);
+
+        $released = DB::transaction(function () use ($reservation, $stockable, $description, $onlyIfExpired, $reference): ?StockReservation {
+            if ($stockable !== null) {
+                StockLocks::lock([$stockable]);
+            }
+
+            return $this->release($reservation->getKey(), $description, $onlyIfExpired, $reference);
+        });
 
         if ($released !== null) {
             ReservationReleased::dispatch($released);
@@ -58,7 +82,17 @@ final class ReleaseReservation
         return $released;
     }
 
-    private function release(int $reservationId, ?string $description, bool $onlyIfExpired): ?StockReservation
+    /**
+     * Read without a lock: which stockable a reservation holds never changes.
+     */
+    private function stockableOf(StockReservation $reservation): (Model&HasStock)|null
+    {
+        $stockable = Inventory::stockItem()::query()->find($reservation->stock_item_id)?->stockable;
+
+        return $stockable instanceof HasStock ? $stockable : null;
+    }
+
+    private function release(int $reservationId, ?string $description, bool $onlyIfExpired, ?Model $reference): ?StockReservation
     {
         $model = Inventory::stockReservation();
 
@@ -93,7 +127,7 @@ final class ReleaseReservation
             quantity: $reservation->quantity,
             reason: StockMovementReason::Released,
             description: $description ?? $reservation->description,
-            reference: $reservation->reference,
+            reference: $reference ?? $reservation->reference,
             source: $reservation->source,
         );
 

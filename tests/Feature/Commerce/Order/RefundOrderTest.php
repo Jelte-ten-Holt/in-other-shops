@@ -21,11 +21,13 @@ use InOtherShops\Payment\Models\Payment;
 use InOtherShops\Payment\PaymentGatewayManager;
 use InOtherShops\Payment\Testing\FakePaymentGateway;
 use InOtherShops\Tests\Stubs\TestStockable;
+use InOtherShops\Tests\Support\RecordsLockOrder;
 use InOtherShops\Tests\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 
 final class RefundOrderTest extends TestCase
 {
+    use RecordsLockOrder;
     use RefreshDatabase;
 
     private RefundOrder $refundOrder;
@@ -78,6 +80,30 @@ final class RefundOrderTest extends TestCase
         $this->assertSame(ReservationStatus::Released, $restock->fresh()->status);
         $this->assertSame(ReservationStatus::Pending, $keep->fresh()->status, 'unpicked reservation untouched');
         $this->assertSame(OrderStatus::Confirmed, $order->fresh()->status);
+    }
+
+    #[Test]
+    public function a_restock_of_several_lines_locks_all_their_stock_items_before_any_reservation(): void
+    {
+        // Stock-holds brief §4.2: an actor touching more than one stock item
+        // in one transaction locks them all first, sorted — never in
+        // reservation-row order, which deadlocks against a checkout holding
+        // the same items in the other order. Sequential: asserts the order.
+        $order = $this->confirmedOrder();
+        $this->paymentFor($order);
+        $first = $this->reservationFor($order, 2);
+        $second = $this->reservationFor($order, 3);
+
+        $this->recordLockOrder();
+        ($this->refundOrder)(
+            order: $order,
+            actor: RefundActor::admin('7'),
+            amount: 500,
+            restockReservationIds: [$first->id, $second->id],
+        );
+
+        $this->assertLocksTakenInOrder(['stock_items', 'stock_reservations']);
+        $this->assertSame(ReservationStatus::Released, $second->fresh()->status);
     }
 
     #[Test]

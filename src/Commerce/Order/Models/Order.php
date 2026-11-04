@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace InOtherShops\Commerce\Order\Models;
 
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -12,8 +13,10 @@ use Illuminate\Database\Eloquent\Relations\MorphMany;
 use InOtherShops\Commerce\Commerce;
 use InOtherShops\Commerce\Database\Factories\OrderFactory;
 use InOtherShops\Commerce\Exceptions\OrderFrozenException;
+use InOtherShops\Commerce\Order\Actions\ReleaseOrderStock;
 use InOtherShops\Commerce\Order\Enums\OrderStatus;
 use InOtherShops\Currency\Enums\Currency;
+use InOtherShops\Inventory\Contracts\HasOpenReservations;
 use InOtherShops\Inventory\Enums\ReservationStatus;
 use InOtherShops\Inventory\Inventory;
 use InOtherShops\Location\Concerns\InteractsWithAddresses;
@@ -27,7 +30,7 @@ use InOtherShops\Shipping\Concerns\InteractsWithShipment;
 use InOtherShops\Shipping\Contracts\HasShipment;
 use InOtherShops\Shipping\Enums\ShipmentStatus;
 
-class Order extends Model implements HasAddresses, HasPayments, HasShipment
+class Order extends Model implements HasAddresses, HasOpenReservations, HasPayments, HasShipment
 {
     use HasFactory;
     use InteractsWithAddresses;
@@ -73,6 +76,17 @@ class Order extends Model implements HasAddresses, HasPayments, HasShipment
             if ($order->isFrozen()) {
                 throw OrderFrozenException::deletion($order);
             }
+        });
+
+        // Deleting an unpaid order gives its stock back (stock-holds brief
+        // §4.4) — to the hold it came from while that hold is open. `deleted`,
+        // not `deleting`: a later `deleting` listener may still veto, and stock
+        // released for an order that survives would make its Mark paid fail.
+        // The package edit page's Delete runs in a transaction, so a release
+        // that fails rolls the delete back; a delete outside one (tinker, a
+        // test) has committed by now, and reconcile reports what it leaves.
+        static::deleted(function (Order $order): void {
+            app(ReleaseOrderStock::class)($order, "Order {$order->order_number} deleted");
         });
     }
 
@@ -150,6 +164,23 @@ class Order extends Model implements HasAddresses, HasPayments, HasShipment
                 ->doesntExist();
     }
 
+    /**
+     * An order with no payment row was created in the admin (the definition
+     * ExpireAbandonedOrders uses): its reservations carry no TTL while it waits
+     * for a bank transfer, and reconcile treats them as legitimate rather than
+     * orphaned (stock-holds brief §4.5). A checkout order always has a payment
+     * row, and its reservations always a TTL.
+     */
+    public function keepsReservationsOpen(): bool
+    {
+        return $this->payments()->doesntExist();
+    }
+
+    public function reservationsOpenSince(): CarbonInterface
+    {
+        return $this->created_at;
+    }
+
     public function getPaymentTotalDue(): int
     {
         return (int) $this->total;
@@ -184,6 +215,20 @@ class Order extends Model implements HasAddresses, HasPayments, HasShipment
             ->where('reference_type', $this->getMorphClass())
             ->where('reference_id', $this->getKey())
             ->where('status', ReservationStatus::Released)
+            ->exists();
+    }
+
+    /**
+     * Whether stock is held for this order: any of its reservations is Pending
+     * or Confirmed. Its lines are locked while it does (stock-holds brief D6,
+     * D13), and the Mark paid modal says its stock is confirmed by the payment.
+     */
+    public function holdsStock(): bool
+    {
+        return Inventory::stockReservation()::query()
+            ->where('reference_type', $this->getMorphClass())
+            ->where('reference_id', $this->getKey())
+            ->whereIn('status', [ReservationStatus::Pending, ReservationStatus::Confirmed])
             ->exists();
     }
 

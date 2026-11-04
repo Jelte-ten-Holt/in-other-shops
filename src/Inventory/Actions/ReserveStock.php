@@ -15,6 +15,7 @@ use InOtherShops\Inventory\Models\StockReservation;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
+use InvalidArgumentException;
 
 final class ReserveStock
 {
@@ -30,9 +31,10 @@ final class ReserveStock
         ?string $source = null,
         ?CarbonInterface $reservedUntil = null,
         bool $rejectOversell = true,
+        bool $expires = true,
     ): StockReservation {
         $quantity = abs($quantity);
-        $reservedUntil = $this->resolveReservedUntil($reservedUntil);
+        $reservedUntil = $this->resolveReservedUntil($reservedUntil, $expires);
 
         $reservation = DB::transaction(
             fn (): StockReservation => $this->reserve($stockable, $quantity, $description, $reference, $source, $reservedUntil, $rejectOversell),
@@ -53,9 +55,23 @@ final class ReserveStock
      * explicit `reservedUntil` always wins; setting the config to `null` is the
      * deliberate opt-out for a permanent hold (still surfaced by
      * `inventory:reconcile`).
+     *
+     * `expires: false` asks for a reservation with no TTL whatever the config
+     * says: a stock hold, or an admin order waiting days for a bank transfer
+     * (stock-holds brief §4.3). Reconcile exempts those through the reference
+     * ({@see \InOtherShops\Inventory\Contracts\HasOpenReservations}). Passing a
+     * `reservedUntil` as well is a contradiction in the call, so it throws.
      */
-    private function resolveReservedUntil(?CarbonInterface $reservedUntil): ?CarbonInterface
+    private function resolveReservedUntil(?CarbonInterface $reservedUntil, bool $expires): ?CarbonInterface
     {
+        if (! $expires) {
+            if ($reservedUntil !== null) {
+                throw new InvalidArgumentException('A reservation that does not expire cannot carry a reservedUntil.');
+            }
+
+            return null;
+        }
+
         if ($reservedUntil !== null) {
             return $reservedUntil;
         }

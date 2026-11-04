@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace InOtherShops\Inventory\Commands;
 
 use InOtherShops\Inventory\Actions\ReconcileStock;
+use InOtherShops\Inventory\DTOs\StockReconciliationReport;
+use InOtherShops\Inventory\Inventory;
+use InOtherShops\Inventory\Models\StockHold;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 
@@ -12,8 +15,9 @@ use Illuminate\Support\Facades\Log;
  * Read-only inventory tripwire (F18 / G9 / T6). Reports — never repairs — stock
  * drift and orphaned reservations, and exits non-zero when any is found so a
  * scheduled run surfaces the problem to monitoring instead of letting it rot.
- * Not auto-scheduled: consumers wire it into their own scheduler + alerting (the
- * package doesn't know where a given consumer routes alerts).
+ * The package schedules it (daily, `inventory.schedule.reconcile`); consumers
+ * route alerts by listening to InventoryDriftDetected. Stale holds and unpaid
+ * admin orders print as warnings and never change the exit code.
  */
 final class ReconcileStockCommand extends Command
 {
@@ -24,6 +28,10 @@ final class ReconcileStockCommand extends Command
     public function handle(ReconcileStock $reconcile): int
     {
         $report = $reconcile();
+
+        // Stale holds and admin orders are warnings, printed whatever else the
+        // report says; they never change the exit code (stock-holds brief D15).
+        $this->printWarnings($report);
 
         if ($report->isClean()) {
             $this->info('Inventory reconciled clean: every stock level matches its ledger and no reservations are orphaned.');
@@ -46,7 +54,7 @@ final class ReconcileStockCommand extends Command
         }
 
         if ($report->nullTtlPendingReservationIds !== []) {
-            $this->error(count($report->nullTtlPendingReservationIds).' pending reservation(s) have no TTL (invisible to the expiry cron): '
+            $this->error(count($report->nullTtlPendingReservationIds).' pending reservation(s) have no TTL and belong to no open hold or unpaid order (invisible to the expiry cron): '
                 .implode(', ', $report->nullTtlPendingReservationIds));
         }
 
@@ -62,5 +70,24 @@ final class ReconcileStockCommand extends Command
         ]);
 
         return self::FAILURE;
+    }
+
+    private function printWarnings(StockReconciliationReport $report): void
+    {
+        $days = Inventory::holdWarnAfterDays();
+
+        if ($report->staleHoldIds !== []) {
+            $names = StockHold::query()->whereKey($report->staleHoldIds)->orderBy('id')->get()
+                ->map(fn (StockHold $hold): string => "{$hold->name} (#{$hold->getKey()})")
+                ->implode(', ');
+
+            $this->warn(count($report->staleHoldIds)." stock hold(s) open more than {$days} days past their day — release them if they are done: {$names}");
+        }
+
+        if ($report->staleReferences !== []) {
+            $references = implode(', ', array_map(fn (array $reference): string => "{$reference['type']}#{$reference['id']}", $report->staleReferences));
+
+            $this->warn(count($report->staleReferences)." unpaid record(s) holding stock for more than {$days} days: {$references}");
+        }
     }
 }

@@ -9,6 +9,7 @@ use InOtherShops\Inventory\Commands\ReconcileStockCommand;
 use InOtherShops\Inventory\Commands\ReleaseExpiredReservationsCommand;
 use InOtherShops\Inventory\Filament\StockMovementsTable;
 use InOtherShops\Inventory\Listeners\InventoryLogSubscriber;
+use InOtherShops\Inventory\Models\StockHold;
 use InOtherShops\Support\DomainServiceProvider;
 use Livewire\Livewire;
 
@@ -25,6 +26,7 @@ final class InventoryServiceProvider extends DomainServiceProvider
             'stock_item' => Inventory::stockItem(),
             'stock_movement' => Inventory::stockMovement(),
             'stock_reservation' => Inventory::stockReservation(),
+            'stock_hold' => StockHold::class,
         ];
     }
 

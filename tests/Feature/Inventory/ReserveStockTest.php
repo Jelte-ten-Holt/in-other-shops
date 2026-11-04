@@ -133,6 +133,39 @@ final class ReserveStockTest extends TestCase
         $this->assertNull($reservation->reserved_until);
     }
 
+    #[Test]
+    public function a_reservation_that_does_not_expire_has_no_ttl_whatever_the_config_says(): void
+    {
+        // Holds and admin orders (stock-holds brief §4.3): a bank transfer can
+        // take days, so the configured 90 minutes would put the piece back on
+        // sale and make "Mark paid" hit StockUnavailable.
+        config(['inventory.reservation_ttl' => 30]);
+        $stockable = $this->stockableWithLevel(10);
+
+        $reservation = ($this->reserve)($stockable, quantity: 1, expires: false);
+        $reservation->refresh();
+
+        $this->assertNull($reservation->reserved_until);
+        $this->assertSame(9, $stockable->stockItem()->first()->stock_level);
+    }
+
+    #[Test]
+    public function an_explicit_reserved_until_on_a_reservation_that_does_not_expire_is_refused_without_writing(): void
+    {
+        $stockable = $this->stockableWithLevel(10);
+
+        try {
+            ($this->reserve)($stockable, quantity: 1, reservedUntil: now()->addHour(), expires: false);
+            $this->fail('A reservedUntil with expires: false must be refused.');
+        } catch (\InvalidArgumentException) {
+            // expected
+        }
+
+        $this->assertSame(0, StockReservation::query()->count());
+        $this->assertSame(0, StockMovement::query()->count());
+        $this->assertSame(10, $stockable->stockItem()->first()->stock_level);
+    }
+
     private function stockableWithLevel(int $level): TestStockable
     {
         $stockable = TestStockable::factory()->create();

@@ -22,9 +22,11 @@ use Throwable;
  * could confirm an order whose stock was already gone).
  *
  * An abandoned order is a checkout that opened a payment and never completed
- * it. An order with no payment row at all was created in the admin: it holds
- * no stock and is waiting for a bank transfer, so it is left for "Mark paid"
- * (RecordManualPayment) or a manual cancel.
+ * it. An order with no payment row at all was created in the admin: it is
+ * waiting for a bank transfer, so it is left for "Mark paid"
+ * (RecordManualPayment) or a manual cancel. Since stock holds it may hold
+ * stock, with no TTL on purpose (stock-holds brief §4.3); the orders list
+ * badges it once it has held that stock past `inventory.hold_warn_after_days`.
  *
  * For each abandoned order, in two phases:
  *  1. (no lock held) re-check it is still Pending and unpaid, then cancel its
@@ -90,8 +92,8 @@ final class ExpireAbandonedOrders
     {
         // Only an order that opened a payment: every checkout order does, in
         // the same transaction that creates it. An order created in the admin
-        // has none and holds no stock; it waits for "Mark paid" or a manual
-        // cancel, however long a bank transfer takes.
+        // has none (it may hold stock, with no TTL); it waits for "Mark paid"
+        // or a manual cancel, however long a bank transfer takes.
         return Commerce::order()::query()
             ->where('status', OrderStatus::Pending->value)
             ->where('created_at', '<', $cutoff)

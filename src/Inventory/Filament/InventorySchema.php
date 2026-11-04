@@ -8,11 +8,16 @@ use InOtherShops\Inventory\Actions\AdjustStock;
 use InOtherShops\Inventory\Contracts\HasStock;
 use InOtherShops\Inventory\Enums\StockMovementReason;
 use Filament\Actions\Action;
+use Filament\Facades\Filament;
+use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Section;
 use Filament\Support\Enums\Width;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\HtmlString;
+use InOtherShops\Inventory\Filament\Resources\StockHoldResource;
+use InOtherShops\Inventory\Models\StockHold;
 
 final class InventorySchema
 {
@@ -28,6 +33,7 @@ final class InventorySchema
                 ->numeric()
                 ->default(0)
                 ->visibleOn('edit'),
+            self::heldLine(),
             TextInput::make('_stock.low_stock_threshold')
                 ->label(__('shops-inventory::stock.fields.low_stock_threshold'))
                 ->numeric()
@@ -59,6 +65,43 @@ final class InventorySchema
             ->headerActions([
                 self::viewMovementsAction(),
             ]);
+    }
+
+    /**
+     * "Held: 3 (Markt 15 Nov: 2, Kept for Ana: 1)" — the open holds keeping
+     * this product off sale, each linking to its hold when the Stock holds page
+     * is in the panel (stock-holds brief D7). Read when shown, never stored.
+     */
+    private static function heldLine(): Placeholder
+    {
+        return Placeholder::make('_stock.held')
+            ->label(__('shops-inventory::stock.fields.held'))
+            ->content(fn (?Model $record): ?HtmlString => $record instanceof HasStock ? self::heldSummary($record) : null)
+            ->visible(fn (?Model $record): bool => $record instanceof HasStock && StockHold::holding($record) !== []);
+    }
+
+    private static function heldSummary(Model&HasStock $record): ?HtmlString
+    {
+        $holding = StockHold::holding($record);
+
+        if ($holding === []) {
+            return null;
+        }
+
+        $linked = in_array(StockHoldResource::class, Filament::getCurrentPanel()?->getResources() ?? [], true);
+
+        $holds = array_map(function (array $held) use ($linked): string {
+            $label = e($held['hold']->name).': '.$held['quantity'];
+
+            return $linked
+                ? '<a href="'.e(StockHoldResource::getUrl('edit', ['record' => $held['hold']])).'" class="underline">'.$label.'</a>'
+                : $label;
+        }, $holding);
+
+        return new HtmlString(__('shops-inventory::stock.fields.held_summary', [
+            'total' => array_sum(array_column($holding, 'quantity')),
+            'holds' => implode(', ', $holds),
+        ]));
     }
 
     private static function viewMovementsAction(): Action

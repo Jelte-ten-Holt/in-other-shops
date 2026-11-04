@@ -36,6 +36,22 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Stale holds
+    |--------------------------------------------------------------------------
+    |
+    | Days a stock hold may stay open past its day (`held_for`, else its
+    | creation), and an unpaid admin order may hold stock past its creation,
+    | before it is flagged: a badge on the Stock holds page and the orders
+    | list, and a warning line in `inventory:reconcile`. A warning only — it
+    | never counts as drift, never fails the nightly run and never fires
+    | InventoryDriftDetected.
+    |
+    */
+
+    'hold_warn_after_days' => env('INVENTORY_HOLD_WARN_AFTER_DAYS', 7),
+
+    /*
+    |--------------------------------------------------------------------------
     | Scheduled Commands
     |--------------------------------------------------------------------------
     |

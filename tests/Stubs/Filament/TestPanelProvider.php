@@ -7,6 +7,7 @@ namespace InOtherShops\Tests\Stubs\Filament;
 use Filament\Panel;
 use Filament\PanelProvider;
 use InOtherShops\Commerce\Filament\Resources\OrderResource;
+use InOtherShops\Inventory\Filament\Resources\StockHoldResource;
 use InOtherShops\Purchasing\Filament\Resources\PurchaseOrderResource;
 use InOtherShops\Taxonomy\Filament\Resources\CategoryResource;
 
@@ -33,6 +34,7 @@ final class TestPanelProvider extends PanelProvider
                 OrderResource::class,
                 PurchaseOrderResource::class,
                 CategoryResource::class,
+                StockHoldResource::class,
             ]);
     }
 }

@@ -13,6 +13,7 @@ use InOtherShops\Inventory\Enums\StockMovementReason;
 use InOtherShops\Inventory\Models\StockItem;
 use InOtherShops\Inventory\Models\StockMovement;
 use InOtherShops\Tests\Stubs\TestStockable;
+use InOtherShops\Tests\Support\RecordsLockOrder;
 use InOtherShops\Tests\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 
@@ -24,6 +25,7 @@ use PHPUnit\Framework\Attributes\Test;
  */
 final class ReleaseReservationTest extends TestCase
 {
+    use RecordsLockOrder;
     use RefreshDatabase;
 
     private ReserveStock $reserve;
@@ -68,6 +70,51 @@ final class ReleaseReservationTest extends TestCase
         ($this->release)($reservation);
 
         $this->assertSame('Checkout reservation for order XYZ', $this->latestReleaseMovement()->description);
+    }
+
+    #[Test]
+    public function it_locks_the_stock_item_before_the_reservation_row(): void
+    {
+        // One lock order for every reservation actor (stock-holds brief §4.2):
+        // a releaser that locked its row first could deadlock against a
+        // checkout already holding the stock item and inserting into the same
+        // index range. Sequential — this asserts the order, not contention.
+        $reservation = ($this->reserve)($this->stockableWithLevel(10), quantity: 3);
+
+        $this->recordLockOrder();
+        ($this->release)($reservation);
+
+        $this->assertLocksTakenInOrder(['stock_items', 'stock_reservations']);
+    }
+
+    #[Test]
+    public function an_explicit_reference_rides_on_the_release_movement_when_the_reserved_for_row_is_gone(): void
+    {
+        // The order-deleted hook releases after the order row is gone, when
+        // $reservation->reference resolves to null; the caller hands the
+        // in-memory model so the movement still says which order it was.
+        $order = TestStockable::factory()->create();
+        $reservation = ($this->reserve)($this->stockableWithLevel(10), quantity: 3, reference: $order);
+        $order->delete();
+
+        ($this->release)($reservation->fresh(), reference: $order);
+
+        $movement = $this->latestReleaseMovement();
+        $this->assertSame($order->getMorphClass(), $movement->reference_type);
+        $this->assertSame($order->getKey(), (int) $movement->reference_id);
+    }
+
+    #[Test]
+    public function without_an_explicit_reference_the_release_movement_takes_the_reservations(): void
+    {
+        $order = TestStockable::factory()->create();
+        $reservation = ($this->reserve)($this->stockableWithLevel(10), quantity: 3, reference: $order);
+
+        ($this->release)($reservation);
+
+        $movement = $this->latestReleaseMovement();
+        $this->assertSame($order->getMorphClass(), $movement->reference_type);
+        $this->assertSame($order->getKey(), (int) $movement->reference_id);
     }
 
     private function latestReleaseMovement(): StockMovement

@@ -53,10 +53,12 @@ Current actions: `CreatePrice`, `UpdatePrice`, `DeletePrice`, `ResolvePrice`, `C
 
 - `Adjust` is the primitive every other verb builds on (the FOR UPDATE lock lives in `AdjustStock`).
 - `Reserve` / `Confirm` / `Release` move reservations through their lifecycle.
-- Permitted: `Release*` modifiers like `ReleaseExpiredReservations` for batch variants.
+- Permitted: `Release*` modifiers like `ReleaseExpiredReservations` for batch variants, and `ReleaseHold` (gives back everything a stock hold holds and ends it).
+- Permitted: `Reserve*` modifiers that reserve *from* somewhere other than main stock — `ReserveFromHold` moves units from a stock hold to a reference (stock-holds brief §8 Q3).
+- Permitted: `Adjust*` for a hold brought to a target quantity — `AdjustHold` reads what the hold holds under the lock and applies the difference as Reserve/Release movements. The caller passes the target, never a delta; the action computes the signed delta itself, which is what `Adjust` means here.
 - Banned: `Decrement`, `Increment`, `Subtract`, `Add` — they describe the math, not the domain operation. Use `Adjust` with a signed delta.
 
-Current actions: `AdjustStock`, `ReserveStock`, `ConfirmReservation`, `ReleaseReservation`, `ReleaseExpiredReservations`. ✅ Compliant.
+Current actions: `AdjustStock`, `ReserveStock`, `ConfirmReservation`, `ReleaseReservation`, `ReleaseExpiredReservations`, `AdjustHold`, `ReserveFromHold`, `ReleaseHold`. ✅ Compliant.
 
 ### Taxonomy
 
@@ -149,7 +151,9 @@ Open question (not blocking): should `UpdateOrderStatus` become `TransitionOrder
 
 Defaulting to **leave as-is** — the validation is still there, the verb still says what it does, and renaming touches every callsite. Revisit if Order grows more state-machine actions (e.g. `CancelOrder`, `RefundOrder`).
 
-Current actions: `CreateOrder`, `UpdateOrderStatus`. ✅ Compliant (modulo open question).
+- `ReserveOrderStock` / `ReleaseOrderStock` — an admin order's stock step and its reverse (stock-holds brief §8 Q3). They borrow Inventory's reserved verbs because that is what they do, for an order's lines: `Reserve` moves available stock (or a hold's) to the order, `Release` gives it back (to the hold it came from while that hold is open).
+
+Current actions: `CreateOrder`, `UpdateOrderStatus`, `ReserveOrderStock`, `ReleaseOrderStock`. ✅ Compliant (modulo open question).
 
 ### Variants
 

@@ -34,7 +34,11 @@ final class EditOrder extends PackageEditRecord
             static::refundAndCancelAction(),
             // D4/M3: only a fresh Pending, payment-less order is deletable —
             // deleting a paid order destroys the record of money that moved.
+            // In a transaction (stock-holds brief §4.4): the order's `deleted`
+            // hook gives its stock back, and a release that fails must roll
+            // the delete back, on a panel without transactions too.
             Actions\DeleteAction::make()
+                ->databaseTransaction()
                 ->hidden(fn (Order $record): bool => ! $record->isDeletable()),
         ];
     }
@@ -90,7 +94,12 @@ final class EditOrder extends PackageEditRecord
             ->icon('heroicon-o-banknotes')
             ->color('success')
             ->visible(fn (Order $record): bool => $record->acceptsManualPayment())
-            ->modalDescription(__('shops-commerce::orders.actions.mark_paid_modal'))
+            // An order holding stock is told the payment confirms it; one
+            // holding none (don't take stock, or older than stock holds) keeps
+            // the sentence that its stock is not adjusted.
+            ->modalDescription(fn (Order $record): string => $record->holdsStock()
+                ? __('shops-commerce::orders.actions.mark_paid_modal_holding_stock')
+                : __('shops-commerce::orders.actions.mark_paid_modal'))
             ->form([
                 ClaimedDay::picker('paid_on')
                     ->label(__('shops-commerce::orders.fields.paid_on'))

@@ -9,11 +9,14 @@ use Illuminate\Console\Scheduling\Schedule;
 use Orchestra\Testbench\Attributes\DefineEnvironment;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
+use InOtherShops\Inventory\Actions\AdjustHold;
 use InOtherShops\Inventory\Actions\AdjustStock;
+use InOtherShops\Inventory\Actions\ReserveStock;
 use InOtherShops\Inventory\Actions\ReconcileStock;
 use InOtherShops\Inventory\Enums\ReservationStatus;
 use InOtherShops\Inventory\Enums\StockMovementReason;
 use InOtherShops\Inventory\Events\InventoryDriftDetected;
+use InOtherShops\Inventory\Models\StockHold;
 use InOtherShops\Inventory\Models\StockReservation;
 use InOtherShops\Tests\Stubs\TestStockable;
 use InOtherShops\Tests\TestCase;
@@ -128,6 +131,74 @@ final class ReconcileStockTest extends TestCase
         $report = app(ReconcileStock::class)();
 
         $this->assertTrue($report->isClean());
+    }
+
+    #[Test]
+    public function an_open_holds_reservations_are_not_errors(): void
+    {
+        $widget = TestStockable::factory()->create();
+        app(AdjustStock::class)($widget, 5, StockMovementReason::Received);
+        app(AdjustHold::class)(StockHold::factory()->create(), $widget, 2);
+
+        $report = app(ReconcileStock::class)();
+
+        $this->assertTrue($report->isClean());
+        $this->assertSame([], $report->staleHoldIds);
+    }
+
+    #[Test]
+    public function a_hold_open_past_its_day_is_a_warning_not_drift(): void
+    {
+        // D15: stale is a panel badge and a warning line — never a dirty
+        // report, a failed nightly run or InventoryDriftDetected.
+        Event::fake([InventoryDriftDetected::class]);
+        $this->travelTo('2026-11-20 12:00:00');
+        $widget = TestStockable::factory()->create();
+        app(AdjustStock::class)($widget, 5, StockMovementReason::Received);
+        $hold = StockHold::factory()->create(['name' => 'Markt 1 Nov', 'held_for' => '2026-11-01']);
+        app(AdjustHold::class)($hold, $widget, 2);
+
+        $report = app(ReconcileStock::class)();
+
+        $this->assertSame([$hold->id], $report->staleHoldIds);
+        $this->assertTrue($report->isClean());
+        Event::assertNotDispatched(InventoryDriftDetected::class);
+        $this->artisan('inventory:reconcile')
+            ->expectsOutputToContain('Markt 1 Nov')
+            ->assertExitCode(0);
+    }
+
+    #[Test]
+    public function a_hold_is_aged_from_the_day_it_is_held_for_not_from_when_it_was_made(): void
+    {
+        // "Markt 15 Nov" made on 1 Nov is not flagged a week before the market.
+        $this->travelTo('2026-11-01 09:00:00');
+        $widget = TestStockable::factory()->create();
+        app(AdjustStock::class)($widget, 5, StockMovementReason::Received);
+        $market = StockHold::factory()->create(['held_for' => '2026-11-15']);
+        $kept = StockHold::factory()->create(['held_for' => null]);
+        app(AdjustHold::class)($market, $widget, 1);
+        app(AdjustHold::class)($kept, $widget, 1);
+
+        $this->travelTo('2026-11-12 09:00:00');
+        $report = app(ReconcileStock::class)();
+
+        $this->assertSame([$kept->id], $report->staleHoldIds, 'The hold with no day ages from its creation.');
+    }
+
+    #[Test]
+    public function a_pending_reservation_on_a_released_hold_is_an_error(): void
+    {
+        $widget = TestStockable::factory()->create();
+        app(AdjustStock::class)($widget, 5, StockMovementReason::Received);
+        $hold = StockHold::factory()->released()->create();
+        $stray = app(ReserveStock::class)($widget, 1, reference: $hold, expires: false);
+
+        $report = app(ReconcileStock::class)();
+
+        $this->assertFalse($report->isClean());
+        $this->assertSame([$stray->id], $report->nullTtlPendingReservationIds);
+        $this->assertSame([], $report->staleHoldIds);
     }
 
     #[Test]

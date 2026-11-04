@@ -8,6 +8,43 @@ The format is loosely [Keep a Changelog](https://keepachangelog.com/); the
 package is pre-1.0, so minor versions may carry breaking changes (all consumers
 are pre-launch — single-release-window policy, no deprecation bridges).
 
+## Unreleased — stock holds, and admin orders that take stock
+
+Design: `docs/briefs/stock-holds-brief.md` (§12 records where the build chose).
+
+- **Admin-created orders take stock.** The order Create page asks where the
+  stock comes from: main stock (the default), a stock hold, or nowhere (for an
+  order whose stock was already corrected by hand). Each line shows its split
+  before saving; a line main stock cannot cover is a field error, and one that
+  open holds hold names them. A lost race, a hold that changed since its split
+  was shown, or a lock conflict creates nothing and says so. Admin-order
+  reservations never expire; Mark paid and *Update status → Confirmed* confirm
+  them as before. This reverses the 2026-10-27 stock-neutral lean.
+- **Stock holds**: a new Stock holds page (`StockHoldResource`, Inventory nav
+  group) sets stock aside for a reason — "Markt 15 Nov" — so it cannot sell
+  online. A hold never expires; Release gives everything back. The product's
+  stock section says "Held: 3 (Markt 15 Nov: 2, …)".
+- **Units go back where they came from**: cancelling or deleting an order that
+  took units from a hold returns them to that hold while it is open
+  (`ReleaseOrderStock`, used by the status listener and a new `Order::deleted`
+  hook). The order edit page's Delete now runs in a transaction.
+- **An order's lines lock while it holds stock** — admin and checkout orders
+  alike (`OrderHoldsStockException`); delete and recreate to change them.
+- **One lock order for every reservation actor** (`Inventory\Support\StockLocks`):
+  `ReleaseReservation` locks its stock item before its row, and refund restock
+  locks every stock item first.
+- **`inventory:reconcile`** exempts open holds' and unpaid admin orders'
+  reservations (`HasOpenReservations`) and prints those held past
+  `inventory.hold_warn_after_days` (new, default 7) as warnings — exit 0. The
+  orders list badges such an order.
+- **Additive API:** `ReserveStock(expires:)`, `ReleaseReservation(reference:)`,
+  `HasStockComponents` (bundles), `CommerceSchema::orderLinesRepeater(extraLineFields:)`.
+- **Migrations:** `stock_holds`; `stock_reservations.stock_hold_id`.
+- **Consumers on bump:** add `hold_warn_after_days` to `config/inventory.php`;
+  register `StockHoldResource` and map `StockHold` to a policy; implement
+  `HasStockComponents` on `Bundle` and switch checkout `ReserveItems` to it,
+  sorted with `StockLocks::sorted()`.
+
 ## v0.73.0 — 2026-10-30
 
 - **Agent tools can create and edit tags and categories**: `create_tag`,
