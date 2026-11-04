@@ -12,7 +12,7 @@ use InOtherShops\Inventory\Events\ReservationReleased;
 use InOtherShops\Inventory\Events\StockReleased;
 use InOtherShops\Inventory\Inventory;
 use InOtherShops\Inventory\Models\StockReservation;
-use InOtherShops\Inventory\Support\StockItemLocks;
+use InOtherShops\Inventory\Support\StockLocks;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -47,7 +47,7 @@ use Illuminate\Support\Facades\DB;
  * knows its morph class and key.
  *
  * Lock order (stock-holds brief §4.2): the stock items of the reservation's
- * group first, sorted ({@see StockItemLocks}), then the reservation row. The
+ * group first, sorted ({@see StockLocks}), then the reservation row. The
  * stock item is known before the row is locked — `stock_item_id` never
  * changes — so every releaser stacks the same way as every reserver, and the
  * optimizer's choice of index for the row lock stops mattering.
@@ -68,7 +68,7 @@ final class ReleaseReservation
 
         $released = DB::transaction(function () use ($reservation, $stockable, $description, $onlyIfExpired, $reference): ?StockReservation {
             if ($stockable !== null) {
-                StockItemLocks::lock([$stockable]);
+                StockLocks::lock([$stockable]);
             }
 
             return $this->release($reservation->getKey(), $description, $onlyIfExpired, $reference);

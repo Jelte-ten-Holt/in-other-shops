@@ -52,4 +52,13 @@ class StockReservation extends Model
     {
         return $this->morphTo();
     }
+
+    /**
+     * The hold an order's reservation was moved from (stock-holds brief D10);
+     * null on every other reservation, a hold's own included.
+     */
+    public function stockHold(): BelongsTo
+    {
+        return $this->belongsTo(StockHold::class);
+    }
 }

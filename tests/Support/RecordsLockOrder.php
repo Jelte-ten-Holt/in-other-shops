@@ -71,7 +71,7 @@ trait RecordsLockOrder
     /**
      * Assert the first lock on each table comes in the given table order, and
      * that no plain read of `stock_reservations` falls between its lock and the
-     * first insert (a consistent read there is a pre-wait snapshot).
+     * first reservation insert (a consistent read there is a pre-wait snapshot).
      *
      * @param  list<string>  $expected  tables in the order their first lock must appear
      */
@@ -102,7 +102,7 @@ trait RecordsLockOrder
         }
 
         foreach (array_slice($order, $reservationLock) as $entry) {
-            if (str_starts_with($entry, 'insert:')) {
+            if ($entry === 'insert:stock_reservations') {
                 break;
             }
 

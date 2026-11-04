@@ -27,4 +27,13 @@ final class Inventory
     {
         return config('inventory.models.stock_reservation', StockReservation::class);
     }
+
+    /**
+     * Days an open hold, or an unpaid admin order, may hold stock past its
+     * day before it is flagged (stock-holds brief §4.5, D15).
+     */
+    public static function holdWarnAfterDays(): int
+    {
+        return (int) config('inventory.hold_warn_after_days', 7);
+    }
 }

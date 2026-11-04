@@ -8,6 +8,8 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\UniqueConstraintViolationException;
 use InOtherShops\Inventory\Contracts\HasStock;
 use InOtherShops\Inventory\DTOs\Stock;
+use InOtherShops\Inventory\Exceptions\StockHoldReleasedException;
+use InOtherShops\Inventory\Models\StockHold;
 use InOtherShops\Inventory\Models\StockItem;
 use InOtherShops\Translation\Contracts\HasLocaleGroup;
 
@@ -28,8 +30,30 @@ use InOtherShops\Translation\Contracts\HasLocaleGroup;
  * item (AdjustStock writes the whole group), so "the stock items it touches"
  * means the group's, and the group is also what a hold is matched across.
  */
-final class StockItemLocks
+final class StockLocks
 {
+    /**
+     * Step (1): take the hold row `FOR UPDATE` and read `released_at` from the
+     * locked row. A consistent read of it inside a transaction is a snapshot
+     * and can still say "open" after a Release committed; without the lock a
+     * move-back could land a Pending reservation on a released hold, stranding
+     * the units. The same lock serialises two saves of one hold.
+     *
+     * With `$mustBeOpen` (every actor but ReleaseHold's sweep) a released hold
+     * is refused.
+     */
+    public static function lockHold(StockHold $hold, bool $mustBeOpen = true): StockHold
+    {
+        /** @var StockHold $locked */
+        $locked = StockHold::query()->whereKey($hold->getKey())->lockForUpdate()->firstOrFail();
+
+        if ($mustBeOpen && $locked->isReleased()) {
+            throw StockHoldReleasedException::for($locked);
+        }
+
+        return $locked;
+    }
+
     /**
      * Lock the stock items of every given stockable's group, in the global
      * order. Re-locking a row this transaction already holds is a no-op, so
