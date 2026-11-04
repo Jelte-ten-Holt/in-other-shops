@@ -8,9 +8,10 @@ The format is loosely [Keep a Changelog](https://keepachangelog.com/); the
 package is pre-1.0, so minor versions may carry breaking changes (all consumers
 are pre-launch — single-release-window policy, no deprecation bridges).
 
-## Unreleased — stock holds, and admin orders that take stock
+## v0.74.0 — 2026-11-04
 
-Design: `docs/briefs/stock-holds-brief.md` (§12 records where the build chose).
+Stock holds, and admin orders that take stock. Design:
+`docs/briefs/stock-holds-brief.md` (§12 records where the build chose).
 
 - **Admin-created orders take stock.** The order Create page asks where the
   stock comes from: main stock (the default), a stock hold, or nowhere (for an

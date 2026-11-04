@@ -1,7 +1,7 @@
 # Brief — stock holds, and admin orders that take stock
 
-Status: **BUILT on branch `feat/stock-holds`** (package, 2026-11-04) — not yet released; IOW's D12
-cleanup is its own PR (in-other-worlds #110); consumer PRs follow the release. §12 records the calls
+Status: **RELEASED as v0.74.0** (2026-11-04; package #39). IOW's D12 cleanup merged and live
+(in-other-worlds #110). Next: one PR per consumer against v0.74.0. §12 records the calls
 the build made where this brief was silent. Was: **BUILD-READY** (draft 3, 2026-11-04). Decisions D1–D9 were settled with Jelte on 2026-11-04;
 critique pass 1 the same day, against the package at v0.73.0 (main) and both consumers,
 produced D10–D15 (settled with Jelte) and the changes marked **Δ**; a fresh pathology
