@@ -40,6 +40,10 @@ return [
     'columns' => [
         'refund' => 'Reembolso',
         'shipping' => 'Envío',
+        'stock' => 'Stock',
+    ],
+    'stock_state' => [
+        'stale' => 'Con stock reservado desde hace :days días',
     ],
     'placeholders' => [
         'guest' => 'Invitado',
@@ -55,7 +59,8 @@ return [
         'refund_and_cancel' => 'Reembolsar y cancelar pedido',
         'refund_and_cancel_modal' => 'Reembolsa el saldo restante completo, cancela el pedido y libera todo el stock reservado.',
         'mark_paid' => 'Marcar como pagado',
-        'mark_paid_modal' => 'Registra un pago del total completo, recibido fuera del pago con tarjeta (una transferencia bancaria), en el día que indiques. El pedido se trata entonces como si se hubiera pagado con tarjeta: se confirma y el cliente recibe la confirmación del pedido. Después ya no se pueden cambiar sus precios, líneas ni direcciones. El stock no se ajusta: un pedido creado aquí no reserva existencias, así que mantén tú la disponibilidad de las piezas.',
+        'mark_paid_modal' => 'Registra un pago del total completo, recibido fuera del pago con tarjeta (una transferencia bancaria), en el día que indiques. El pedido se trata entonces como si se hubiera pagado con tarjeta: se confirma y el cliente recibe la confirmación del pedido. Después ya no se pueden cambiar sus precios, líneas ni direcciones. El stock no se ajusta: este pedido no reserva existencias, así que mantén tú la disponibilidad de las piezas.',
+        'mark_paid_modal_holding_stock' => 'Registra un pago del total completo, recibido fuera del pago con tarjeta (una transferencia bancaria), en el día que indiques. El pedido se trata entonces como si se hubiera pagado con tarjeta: se confirma y el cliente recibe la confirmación del pedido. Después ya no se pueden cambiar sus precios, líneas ni direcciones. El stock que tiene reservado se confirma con el pago.',
     ],
     'notifications' => [
         'fully_refunded_title' => 'Este pedido está totalmente reembolsado',
@@ -70,5 +75,38 @@ return [
         'frozen_body' => 'Sus precios, líneas y direcciones son el registro de la venta y ya no se pueden cambiar.',
         'status_updated' => 'Estado del pedido actualizado a :status',
         'status_refused' => 'No se ha cambiado el estado',
+    ],
+    'stock' => [
+        'mode' => 'Stock',
+        'modes' => [
+            'stock' => 'Tomar del stock',
+            'hold' => 'Tomar de un apartado',
+            'none' => 'No tomar stock',
+            'none_help' => 'Para un pedido cuyo stock ya se corrigió a mano.',
+        ],
+        'hold' => 'Apartado',
+        'split' => [
+            'label' => 'Stock',
+            'from_hold' => ':count de :hold',
+            'from_stock' => ':count del stock',
+            'backordered' => ':count bajo pedido',
+            'component' => ':item: :split',
+        ],
+        'errors' => [
+            'short' => 'Solo hay :available en stock.',
+            'short_held' => ':available en stock; :held — elige «Tomar de un apartado».',
+            'held_in' => ':count apartado(s) en :hold',
+            'short_after_hold' => ':from_hold de :hold; solo hay :available en stock para el resto.',
+        ],
+        'lines_locked' => 'Este pedido tiene stock reservado para sus líneas, así que están bloqueadas. Para cambiarlas, borra el pedido y créalo de nuevo.',
+        'held_summary' => 'Stock reservado',
+        'held_line' => ':count × :item (:source)',
+        'from_stock' => 'del stock',
+        'from_hold' => 'de :hold',
+        'notifications' => [
+            'refused' => 'Pedido no creado',
+            'try_again' => 'Otra persona estaba cambiando el mismo stock. No se ha creado nada: inténtalo de nuevo.',
+            'hold_missing' => 'El apartado ya no existe.',
+        ],
     ],
 ];

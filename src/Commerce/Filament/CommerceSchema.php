@@ -30,10 +30,12 @@ final class CommerceSchema
      * here. Mirrors {@see \InOtherShops\Purchasing\Filament\PurchasingSchema}.
      *
      * @param  array<string, string>  $currencyOptions  Fallback options for the currency select when no orderable is selected
+     * @param  array<Component>  $extraLineFields  appended to each line, e.g. the order page's stock split
      */
     public static function orderLinesRepeater(
         string $relationship = 'lines',
         array $currencyOptions = [],
+        array $extraLineFields = [],
     ): Repeater {
         return Repeater::make($relationship)
             ->relationship()
@@ -44,7 +46,7 @@ final class CommerceSchema
 
                 return $data;
             })
-            ->schema(self::orderLineFields($currencyOptions))
+            ->schema([...self::orderLineFields($currencyOptions), ...$extraLineFields])
             ->columns(2);
     }
 

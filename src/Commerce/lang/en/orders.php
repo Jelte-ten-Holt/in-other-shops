@@ -41,6 +41,10 @@ return [
     'columns' => [
         'refund' => 'Refund',
         'shipping' => 'Shipping',
+        'stock' => 'Stock',
+    ],
+    'stock_state' => [
+        'stale' => 'Holding stock :days days',
     ],
     'placeholders' => [
         'guest' => 'Guest',
@@ -56,7 +60,8 @@ return [
         'refund_and_cancel' => 'Refund & cancel order',
         'refund_and_cancel_modal' => 'Refunds the full remaining balance, cancels the order, and releases all its reserved stock.',
         'mark_paid' => 'Mark paid',
-        'mark_paid_modal' => 'Records a payment of the full total, received outside the card checkout (a bank transfer), on the day you give. The order is then handled as if paid by card: it is confirmed and the customer is sent the order confirmation. Its prices, lines and addresses can no longer be changed afterwards. Stock is not adjusted: an order created here holds no stock, so keep the pieces\' availability right yourself.',
+        'mark_paid_modal' => 'Records a payment of the full total, received outside the card checkout (a bank transfer), on the day you give. The order is then handled as if paid by card: it is confirmed and the customer is sent the order confirmation. Its prices, lines and addresses can no longer be changed afterwards. Stock is not adjusted: this order holds no stock, so keep the pieces\' availability right yourself.',
+        'mark_paid_modal_holding_stock' => 'Records a payment of the full total, received outside the card checkout (a bank transfer), on the day you give. The order is then handled as if paid by card: it is confirmed and the customer is sent the order confirmation. Its prices, lines and addresses can no longer be changed afterwards. The stock it holds is confirmed with the payment.',
     ],
     'notifications' => [
         'fully_refunded_title' => 'This order is fully refunded',
@@ -71,5 +76,38 @@ return [
         'frozen_body' => 'Its prices, lines and addresses are the record of the sale and can no longer be changed.',
         'status_updated' => 'Order status updated to :status',
         'status_refused' => 'Status not changed',
+    ],
+    'stock' => [
+        'mode' => 'Stock',
+        'modes' => [
+            'stock' => 'Take from stock',
+            'hold' => 'Take from a hold',
+            'none' => 'Don\'t take stock',
+            'none_help' => 'For an order whose stock was already corrected by hand.',
+        ],
+        'hold' => 'Hold',
+        'split' => [
+            'label' => 'Stock',
+            'from_hold' => ':count from :hold',
+            'from_stock' => ':count from stock',
+            'backordered' => ':count backordered',
+            'component' => ':item: :split',
+        ],
+        'errors' => [
+            'short' => 'Only :available in stock.',
+            'short_held' => ':available in stock; :held — choose “Take from a hold”.',
+            'held_in' => ':count held in :hold',
+            'short_after_hold' => ':from_hold from :hold; only :available in stock for the rest.',
+        ],
+        'lines_locked' => 'This order holds stock for its lines, so they are locked. To change them, delete the order and create it again.',
+        'held_summary' => 'Stock held',
+        'held_line' => ':count × :item (:source)',
+        'from_stock' => 'from stock',
+        'from_hold' => 'from :hold',
+        'notifications' => [
+            'refused' => 'Order not created',
+            'try_again' => 'Someone else was changing the same stock. Nothing was created — try again.',
+            'hold_missing' => 'The hold no longer exists.',
+        ],
     ],
 ];
