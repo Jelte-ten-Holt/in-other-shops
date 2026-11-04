@@ -284,6 +284,8 @@ both `ReserveItems` steps adopt the same sort when Q1 moves them to the contract
   (§8 Q3), that both the cancel path and the delete path call: a reservation
   whose `stock_hold_id` names an open hold is moved back to it (the §4.2 dance
   in reverse, same locks, same order); any other reservation is released (D10).
+  The rule is *open hold, same product*: a hold edited to zero of that product
+  after the move still gets the units back while it is open, and shows them.
   `SyncInventoryOnOrderStatusChange` calls it on the way to Cancelled instead
   of `ReleaseReservation` per row — identical for checkout orders, which carry
   no hold id.
@@ -316,7 +318,10 @@ both `ReserveItems` steps adopt the same sort when Q1 moves them to the contract
 Δ The visible surface is on the panel: the stale badge on the Stock holds page
 (D7), and the same badge on the orders list for a Pending order that has held
 stock past the threshold — a bank transfer that never came shows up where
-orders are looked at. The reconcile report reaches the log, as today.
+orders are looked at. The badge is computed page-wide, a subquery in
+`modifyQueryUsing` for the oldest Pending reservation referencing each order,
+as the refund column's aggregate is — never a query per row (2026-09-07 audit
+S1). The reconcile report reaches the log, as today.
 
 ### 4.6 Admin surfaces
 
@@ -378,7 +383,10 @@ contract if Q1 goes ahead.
   unlisted); register the package `OrderResource` in `AdminPanelProvider`;
   point `tests/Feature/Filament/Resources/OrderResource/EditOrderTest.php` at
   the package page; check that the pricing schema, the supplier form and the
-  Storefront provider now offer EUR only, which is the intended state.
+  Storefront provider now offer EUR only, which is the intended state. IOW's
+  edit page then also shows the package page's `afterFill()` notices (frozen
+  order; refunded but not cancelled), which its copy had skipped on purpose —
+  wanted, but new.
 - `Bundle` implements the bundle contract, and (if Q1 says so) each
   `ReserveItems` step switches to it, Δ sorted as §4.2.
 - `docs/periphery.md` in all three repos.
@@ -511,3 +519,8 @@ draft 1 asked. Found and folded in:
   refusal that names the holds → D11.
 - Question raised and dropped: the orders/products permission asymmetry. At IOW
   orders implies products by convention → D14.
+
+**Draft 2 amendment (self re-read, 2026-11-04):** the orders-list badge is a
+page-wide subquery, not a query per row; D10 applies to a hold that no longer
+lists the product; D12 brings the package edit page's `afterFill()` notices to
+IOW.
