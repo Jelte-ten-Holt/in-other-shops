@@ -102,9 +102,7 @@ final class RefundOrderTest extends TestCase
             restockReservationIds: [$first->id, $second->id],
         );
 
-        $order = $this->recordedLockOrder();
-        $beforeFirstRow = array_slice($order, 0, (int) array_search('lock:stock_reservations', $order, true));
-        $this->assertGreaterThanOrEqual(2, count(array_keys($beforeFirstRow, 'lock:stock_items', true)), 'Both stock items locked before the first reservation row. Recorded: '.implode(', ', $order));
+        $this->assertLocksTakenInOrder(['stock_items', 'stock_reservations']);
         $this->assertSame(ReservationStatus::Released, $second->fresh()->status);
     }
 

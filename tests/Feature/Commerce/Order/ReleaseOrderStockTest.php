@@ -110,6 +110,26 @@ final class ReleaseOrderStockTest extends TestCase
         $this->assertLocksTakenInOrder(['stock_holds', 'stock_items', 'stock_reservations']);
     }
 
+    #[Test]
+    public function an_order_of_two_products_locks_both_stock_items_before_any_row(): void
+    {
+        $bowl = $this->stockable(5);
+        $cup = $this->stockable(5);
+        $hold = StockHold::factory()->create(['name' => 'Markt']);
+        app(AdjustHold::class)($hold, $bowl, 1);
+        app(AdjustHold::class)($hold, $cup, 1);
+        $order = Order::factory()->create(['status' => OrderStatus::Pending, 'order_number' => 'ORD-9']);
+        app(ReserveFromHold::class)($hold, $cup, 1, $order, 'Moved');
+        app(ReserveFromHold::class)($hold, $bowl, 1, $order, 'Moved');
+
+        $this->recordLockOrder();
+        app(ReleaseOrderStock::class)($order);
+
+        $this->assertLocksTakenInOrder(['stock_holds', 'stock_items', 'stock_reservations']);
+        $this->assertSame(1, $hold->heldQuantity($bowl));
+        $this->assertSame(1, $hold->heldQuantity($cup));
+    }
+
     /**
      * An order for 2 bowls, both from "Markt", which held 2 of 5.
      *

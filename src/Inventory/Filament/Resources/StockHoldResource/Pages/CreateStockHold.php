@@ -22,7 +22,7 @@ final class CreateStockHold extends CreateRecord
         /** @var StockHold $hold */
         $hold = $this->record;
 
-        $this->applyHoldLines($hold, $this->data['_lines'] ?? [], zeroTheRest: false);
+        $this->applyHoldLines($hold, $this->data['_lines'] ?? []);
     }
 
     protected function forgetRolledBackRecord(): void

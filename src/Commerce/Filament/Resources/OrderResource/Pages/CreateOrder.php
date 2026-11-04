@@ -41,6 +41,9 @@ final class CreateOrder extends CreateRecord
 
     protected ?bool $hasDatabaseTransactions = true;
 
+    /** Set by a refused save; the snapshot is retaken once its transaction has rolled back. */
+    private bool $retakeHoldSnapshot = false;
+
     protected function beforeCreate(): void
     {
         $this->ensureStockCovers();
@@ -49,6 +52,16 @@ final class CreateOrder extends CreateRecord
     protected function afterCreate(): void
     {
         $this->takeStock();
+    }
+
+    public function rendering(): void
+    {
+        if (! $this->retakeHoldSnapshot) {
+            return;
+        }
+
+        $this->retakeHoldSnapshot = false;
+        $this->data['_stock_held'] = $this->hold()?->heldByGroup() ?? [];
     }
 
     private function ensureStockCovers(): void
@@ -98,8 +111,10 @@ final class CreateOrder extends CreateRecord
         } catch (InsufficientStockException|StockHoldReleasedException $e) {
             $this->refuse($e->getMessage());
         } catch (StockHoldChangedException $e) {
-            // Show the hold as it is now, so the next save checks against it.
-            $this->data['_stock_held'] = $hold?->fresh()?->heldByGroup() ?? [];
+            // Show the hold as it is now, so the next save checks against it —
+            // read after the rollback (rendering()), not inside this
+            // transaction, whose snapshot may predate the change.
+            $this->retakeHoldSnapshot = true;
             $this->refuse($e->getMessage());
         } catch (PDOException $e) {
             // A QueryException, or the DeadlockException Laravel rethrows it

@@ -17,8 +17,9 @@ use Illuminate\Support\Facades\DB;
  *
  * SQLite compiles `lockForUpdate()` to nothing, so on SQLite the connection gets
  * a grammar that writes the lock as a trailing comment; MySQL already writes
- * `for update`. Each entry is `lock:{table}`, `read:{table}` (a select without a
- * lock), `insert:{table}` or `update:{table}`.
+ * `for update`. Each entry is `lock:{table}` (`lock:stock_items#{type}:{id}` for a
+ * stock item), `read:{table}` (a select without a lock), `insert:{table}` or
+ * `update:{table}`.
  */
 trait RecordsLockOrder
 {
@@ -46,7 +47,7 @@ trait RecordsLockOrder
 
         $connection->listen(function (QueryExecuted $query): void {
             if ($this->recordingLocks) {
-                $this->lockOrder[] = self::describeQuery($query->sql);
+                $this->lockOrder[] = self::describeQuery($query->sql, $query->bindings);
             }
         });
     }
@@ -64,14 +65,20 @@ trait RecordsLockOrder
 
         return array_values(array_filter(
             $this->lockOrder,
-            static fn (string $entry): bool => in_array(substr($entry, strpos($entry, ':') + 1), $tables, true),
+            static fn (string $entry): bool => in_array(self::tableOf($entry), $tables, true),
         ));
     }
 
     /**
-     * Assert the first lock on each table comes in the given table order, and
-     * that no plain read of `stock_reservations` falls between its lock and the
-     * first reservation insert (a consistent read there is a pre-wait snapshot).
+     * Assert the brief's §4.2 lock order on what was recorded:
+     *
+     *  - the first lock on each table comes in the given table order;
+     *  - **every** stock item the run locks is first locked before the first
+     *    reservation-row lock — not just the first one — and the stock items
+     *    are first locked in the global sort (morph class, key);
+     *  - no plain read of `stock_reservations` falls between its lock and the
+     *    first reservation insert (a consistent read there is a pre-wait
+     *    snapshot).
      *
      * @param  list<string>  $expected  tables in the order their first lock must appear
      */
@@ -82,9 +89,11 @@ trait RecordsLockOrder
         $firstLocks = [];
         foreach ($order as $index => $entry) {
             if (str_starts_with($entry, 'lock:')) {
-                $firstLocks[substr($entry, 5)] ??= $index;
+                $firstLocks[self::tableOf($entry)] ??= $index;
             }
         }
+
+        $this->assertStockItemsLockedFirstAndSorted($order, $firstLocks['stock_reservations'] ?? null);
 
         foreach ($expected as $table) {
             $this->assertArrayHasKey($table, $firstLocks, "No lock on {$table}. Recorded: ".implode(', ', $order));
@@ -110,12 +119,55 @@ trait RecordsLockOrder
         }
     }
 
-    private static function describeQuery(string $sql): string
+    /**
+     * @param  list<string>  $order
+     */
+    private function assertStockItemsLockedFirstAndSorted(array $order, ?int $firstRowLock): void
+    {
+        $firstItemLocks = [];
+
+        foreach ($order as $index => $entry) {
+            if (str_starts_with($entry, 'lock:stock_items#')) {
+                $firstItemLocks[substr($entry, strlen('lock:stock_items#'))] ??= $index;
+            }
+        }
+
+        if ($firstRowLock !== null) {
+            foreach ($firstItemLocks as $item => $index) {
+                $this->assertLessThan($firstRowLock, $index, "Stock item {$item} first locked after a reservation row. Recorded: ".implode(', ', $order));
+            }
+        }
+
+        $items = array_map(static function (string $item): array {
+            [$type, $id] = explode(':', $item, 2);
+
+            return [$type, (int) $id];
+        }, array_keys($firstItemLocks));
+        $sorted = $items;
+        usort($sorted, static fn (array $a, array $b): int => $a <=> $b);
+
+        $this->assertSame($sorted, $items, 'Stock items not locked in the global order. Recorded: '.implode(', ', $order));
+    }
+
+    private static function tableOf(string $entry): string
+    {
+        $afterVerb = substr($entry, strpos($entry, ':') + 1);
+
+        return explode('#', $afterVerb, 2)[0];
+    }
+
+    /**
+     * @param  array<int, mixed>  $bindings
+     */
+    private static function describeQuery(string $sql, array $bindings = []): string
     {
         $normalised = strtolower($sql);
         $table = static fn (string $pattern): string => preg_match($pattern, $normalised, $m) === 1 ? $m[1] : '?';
 
         return match (true) {
+            // A stock item lock names its item, so the order of items can be
+            // asserted, not only the order of tables.
+            str_starts_with($normalised, 'select') && str_contains($normalised, 'for update') && $table('/ from [`"]?(\w+)[`"]?/') === 'stock_items' && count($bindings) >= 2 => 'lock:stock_items#'.$bindings[0].':'.$bindings[1],
             str_starts_with($normalised, 'select') && str_contains($normalised, 'for update') => 'lock:'.$table('/ from [`"]?(\w+)[`"]?/'),
             str_starts_with($normalised, 'select') => 'read:'.$table('/ from [`"]?(\w+)[`"]?/'),
             str_starts_with($normalised, 'insert') => 'insert:'.$table('/^insert into [`"]?(\w+)[`"]?/'),

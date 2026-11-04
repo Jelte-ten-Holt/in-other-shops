@@ -155,15 +155,18 @@ class StockHold extends Model implements HasOpenReservations
         $held = [];
 
         foreach ($this->heldLines() as ['stockable' => $stockable, 'quantity' => $quantity]) {
-            $key = StockLocks::groupKey($stockable);
-            $held[$key] = ($held[$key] ?? 0) + $quantity;
+            $held[StockLocks::groupKey($stockable)] = $quantity;
         }
 
         return $held;
     }
 
     /**
-     * What the hold holds, per stockable it was reserved on.
+     * What the hold holds, one line per stock a product sells from: siblings of
+     * a shared-inventory locale group are one line, shown as the stockable its
+     * first row sits on. A hold's rows end up on more than one sibling in the
+     * normal course (a move-back lands on the order's edition), and every hold
+     * actor reads the group as one — so must anything that shows or edits it.
      *
      * @return list<array{stockable: Model&HasStock, quantity: int}>
      */
@@ -180,7 +183,7 @@ class StockHold extends Model implements HasOpenReservations
                 continue;
             }
 
-            $key = $stockable->getMorphClass().':'.$stockable->getKey();
+            $key = StockLocks::groupKey($stockable);
             $lines[$key] ??= ['stockable' => $stockable, 'quantity' => 0];
             $lines[$key]['quantity'] += (int) $reservation->quantity;
         }

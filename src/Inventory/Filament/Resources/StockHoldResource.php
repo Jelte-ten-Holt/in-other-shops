@@ -6,6 +6,7 @@ namespace InOtherShops\Inventory\Filament\Resources;
 
 use Filament\Actions;
 use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -96,6 +97,9 @@ class StockHoldResource extends PackageResource
                             ->defaultItems(1)
                             ->addActionLabel(__('shops-inventory::holds.actions.add_product'))
                             ->helperText(__('shops-inventory::holds.fields.products_help')),
+                        Hidden::make('_loaded_groups')
+                            ->default([])
+                            ->dehydrated(false),
                     ]),
             ])
             ->disabled(fn (?StockHold $record): bool => $record?->isReleased() ?? false);
@@ -241,18 +245,20 @@ class StockHoldResource extends PackageResource
     {
         $lines = [];
 
+        // One entry per stock group, as everywhere a hold is shown or edited.
         foreach ($hold->pendingReservations as $reservation) {
             /** @var StockReservation $reservation */
             $stockable = $reservation->stockItem?->stockable;
-            $label = $stockable === null ? '?' : ModelLabel::for($stockable);
-            $lines[$label] = ($lines[$label] ?? 0) + (int) $reservation->quantity;
+            $group = $stockable instanceof HasStock ? StockLocks::groupKey($stockable) : '?';
+            $lines[$group] ??= ['label' => $stockable === null ? '?' : ModelLabel::for($stockable), 'quantity' => 0];
+            $lines[$group]['quantity'] += (int) $reservation->quantity;
         }
 
         if ($lines === []) {
             return null;
         }
 
-        return collect($lines)->map(fn (int $quantity, string $label): string => "{$quantity} × {$label}")->implode(', ');
+        return collect($lines)->map(fn (array $line): string => "{$line['quantity']} × {$line['label']}")->implode(', ');
     }
 
     private static function holdingProduct(Builder $query, ?string $key): Builder

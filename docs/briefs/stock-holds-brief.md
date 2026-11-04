@@ -715,6 +715,20 @@ as below. Each is small and reversible; none reopens a D or a §8 lean.
   stock" instead of "an order created here holds no stock" (no longer true in
   general); en + es. Spanish uses *apartado* for a hold throughout — drafts
   for Bianka.
+- **Pathology review of the build (fresh reviewer, 2026-11-04)** found, and the
+  build fixed: the hold pages treated two editions of a shared-inventory group
+  as two products while every hold actor reads the group as one (an unchanged
+  save could put a unit back on sale) — the pages now work per stock group;
+  the hold pages locked one product at a time — they now lock the hold and
+  every stock item first; a removed product was zeroed even when the form never
+  showed it (units that came back while the page was open) — only products the
+  form loaded are zeroed; the order page re-snapshotted a changed hold inside
+  the transaction it was rolling back — it now re-reads after the rollback; and
+  the lock-order probe compared first locks per table only, so it could not see
+  a missing up-front lock — it now names each stock item and asserts all of
+  them, sorted, before the first reservation row. Noted, not changed: a
+  partial-refund restock of a unit taken from a hold goes to main stock (D10
+  says delete or cancel; a manual payment has no refund path anyway, §9).
 - **Not done here, flagged:** CLAUDE.md says an existing registry is stripped
   when its domain gains a model. `StockHold` has no `models` key, as the rule
   asks, but the `Inventory` registry and its three keys stay: stripping them
