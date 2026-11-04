@@ -8,8 +8,6 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use InOtherShops\Commerce\Order\Support\OrderStockDemand;
 use InOtherShops\Inventory\Contracts\HasStock;
-use InOtherShops\Inventory\Enums\ReservationStatus;
-use InOtherShops\Inventory\Inventory;
 use InOtherShops\Inventory\Models\StockHold;
 use InOtherShops\Inventory\Support\StockLocks;
 use InOtherShops\Support\ModelLabel;
@@ -209,33 +207,14 @@ final class OrderStockPreview
     }
 
     /**
-     * Open holds holding the product, matched across its group.
-     *
      * @return list<array{count: int, hold: string}>
      */
     private static function holdsHolding(Model&HasStock $stockable): array
     {
-        $stockItemIds = StockLocks::stockItemIds($stockable);
-
-        if ($stockItemIds === []) {
-            return [];
-        }
-
-        $held = Inventory::stockReservation()::query()
-            ->where('status', ReservationStatus::Pending)
-            ->where('reference_type', (new StockHold)->getMorphClass())
-            ->whereIn('stock_item_id', $stockItemIds)
-            ->selectRaw('reference_id, sum(quantity) as held')
-            ->groupBy('reference_id')
-            ->pluck('held', 'reference_id');
-
-        return StockHold::query()
-            ->whereNull('released_at')
-            ->whereKey($held->keys()->all())
-            ->orderBy('id')
-            ->get()
-            ->map(fn (StockHold $hold): array => ['count' => (int) $held[$hold->getKey()], 'hold' => self::holdLabel($hold)])
-            ->all();
+        return array_map(
+            fn (array $held): array => ['count' => $held['quantity'], 'hold' => self::holdLabel($held['hold'])],
+            StockHold::holding($stockable),
+        );
     }
 
     /**

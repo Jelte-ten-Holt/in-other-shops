@@ -10,6 +10,7 @@ declare(strict_types=1);
  */
 return [
     'commerce' => 'Commerce',
+    'inventory' => 'Inventory',
     'pricing' => 'Pricing',
     'purchasing' => 'Purchasing',
     'tax' => 'Tax',

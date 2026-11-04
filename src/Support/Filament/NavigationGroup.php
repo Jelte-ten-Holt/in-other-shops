@@ -22,6 +22,7 @@ use Filament\Support\Contracts\HasLabel;
 enum NavigationGroup implements HasLabel
 {
     case Commerce;
+    case Inventory;
     case Pricing;
     case Purchasing;
     case Tax;

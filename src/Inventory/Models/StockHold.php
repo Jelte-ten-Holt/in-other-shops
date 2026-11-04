@@ -109,6 +109,42 @@ class StockHold extends Model implements HasOpenReservations
     }
 
     /**
+     * The open holds holding a product, matched across its shared-inventory
+     * locale group, oldest first — "Held: 3 (Markt 15 Nov: 2, Kept for Ana: 1)"
+     * on the product, and the order page's "1 held in Markt" (D7, D11).
+     *
+     * @return list<array{hold: StockHold, quantity: int}>
+     */
+    public static function holding(Model&HasStock $stockable): array
+    {
+        $stockItemIds = StockLocks::stockItemIds($stockable);
+
+        if ($stockItemIds === []) {
+            return [];
+        }
+
+        $held = Inventory::stockReservation()::query()
+            ->where('status', ReservationStatus::Pending)
+            ->where('reference_type', (new static)->getMorphClass())
+            ->whereIn('stock_item_id', $stockItemIds)
+            ->selectRaw('reference_id, sum(quantity) as held')
+            ->groupBy('reference_id')
+            ->pluck('held', 'reference_id');
+
+        if ($held->isEmpty()) {
+            return [];
+        }
+
+        return static::query()
+            ->whereNull('released_at')
+            ->whereKey($held->keys()->all())
+            ->orderBy('id')
+            ->get()
+            ->map(fn (StockHold $hold): array => ['hold' => $hold, 'quantity' => (int) $held[$hold->getKey()]])
+            ->all();
+    }
+
+    /**
      * What the hold holds, keyed by {@see StockLocks::groupKey()}: one
      * entry per stock a product sells from.
      *

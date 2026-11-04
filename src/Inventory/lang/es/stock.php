@@ -16,6 +16,8 @@ return [
         'low_stock_threshold' => 'Umbral de existencias bajas',
         'adjustment_quantity_help' => 'Positivo para agregar, negativo para restar',
         'reason' => 'Motivo',
+        'held' => 'Apartado',
+        'held_summary' => ':total (:holds)',
     ],
     'actions' => [
         'movement_history' => 'Historial de movimientos',

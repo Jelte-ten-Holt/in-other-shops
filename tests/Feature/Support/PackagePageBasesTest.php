@@ -80,7 +80,7 @@ final class PackagePageBasesTest extends TestCase
             }
         }
 
-        $this->assertSame(20, $checked, 'List/Edit page census drifted — update this count deliberately.');
+        $this->assertSame(22, $checked, 'List/Edit page census drifted — update this count deliberately.');
     }
 
     private function classFromFile(string $path): string

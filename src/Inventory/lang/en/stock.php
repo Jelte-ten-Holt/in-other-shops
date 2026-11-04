@@ -17,6 +17,8 @@ return [
         'low_stock_threshold' => 'Low stock threshold',
         'adjustment_quantity_help' => 'Positive to add, negative to subtract',
         'reason' => 'Reason',
+        'held' => 'Held',
+        'held_summary' => ':total (:holds)',
     ],
     'actions' => [
         'movement_history' => 'Movement History',
