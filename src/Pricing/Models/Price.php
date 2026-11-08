@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace InOtherShops\Pricing\Models;
 
+use DateTimeInterface;
 use InOtherShops\Currency\Enums\Currency;
 use InOtherShops\Pricing\Database\Factories\PriceFactory;
 use InOtherShops\Pricing\Events\PriceCreated;
@@ -36,9 +37,11 @@ class Price extends Model
      *   refused: Filament drops the hidden date field when the amount is
      *   cleared, so refusing would turn "remove the strikethrough" into a 500;
      * - a strikethrough amount must sit above the price;
-     * - a strikethrough end date must be in the future, but only when it is
-     *   being set. An elapsed date the sweep hasn't reached yet must not block
-     *   saving the row for an unrelated change.
+     * - a strikethrough end date may not be moved into the past: a new date
+     *   in the past is refused when the row had none or had a future one. A
+     *   row whose date has already passed (the sweep hasn't reached it) saves
+     *   for an unrelated change even when the admin's picker rewrites the date
+     *   without its seconds.
      *
      * The admin repeater checks the last two as field rules first
      * (`PricingSchema`); these are the last line.
@@ -66,6 +69,7 @@ class Price extends Model
                 $price->isDirty('compare_at_until')
                 && $price->compare_at_until !== null
                 && $price->compare_at_until->getTimestamp() <= now()->getTimestamp()
+                && ! self::hadElapsedEndDate($price)
             ) {
                 throw InvalidCompareAtPriceException::endDateInPast($price->compare_at_until);
             }
@@ -78,6 +82,13 @@ class Price extends Model
             (string) $price->priceable_type,
             (int) $price->priceable_id,
         ));
+    }
+
+    private static function hadElapsedEndDate(Price $price): bool
+    {
+        $original = $price->getOriginal('compare_at_until');
+
+        return $original instanceof DateTimeInterface && $original->getTimestamp() <= now()->getTimestamp();
     }
 
     protected function casts(): array

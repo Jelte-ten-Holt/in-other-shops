@@ -12,7 +12,7 @@ use InOtherShops\Variants\Exceptions\VariantStillReferencedException;
  * PR 4). The package's first drop migration: the create migrations are deleted
  * and this one runs once, forward only.
  *
- * 1. Refuse while a cart line or an order line points at a `variant`: the alias
+ * 1. Refuse while a cart, order or purchase-order line points at a `variant`: the alias
  *    is gone after this release and the morph map is required, so such a line
  *    could no longer load.
  * 2. Delete what a variant owned: prices, stock items (their movements and
@@ -29,10 +29,16 @@ return new class extends Migration
 {
     private const string ALIAS = 'variant';
 
-    /** table => morph column prefix, for lines that must not point at a variant */
+    /**
+     * table => morph column prefix, for lines that must not point at a variant.
+     * The package's own tables only: a consumer table with a morph column
+     * (bianka's `bundle_items.purchasable`) is the consumer's to check before
+     * it deploys this release.
+     */
     private const array LINES = [
         'cart_items' => 'cartable',
         'order_lines' => 'orderable',
+        'purchase_order_lines' => 'purchasable',
     ];
 
     /** table => morph column prefix, for rows a variant owned */

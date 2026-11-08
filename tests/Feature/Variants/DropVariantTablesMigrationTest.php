@@ -10,15 +10,21 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use InOtherShops\Commerce\Cart\Models\CartItem;
+use InOtherShops\Commerce\Order\Models\Order;
+use InOtherShops\Commerce\Order\Models\OrderLine;
 use InOtherShops\Inventory\Models\StockItem;
 use InOtherShops\Inventory\Models\StockMovement;
 use InOtherShops\Inventory\DTOs\Stock;
 use InOtherShops\Media\Models\Media;
 use InOtherShops\Media\Models\Mediable;
 use InOtherShops\Pricing\Models\Price;
+use InOtherShops\Purchasing\Models\PurchaseOrderLine;
+use InOtherShops\Taxonomy\Models\Category;
+use InOtherShops\Taxonomy\Models\Tag;
 use InOtherShops\Tests\Stubs\TestPriceable;
 use InOtherShops\Tests\TestCase;
 use InOtherShops\Variants\Exceptions\VariantStillReferencedException;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 
 /**
@@ -39,7 +45,7 @@ final class DropVariantTablesMigrationTest extends TestCase
         $this->createShippedVariantTables();
         $variantId = DB::table('variants')->insertGetId(['variantable_type' => 'product', 'variantable_id' => 1, 'sku' => 'A', 'position' => 0]);
 
-        $variantPrice = Price::factory()->create(['priceable_type' => 'variant', 'priceable_id' => $variantId]);
+        $variantPrice = Price::factory()->createQuietly(['priceable_type' => 'variant', 'priceable_id' => $variantId]);
         $otherPrice = TestPriceable::factory()->create()->prices()->create(['currency' => 'EUR', 'amount' => 500, 'minimum_quantity' => 1]);
 
         $variantStock = StockItem::factory()->create(['stockable_type' => 'variant', 'stockable_id' => $variantId, 'stock_level' => new Stock(3)]);
@@ -73,23 +79,54 @@ final class DropVariantTablesMigrationTest extends TestCase
      * with every table and row where it was.
      */
     #[Test]
-    public function it_refuses_while_a_cart_line_points_at_a_variant_and_changes_nothing(): void
+    #[DataProvider('linesThatPointAtAVariant')]
+    public function it_refuses_while_a_line_points_at_a_variant_and_changes_nothing(string $table, string $morph): void
     {
         $this->createShippedVariantTables();
         $variantId = DB::table('variants')->insertGetId(['variantable_type' => 'product', 'variantable_id' => 1, 'sku' => 'A', 'position' => 0]);
-        $price = Price::factory()->create(['priceable_type' => 'variant', 'priceable_id' => $variantId]);
-        CartItem::factory()->create(['cartable_type' => 'variant', 'cartable_id' => $variantId]);
+        $price = Price::factory()->createQuietly(['priceable_type' => 'variant', 'priceable_id' => $variantId]);
+        $this->lineFor($table, $morph, $variantId);
 
         try {
             $this->migration()->up();
-            $this->fail('The migration ran while a cart line pointed at a variant.');
+            $this->fail("The migration ran while a {$table} row pointed at a variant.");
         } catch (VariantStillReferencedException $e) {
-            $this->assertStringContainsString('1 in cart_items', $e->getMessage());
+            $this->assertStringContainsString("1 in {$table}", $e->getMessage());
         }
 
         $this->assertTrue(Schema::hasTable('variants'));
         $this->assertTrue(Schema::hasTable('option_value_variant'));
         $this->assertModelExists($price);
+    }
+
+    /** @return array<string, array{string, string}> */
+    public static function linesThatPointAtAVariant(): array
+    {
+        return [
+            'a cart line' => ['cart_items', 'cartable'],
+            'an order line' => ['order_lines', 'orderable'],
+            'a purchase-order line' => ['purchase_order_lines', 'purchasable'],
+        ];
+    }
+
+    #[Test]
+    public function translations_and_category_and_tag_links_a_variant_owned_go_too(): void
+    {
+        $this->createShippedVariantTables();
+        $variantId = DB::table('variants')->insertGetId(['variantable_type' => 'product', 'variantable_id' => 1, 'sku' => 'A', 'position' => 0]);
+        $category = Category::factory()->create();
+        $tag = Tag::factory()->create();
+        DB::table('categorizables')->insert(['category_id' => $category->id, 'categorizable_type' => 'variant', 'categorizable_id' => $variantId]);
+        DB::table('taggables')->insert(['tag_id' => $tag->id, 'taggable_type' => 'variant', 'taggable_id' => $variantId]);
+        DB::table('translations')->insert(['translatable_type' => 'variant', 'translatable_id' => $variantId, 'locale' => 'en', 'field' => 'name', 'value' => 'Silver']);
+
+        $this->migration()->up();
+
+        $this->assertSame(0, DB::table('categorizables')->where('categorizable_type', 'variant')->count());
+        $this->assertSame(0, DB::table('taggables')->where('taggable_type', 'variant')->count());
+        $this->assertSame(0, DB::table('translations')->where('translatable_type', 'variant')->count());
+        $this->assertModelExists($category);
+        $this->assertModelExists($tag);
     }
 
     #[Test]
@@ -103,6 +140,15 @@ final class DropVariantTablesMigrationTest extends TestCase
         $this->assertFalse(Schema::hasTable('variants'));
         $this->assertTrue(Schema::hasTable('options'), 'the Options half stays');
         $this->assertTrue(Schema::hasTable('option_values'));
+    }
+
+    private function lineFor(string $table, string $morph, int $variantId): void
+    {
+        match ($table) {
+            'cart_items' => CartItem::factory()->create(['cartable_type' => 'variant', 'cartable_id' => $variantId]),
+            'order_lines' => OrderLine::factory()->for(Order::factory())->create(['orderable_type' => 'variant', 'orderable_id' => $variantId]),
+            'purchase_order_lines' => PurchaseOrderLine::factory()->create(['purchasable_type' => 'variant', 'purchasable_id' => $variantId]),
+        };
     }
 
     private function migration(): Migration

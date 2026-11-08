@@ -131,6 +131,19 @@ final class PriceWritePathTest extends TestCase
         $this->assertNotNull($price->fresh()->compare_at_until);
     }
 
+    /** The admin's picker drops seconds, so an untouched elapsed date comes back rewritten. */
+    #[Test]
+    public function an_elapsed_end_date_rewritten_without_its_seconds_still_saves(): void
+    {
+        $price = $this->price(['amount' => 4000, 'compare_at_amount' => 5000]);
+        Price::query()->whereKey($price->id)->update(['compare_at_until' => now()->subMinutes(10)->setSecond(27)]);
+        $price->refresh();
+
+        $price->update(['compare_at_until' => $price->compare_at_until->copy()->setSecond(0), 'minimum_quantity' => 2]);
+
+        $this->assertSame(2, $price->fresh()->minimum_quantity);
+    }
+
     #[Test]
     public function moving_an_end_date_into_the_past_is_refused(): void
     {

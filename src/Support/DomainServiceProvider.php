@@ -124,8 +124,10 @@ abstract class DomainServiceProvider extends ServiceProvider
     /**
      * Whether `{key}.enabled` leaves the domain on (default true). A disabled
      * domain loads no migrations, translations or views, subscribes nothing,
-     * registers no commands and schedules nothing — its tables stay where
-     * they are, they just stop growing.
+     * registers no commands and schedules nothing; its tables stay. The other
+     * domains are not told: one that builds on a disabled domain (most build
+     * on Translation, Location, Media or Logging) still reaches its models and
+     * tables, so the switch is for a domain nothing else in the app uses.
      */
     protected function isEnabled(): bool
     {

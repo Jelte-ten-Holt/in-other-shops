@@ -105,11 +105,20 @@ final class PricingSchema
      * blocked outright, and on edit it may not exceed the price already on
      * record. Heuristic, not an invariant: lives in the form layer, not on the
      * model. Returned as a standalone closure so it is unit-testable.
+     *
+     * Checked only when the strikethrough is being set or changed. A running
+     * sale always has its strikethrough above the price on record — that is
+     * what a sale is — so checking an unchanged one blocked every later save
+     * of a product on sale (found 2026-11-08).
      */
     public static function compareAtAmountRule(?Model $record): Closure
     {
         return static function (string $attribute, mixed $value, Closure $fail) use ($record): void {
             if ($value === null || $value === '') {
+                return;
+            }
+
+            if ($record !== null && MoneyFields::dehydrateCents($value) === $record->getAttribute('compare_at_amount')) {
                 return;
             }
 
@@ -151,11 +160,11 @@ final class PricingSchema
     }
 
     /**
-     * An end date must be in the future when it is being set. One the row
-     * already carries is left alone even once it has passed: the hourly sweep
-     * may not have reached it yet, and an unrelated edit in that hour must
-     * still save (the model guard draws the same line). Compared to the
-     * minute, the picker's precision.
+     * An end date may not be moved into the past. One the row already carries
+     * that has passed is left alone: the hourly sweep may not have reached it
+     * yet, and an unrelated edit in that hour must still save (the model guard
+     * draws the same line). Judged on whether the stored date has passed, not
+     * on equality, because the picker drops seconds a stored date may have.
      */
     public static function compareAtUntilRule(?Model $record): Closure
     {
@@ -164,14 +173,13 @@ final class PricingSchema
                 return;
             }
 
-            $until = Carbon::parse($value, config('app.timezone'));
             $stored = $record?->getAttribute('compare_at_until');
 
-            if ($stored instanceof DateTimeInterface && Carbon::instance($stored)->format('Y-m-d H:i') === $until->format('Y-m-d H:i')) {
+            if ($stored instanceof DateTimeInterface && $stored->getTimestamp() <= now()->getTimestamp()) {
                 return;
             }
 
-            if ($until->lessThanOrEqualTo(now())) {
+            if (Carbon::parse($value, config('app.timezone'))->lessThanOrEqualTo(now())) {
                 $fail(__('shops-pricing::price.compare_at_until_past'));
             }
         };

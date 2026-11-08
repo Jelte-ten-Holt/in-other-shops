@@ -45,6 +45,13 @@ are pre-launch — single-release-window policy, no deprecation bridges).
   (`VariantStillReferencedException`) while any cart line or order line points
   at a `variant`, else deletes what variants owned and drops `variants`,
   `option_value_variant` and `optionables`.
+  **Before deploying:** count the lines that would stop it —
+  `SELECT COUNT(*) FROM cart_items WHERE cartable_type = 'variant'`, the same
+  for `order_lines.orderable_type` and `purchase_order_lines.purchasable_type`
+  — and check your own morph columns too (bianka's `bundle_items.purchasable`
+  could hold a variant from June 2026); the migration only knows the package's
+  tables. If it refuses, the container does not boot: delete or re-point those
+  rows from the database container, then redeploy.
 - **Prices are written through the model, so every price change is audited
   (complexity cleanup X1).** The admin's price repeater wrote `Price` rows
   directly and skipped `CreatePrice`/`UpdatePrice`, so neither shop's admin
@@ -58,6 +65,17 @@ are pre-launch — single-release-window policy, no deprecation bridges).
   strikethrough checks as field errors instead of a 500. **For consumers:**
   tests that used the actions write the model or a factory; a seeder that
   writes prices should set a system audit actor, or its rows read `unknown`.
+  Two behaviour changes to know: a direct `Price` write that sets a past end
+  date now throws (before, only `PriceData` refused it — a test fixture that
+  creates an elapsed strikethrough needs `createQuietly()`), and a save that
+  changes nothing no longer dispatches `PriceUpdated` (the old `UpdatePrice`
+  dispatched on every call).
+- **A product on sale can be saved in the admin again.** The Omnibus rule on
+  the strikethrough field compared it with the stored price on every save, and
+  a running sale's strikethrough is always above it, so every later save of a
+  product on sale failed with "cannot be higher than what this item is
+  currently priced at". It now checks only a strikethrough being set or
+  changed.
 - **Every domain can be switched off (complexity cleanup D7/D8).** Each
   domain config gains `'enabled' => true`; set it `false` and the domain
   loads no migrations, translations or views and registers no subscriber,
@@ -65,6 +83,12 @@ are pre-launch — single-release-window policy, no deprecation bridges).
   tables. Child providers moved their extras from `boot()` to the new
   `bootDomain()` hook. Tracking's chain steps write nothing while Tracking is
   off. **For consumers:** nothing changes unless you switch a domain off.
+  Switch off only a domain nothing else in the app uses (Purchasing in a shop
+  that buys no stock): the other domains are not told, and most build on
+  Translation, Location, Media, Logging and Taxonomy. A disabled domain's
+  commands are gone, so drop any schedule line of yours that names one. The
+  read API still lists `purchase_orders` with Purchasing off, which on a fresh
+  database without those tables is a SQL error.
 - **The reservation TTL default rises from 30 to 120 minutes, and a TTL that
   does not outlast the order abandon window stops the boot (X6b).** The old
   default (30) was shorter than the package's own abandon window (60): stock

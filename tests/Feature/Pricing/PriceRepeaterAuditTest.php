@@ -143,9 +143,51 @@ final class PriceRepeaterAuditTest extends TestCase
         Livewire::test(EditStubEditable::class, ['record' => $record->getKey()])
             ->fillForm(["prices.record-{$price->id}.compare_at_until" => now()->subDay()->format('Y-m-d H:i:s')])
             ->call('save')
-            ->assertHasFormErrors(["prices.record-{$price->id}.compare_at_until"]);
+            ->assertHasFormErrors(["prices.record-{$price->id}.compare_at_until"])
+            ->assertHasNoFormErrors(["prices.record-{$price->id}.compare_at_amount"]);
 
         $this->assertNull($price->fresh()->compare_at_until);
+    }
+
+    /**
+     * Found by the 2026-11-08 pathology review: the Omnibus rule compared the
+     * strikethrough with the stored price on every save, and a running sale's
+     * strikethrough is always above it, so no product on sale could be saved.
+     */
+    #[Test]
+    public function a_product_on_sale_saves_untouched_and_leaves_no_row(): void
+    {
+        $record = $this->editable();
+        $price = $this->priceOn($record, 4000, compareAt: 5000);
+        $baseline = $this->allRows();
+
+        Livewire::test(EditStubEditable::class, ['record' => $record->getKey()])
+            ->call('save')
+            ->assertHasNoFormErrors();
+
+        $this->assertSame(5000, $price->fresh()->compare_at_amount);
+        $this->assertSame($baseline, $this->allRows());
+    }
+
+    /**
+     * The hour between a strikethrough's end and the sweep. The stored date
+     * has seconds the picker drops, so the save rewrites it; that must still
+     * be an unrelated edit, not "setting a date in the past".
+     */
+    #[Test]
+    public function an_unrelated_edit_saves_while_an_elapsed_strikethrough_waits_for_the_sweep(): void
+    {
+        $record = $this->editable();
+        $price = $this->priceOn($record, 4000, compareAt: 5000);
+        Price::query()->whereKey($price->id)->update(['compare_at_until' => now()->subMinutes(10)->setSecond(27)]);
+
+        Livewire::test(EditStubEditable::class, ['record' => $record->getKey()])
+            ->fillForm(["prices.record-{$price->id}.minimum_quantity" => 2])
+            ->call('save')
+            ->assertHasNoFormErrors();
+
+        $this->assertSame(2, $price->fresh()->minimum_quantity);
+        $this->assertSame(5000, $price->fresh()->compare_at_amount);
     }
 
     private function editable(): TestEditable
