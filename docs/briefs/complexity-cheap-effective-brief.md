@@ -195,7 +195,7 @@ Consumer work, release 2 (total): IOW — 5 pricing test files, `CheckoutControl
 | D4 Stripe `^20` | 3 | **done** (#26) | suite green on 20.3.1, no source change; `composer.lock` is gitignored so it resolves on next install |
 | X6 inverted TTL comment | 3 | **done** (#26) | **but the shipped defaults violate the invariant** (abandon 60 min vs reservation TTL 30 min) — see §6 open (d). **2026-10-17:** there is no open (d) any more; it was decided 2026-09-07 as X6b (§6) and lands in PR 7 |
 | C5 Variants `Variant` half | 4 | **done** (`release-2`, 2026-11-08) | alias-precondition migration `drop_variant_tables` + `VariantStillReferencedException`; the `Variants` registry stripped too (CLAUDE.md registry rule; bianka 7 call sites); `TestVariantable` kept as `TestPricedCartable` (3 Commerce tests price through it); alias assertion moved to `OptionTest`; `Cart::defaultCurrency()` is now the only copy, so no `Currency::default()` accessor was added |
-| X1 pricing write path | 5 | pending | + IOW 5 test files |
+| X1 pricing write path | 5 | **done** (`release-2`, 2026-11-08) | model hooks + both repeater rules; `PriceRepeaterAuditTest` drives the stub edit page (the price repeater joined `StubEditableResource`, `TestEditable` gained `HasPrices`); `LogDispatcher` docblock rewritten; IOW's 5 test files are consumer work at the bump; seeder actor is consumer work |
 | X2 shipment timing | 6 | pending | `OrderStatusChanged`; 6 tests; orphan cleanup; IOW `CheckoutControllerTest` |
 | X7 Commerce README drift | 6 | pending | free rider |
 | D7/D8 domain gate | 7 | pending | `bootDomain()` refactor across all child providers |

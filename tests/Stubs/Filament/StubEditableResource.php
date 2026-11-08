@@ -11,6 +11,7 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use InOtherShops\Inventory\Filament\InventorySchema;
 use InOtherShops\Media\Filament\MediaSchema;
+use InOtherShops\Pricing\Filament\PricingSchema;
 use InOtherShops\Tests\Stubs\Filament\StubEditableResource\Pages\CreateStubEditable;
 use InOtherShops\Tests\Stubs\Filament\StubEditableResource\Pages\EditStubEditable;
 use InOtherShops\Tests\Stubs\Filament\StubEditableResource\Pages\ListStubEditables;
@@ -52,6 +53,9 @@ final class StubEditableResource extends Resource
             TextInput::make('slug')->required(),
             MediaSchema::mediaRepeater('images'),
             InventorySchema::stockSection(),
+            // A relationship repeater, unlike the three manual-sync Schemas:
+            // Filament writes each Price row itself, through the model hooks.
+            PricingSchema::priceRepeater()->defaultItems(0),
         ]);
     }
 

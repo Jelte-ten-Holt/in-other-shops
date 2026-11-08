@@ -6,6 +6,9 @@ namespace InOtherShops\Pricing\Models;
 
 use InOtherShops\Currency\Enums\Currency;
 use InOtherShops\Pricing\Database\Factories\PriceFactory;
+use InOtherShops\Pricing\Events\PriceCreated;
+use InOtherShops\Pricing\Events\PriceDeleted;
+use InOtherShops\Pricing\Events\PriceUpdated;
 use InOtherShops\Pricing\Exceptions\InvalidCompareAtPriceException;
 use InOtherShops\Pricing\Pricing;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -22,20 +25,59 @@ class Price extends Model
     protected static string $factory = PriceFactory::class;
 
     /**
-     * Invariant: a strikethrough price is only a discount if it sits above
-     * the actual price. Enforced on the model so every write path — actions,
-     * both Filament surfaces, the expiry command — is covered by one guard.
+     * Every write path — the admin repeater, the agent tools, imports, the
+     * expiry sweep, tinker — goes through these hooks, so the guards and the
+     * audit events cannot be skipped by writing the model directly (X1 of the
+     * 2026-09-07 audit: the admin repeater used to bypass the old
+     * CreatePrice/UpdatePrice actions and left no audit row).
+     *
+     * Saving:
+     * - a strikethrough end date with no strikethrough amount is cleared, not
+     *   refused: Filament drops the hidden date field when the amount is
+     *   cleared, so refusing would turn "remove the strikethrough" into a 500;
+     * - a strikethrough amount must sit above the price;
+     * - a strikethrough end date must be in the future, but only when it is
+     *   being set. An elapsed date the sweep hasn't reached yet must not block
+     *   saving the row for an unrelated change.
+     *
+     * The admin repeater checks the last two as field rules first
+     * (`PricingSchema`); these are the last line.
+     *
+     * Created/updated/deleted dispatch the three Pricing events. `updated`
+     * fires only when something changed, so an unchanged save leaves no audit
+     * row. The expiry sweep saves quietly and dispatches its own
+     * `PriceUpdated(fromExpiry: true)`.
      */
     protected static function booted(): void
     {
         static::saving(function (Price $price): void {
+            if ($price->compare_at_amount === null) {
+                $price->compare_at_until = null;
+            }
+
             if ($price->compare_at_amount !== null && $price->compare_at_amount <= $price->amount) {
                 throw InvalidCompareAtPriceException::notAbovePrice(
                     $price->compare_at_amount,
                     $price->amount,
                 );
             }
+
+            if (
+                $price->isDirty('compare_at_until')
+                && $price->compare_at_until !== null
+                && $price->compare_at_until->getTimestamp() <= now()->getTimestamp()
+            ) {
+                throw InvalidCompareAtPriceException::endDateInPast($price->compare_at_until);
+            }
         });
+
+        static::created(fn (Price $price) => PriceCreated::dispatch($price));
+        static::updated(fn (Price $price) => PriceUpdated::dispatch($price));
+        static::deleted(fn (Price $price) => PriceDeleted::dispatch(
+            (int) $price->getKey(),
+            (string) $price->priceable_type,
+            (int) $price->priceable_id,
+        ));
     }
 
     protected function casts(): array

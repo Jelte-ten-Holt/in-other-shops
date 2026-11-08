@@ -39,11 +39,15 @@ final class LogDispatcher
 
     /**
      * The audit echo must never fail the business action it observes (G10).
-     * Domain subscribers are synchronous and dispatch *after* the business
-     * transaction has committed, so a throwing handler — most plausibly
-     * {@see Handlers\DatabaseLogHandler} hitting a DB error after stock or a
-     * payment already moved — would turn a successful action into a 500 caused
-     * by its own audit trail. Each handler is therefore isolated: on failure the
+     * Domain subscribers are synchronous and run wherever the event is
+     * dispatched: often after the business write has committed, and often
+     * inside it — a price saved in bianka's transactional Filament panel, a
+     * refund or confirmation inside the payment webhook's transaction. Either
+     * way a throwing handler — most plausibly {@see Handlers\DatabaseLogHandler}
+     * hitting a DB error — would turn a successful action into a 500 caused by
+     * its own audit trail, or roll it back. Inside a transaction the row is
+     * written with the business change and rolls back with it, which is the
+     * right outcome for an audit of something that did not happen. Each handler is therefore isolated: on failure the
      * entry is degraded to the application log (file-backed by default) so the
      * record survives and the failure is visible, and the action proceeds. The
      * application log itself failing is swallowed to `error_log` as a last resort

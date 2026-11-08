@@ -43,11 +43,15 @@ final class ExpireCompareAtPrices
     {
         $previousAmount = $price->amount;
 
-        $price->update([
+        // Quietly: the model's `updated` hook would dispatch a plain
+        // PriceUpdated; the sweep dispatches its own with `fromExpiry` below.
+        // That skips the `saving` guards too, and none of them could trip:
+        // the strikethrough is being cleared.
+        $price->fill([
             'amount' => $price->compare_at_amount,
             'compare_at_amount' => null,
             'compare_at_until' => null,
-        ]);
+        ])->saveQuietly();
 
         // The promotion changes prices.amount, so it is a price change like any
         // other — fire PriceUpdated so cache/index/denorm listeners stay in sync,

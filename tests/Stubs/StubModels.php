@@ -462,14 +462,15 @@ final class TestPricedCartable extends StubModel implements HasCart, HasPrices, 
 }
 
 /**
- * `HasStock`, `HasMedia`, `HasTranslations` — the consumer-catalogue shape that
+ * `HasStock`, `HasMedia`, `HasTranslations`, `HasPrices` — the consumer-catalogue shape that
  * {@see \InOtherShops\Tests\Stubs\Filament\StubEditableResource} edits through
  * real Filament pages, so the manual-sync Schemas are exercised across a page
  * lifecycle and not only through their static halves.
  */
-final class TestEditable extends StubModel implements HasMedia, HasStock, HasTranslations
+final class TestEditable extends StubModel implements HasMedia, HasPrices, HasStock, HasTranslations
 {
     use InteractsWithMedia;
+    use InteractsWithPrices;
     use InteractsWithStock;
     use InteractsWithTranslations;
 

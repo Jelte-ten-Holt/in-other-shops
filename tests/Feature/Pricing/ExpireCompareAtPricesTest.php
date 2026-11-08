@@ -136,6 +136,9 @@ final class ExpireCompareAtPricesTest extends TestCase
             fn (PriceUpdated $event): bool => $event->price->id === $price->id
                 && $event->fromExpiry === true,
         );
+        // Only that one: the sweep saves quietly, so the model's own updated
+        // hook adds no plain PriceUpdated beside it.
+        Event::assertDispatchedTimes(PriceUpdated::class, 1);
     }
 
     #[Test]
@@ -161,7 +164,9 @@ final class ExpireCompareAtPricesTest extends TestCase
     {
         $priceable = TestPriceable::factory()->create();
 
-        return $priceable->prices()->create(array_merge([
+        // Quietly: these rows are elapsed by design, and the model refuses to
+        // be given a past end date. A shop reaches the state by time passing.
+        return $priceable->prices()->createQuietly(array_merge([
             'currency' => Currency::EUR->value,
             'minimum_quantity' => 1,
             'price_list_id' => null,

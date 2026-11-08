@@ -45,6 +45,19 @@ are pre-launch — single-release-window policy, no deprecation bridges).
   (`VariantStillReferencedException`) while any cart line or order line points
   at a `variant`, else deletes what variants owned and drops `variants`,
   `option_value_variant` and `optionables`.
+- **Prices are written through the model, so every price change is audited
+  (complexity cleanup X1).** The admin's price repeater wrote `Price` rows
+  directly and skipped `CreatePrice`/`UpdatePrice`, so neither shop's admin
+  ever left a price audit row. Now the `Price` model's hooks dispatch
+  `PriceCreated`/`PriceUpdated`/`PriceDeleted` for every write; an unchanged
+  save dispatches nothing. **Removed:** `CreatePrice`, `UpdatePrice`,
+  `DeletePrice`, `PriceData` — write the model. Clearing a strikethrough now
+  clears its end date instead of failing; an end date in the past is refused
+  only when it is being set, so an elapsed date the hourly sweep hasn't
+  reached no longer blocks an unrelated edit. The repeater shows both
+  strikethrough checks as field errors instead of a 500. **For consumers:**
+  tests that used the actions write the model or a factory; a seeder that
+  writes prices should set a system audit actor, or its rows read `unknown`.
 
 ## v0.74.0 — 2026-11-04
 
