@@ -2,22 +2,33 @@
 
 declare(strict_types=1);
 
+/*
+|--------------------------------------------------------------------------
+| Variants
+|--------------------------------------------------------------------------
+|
+| Options and their values (bianka's Family axis). The `models` registry went
+| with the Variant model (2026-11, complexity cleanup release 2): neither
+| consumer ever overrode it, so `Option` and `OptionValue` are referenced
+| directly.
+|
+*/
+
 return [
     /*
     |--------------------------------------------------------------------------
-    | Models
+    | Domain switch
     |--------------------------------------------------------------------------
     |
-    | Override the default models used by the Variants domain. Each value must
-    | be a class that extends the corresponding base model. A consumer typically
-    | swaps `variant` for an app-level subclass that adds its own purchasable
-    | role contract (and HasCart) on top of the package mechanics.
+    | false switches the whole domain off: no migrations, translations or
+    | views load, its log subscriber, listeners, commands and schedules are
+    | not registered (an app schedule line naming one of its commands then
+    | fails). The morph aliases and its tables stay. Meant for a domain the
+    | shop does not use, such as Purchasing: a domain the enabled ones build
+    | on (Translation, Location, Media, Logging, Taxonomy) is not safe to
+    | switch off. Config only; there is no env variable.
     |
     */
 
-    'models' => [
-        'option' => InOtherShops\Variants\Models\Option::class,
-        'option_value' => InOtherShops\Variants\Models\OptionValue::class,
-        'variant' => InOtherShops\Variants\Models\Variant::class,
-    ],
+    'enabled' => true,
 ];

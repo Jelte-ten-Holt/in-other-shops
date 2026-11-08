@@ -55,6 +55,11 @@ final class SnapshotCartItemAttributions extends AbstractFlowStep
             ));
         }
 
+        // Switched off with `tracking.enabled`: see RecordCartItemAttribution.
+        if (config('tracking.enabled', true) === false) {
+            return;
+        }
+
         $cart = $payload->attributionCart();
         $order = $payload->attributionOrder();
 

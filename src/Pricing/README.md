@@ -69,7 +69,7 @@ interface HasPrices
 
 ### Actions
 
-- **`CreatePrice` / `UpdatePrice`** — take the priceable (or `Price`) plus a `PriceData` DTO; persist and dispatch `PriceCreated` / `PriceUpdated`.
+- **Writing a price** — there is no action: write the model (`$priceable->prices()->create([...])`, `$price->update([...])`, `$price->delete()`). Its hooks hold the strikethrough guards and dispatch `PriceCreated` / `PriceUpdated` / `PriceDeleted`, so the admin repeater, agent tools and imports are all audited (X1; `CreatePrice`/`UpdatePrice`/`DeletePrice` and `PriceData` were deleted in release 2). Saving clears a strikethrough end date that has no strikethrough amount, refuses a strikethrough not above the price, and refuses an end date in the past **when it is being set** — an elapsed date the sweep hasn't reached yet doesn't block an unrelated edit. An unchanged save dispatches nothing. `createQuietly()` / `saveQuietly()` skip both the guards and the events (fixtures, the expiry sweep).
 - **`ResolvePrice`** — finds the best matching price for a priceable, currency, quantity, and optional price list. Falls back from specific price list to default.
 - **`ExpireCompareAtPrices`** — promotes every price whose `compare_at_until` has passed: `compare_at_amount` becomes `amount`, the strikethrough is cleared, `CompareAtPriceExpired` is dispatched. Returns the affected prices. Driven by the `pricing:expire-compare-at` command; rows with a date but no `compare_at_amount` are skipped.
 - **`CalculateVoucherDiscount`** — pure calculation. Validates a voucher code (existence, active, expiry, minimum order, currency match) and returns the discount amount. **Does not record usage.** Safe to call repeatedly (cart total displays, checkout review).
@@ -79,13 +79,12 @@ interface HasPrices
 
 ### Events
 
-- **`PriceCreated` / `PriceUpdated` / `PriceDeleted`** — price CRUD.
+- **`PriceCreated` / `PriceUpdated` / `PriceDeleted`** — price CRUD, dispatched by the `Price` model's created/updated/deleted hooks.
 - **`CompareAtPriceExpired`** — fired after `ExpireCompareAtPrices` promotes a price; carries the post-promotion `Price` and the `previousAmount` it sold at during the window.
 - **`VoucherApplied`** — fired after `ApplyVoucher` increments usage successfully (after the transaction commits).
 
 ### DTOs
 
-- **`PriceData`** — readonly input for `CreatePrice` / `UpdatePrice`: `amount`, `currency`, `compareAtAmount`, `compareAtUntil`, `priceListId`, `minimumQuantity`.
 - **`PriceBreakdown`** — readonly: `subtotal`, `discount`, `tax`, `total` (all cents), `currency`, `lines` (array of `PriceBreakdownLine`), `voucherCode`.
 - **`PriceBreakdownLine`** — readonly: `description`, `unitPrice`, `quantity`, `lineTotal`.
 

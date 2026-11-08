@@ -106,7 +106,7 @@ class OrderResource extends PackageResource
             // most-visited admin list (S1 of the 2026-09-07 audit). A consumer
             // that overrides this callback loses the aggregate, not the column:
             // the refund cell falls back to the per-row query.
-            ->modifyQueryUsing(fn (Builder $query): Builder => static::withOldestOpenReservation($query->withSum('refunds', 'amount')))
+            ->modifyQueryUsing(fn (Builder $query): Builder => static::withOldestOpenReservation($query->withSum(['refunds' => fn (Builder $refunds): Builder => $refunds->whereNull('failed_at')], 'amount')))
             ->columns([
                 Tables\Columns\TextColumn::make('order_number')
                     ->label(__('shops-commerce::orders.fields.order_number'))

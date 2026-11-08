@@ -8,6 +8,97 @@ The format is loosely [Keep a Changelog](https://keepachangelog.com/); the
 package is pre-1.0, so minor versions may carry breaking changes (all consumers
 are pre-launch — single-release-window policy, no deprecation bridges).
 
+## Unreleased — release 2 (v0.75.0)
+
+- **A refund that fails at the gateway is undone (R4).** Stripe can accept a
+  refund and fail it minutes or days later (a closed or expired card); the
+  money goes back to the shop's balance. Until now the order stayed
+  "refunded", its VAT reversal stood, and a later genuine refund of the same
+  charge was dropped as stale. Now the Stripe driver reads
+  `charge.refund.updated` on a refund's change into `failed` or `canceled`
+  (both endpoints already receive it — no Stripe change). The payment's
+  `amount_refunded` falls to what Stripe's refund list still holds and its
+  status is recomputed;
+  the order's `Refund` row stays, marked with the new `failed_at` and
+  `failure_reason`, and counts toward nothing: not the order's refunded total,
+  not the VAT reversal, not `commerce:reconcile-refunds`, not the orders
+  list. New events `PaymentRefundFailed` (Payment) and `RefundFailed`
+  (Commerce), each with a warning audit row. **Migration:** two nullable
+  columns on `refunds`. **For consumers:** code that sums refunds itself uses
+  `Refund::notFailed()` (neither shop does today); listen to `RefundFailed` to
+  tell a customer or alert the operator. **Changed:** for a gateway that lists
+  refunds, the list read at processing time now caps a refund event's
+  cumulative, so a `charge.refunded` delivered after a failure no longer raises
+  the total back. The read API does not show the failure yet.
+- **The `Variant` half of Variants is deleted (complexity cleanup C5).**
+  Neither shop sold a variant: bianka groups products into Families on
+  Options, in-other-worlds sells flat products. Gone: the `Variant` model,
+  `HasVariants`/`InteractsWithVariants`, `CreateVariant`, `GenerateVariants`,
+  `CreateDefaultVariant`, `DeleteVariant`, `VariantsSchema`, `VariantCreated`,
+  `VariantDeleted`, `InvalidVariantOptionsException`, `OptionValue::variants()`,
+  the `variant` morph alias — and the `Variants` registry with its
+  `variants.models.*` keys (the registry rule: stripped when its domain loses a
+  model). **Breaking for bianka:** replace `Variants::option()` and
+  `Variants::optionValue()` with `Option::class` and `OptionValue::class`.
+  `Option`, `OptionValue` and `OptionResource` stay. **Migration — the
+  package's first that drops tables:** `drop_variant_tables` refuses
+  (`VariantStillReferencedException`) while any cart line or order line points
+  at a `variant`, else deletes what variants owned and drops `variants`,
+  `option_value_variant` and `optionables`.
+  **Before deploying:** count the lines that would stop it —
+  `SELECT COUNT(*) FROM cart_items WHERE cartable_type = 'variant'`, the same
+  for `order_lines.orderable_type` and `purchase_order_lines.purchasable_type`
+  — and check your own morph columns too (bianka's `bundle_items.purchasable`
+  could hold a variant from June 2026); the migration only knows the package's
+  tables. If it refuses, the container does not boot: delete or re-point those
+  rows from the database container, then redeploy.
+- **Prices are written through the model, so every price change is audited
+  (complexity cleanup X1).** The admin's price repeater wrote `Price` rows
+  directly and skipped `CreatePrice`/`UpdatePrice`, so neither shop's admin
+  ever left a price audit row. Now the `Price` model's hooks dispatch
+  `PriceCreated`/`PriceUpdated`/`PriceDeleted` for every write; an unchanged
+  save dispatches nothing. **Removed:** `CreatePrice`, `UpdatePrice`,
+  `DeletePrice`, `PriceData` — write the model. Clearing a strikethrough now
+  clears its end date instead of failing; an end date in the past is refused
+  only when it is being set, so an elapsed date the hourly sweep hasn't
+  reached no longer blocks an unrelated edit. The repeater shows both
+  strikethrough checks as field errors instead of a 500. **For consumers:**
+  tests that used the actions write the model or a factory; a seeder that
+  writes prices should set a system audit actor, or its rows read `unknown`.
+  Two behaviour changes to know: a direct `Price` write that sets a past end
+  date now throws (before, only `PriceData` refused it — a test fixture that
+  creates an elapsed strikethrough needs `createQuietly()`), and a save that
+  changes nothing no longer dispatches `PriceUpdated` (the old `UpdatePrice`
+  dispatched on every call).
+- **A product on sale can be saved in the admin again.** The Omnibus rule on
+  the strikethrough field compared it with the stored price on every save, and
+  a running sale's strikethrough is always above it, so every later save of a
+  product on sale failed with "cannot be higher than what this item is
+  currently priced at". It now checks only a strikethrough being set or
+  changed.
+- **Every domain can be switched off (complexity cleanup D7/D8).** Each
+  domain config gains `'enabled' => true`; set it `false` and the domain
+  loads no migrations, translations or views and registers no subscriber,
+  listener, command, route or schedule. Morph aliases stay, and so do its
+  tables. Child providers moved their extras from `boot()` to the new
+  `bootDomain()` hook. Tracking's chain steps write nothing while Tracking is
+  off. **For consumers:** nothing changes unless you switch a domain off.
+  Switch off only a domain nothing else in the app uses (Purchasing in a shop
+  that buys no stock): the other domains are not told, and most build on
+  Translation, Location, Media, Logging and Taxonomy. A disabled domain's
+  commands are gone, so drop any schedule line of yours that names one. The
+  read API still lists `purchase_orders` with Purchasing off, which on a fresh
+  database without those tables is a SQL error.
+- **The reservation TTL default rises from 30 to 120 minutes, and a TTL that
+  does not outlast the order abandon window stops the boot (X6b).** The old
+  default (30) was shorter than the package's own abandon window (60): stock
+  went back on sale while the gateway intent was still live. Commerce now
+  throws `ReservationTtlTooShortException` at boot for any such pair. Both
+  shops set 90 against 60 and are unaffected.
+- **`ResolveTaxRate` takes a country code (D10).** `__invoke(string
+  $countryCode, ?TaxCategory $category = null)` instead of an `Address`. Both
+  shops' `ResolveTaxRateForOrder` step built a throwaway `Address` to pass the
+  country; pass the country instead. Tax no longer depends on Location.
 ## v0.74.0 — 2026-11-04
 
 Stock holds, and admin orders that take stock. Design:

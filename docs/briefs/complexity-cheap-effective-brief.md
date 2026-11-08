@@ -179,7 +179,7 @@ Consumer work, release 2 (total): IOW — 5 pricing test files, `CheckoutControl
 | C14 `OrderFactory::status()` | 2 | **dropped** | factory state used by 2 test files |
 | C13 `FakePaymentGateway` → tests | — | **dropped** | consumed by both consumers' suites; audit premise false |
 | D13 Storefront→Media | 2 | **done** (#25) | |
-| D14 `HasAvailability` | 2 → **8** | **moved to release 2** | IOW `app/Contracts/Purchasable.php:15` extends it — one consumer line, goes with PR 8's consumer edits |
+| D14 `HasAvailability` | 2 → **8** | **dropped** (2026-11-08) | premise false: IOW's `Bundle` derives stock from its components and implements only `HasAvailability` (via `Purchasable`), so deleting it broke `Bundle` and would drop `in_stock` for bundles from the storefront the agent's `browse_catalog` reads. Found by the IOW suite against the branch. It is the derived-stock contract, not a duplicate |
 | D16 Media system-actor imports | 2 | **done** (#25) | |
 | D18 `default_currency` home | 2 | **done** (#25) | `currency.default` had to be **created**; bianka `config/commerce.php:82` restates the old key (same value) — delete on bump |
 | D19 `requireMorphMap()` | 2 | **done** (#25) | now fires from Support (first provider) — strictly earlier |
@@ -194,14 +194,14 @@ Consumer work, release 2 (total): IOW — 5 pricing test files, `CheckoutControl
 | D2 `imagewebp` guard + `ext-exif` | 3 | **done** (#26) | |
 | D4 Stripe `^20` | 3 | **done** (#26) | suite green on 20.3.1, no source change; `composer.lock` is gitignored so it resolves on next install |
 | X6 inverted TTL comment | 3 | **done** (#26) | **but the shipped defaults violate the invariant** (abandon 60 min vs reservation TTL 30 min) — see §6 open (d). **2026-10-17:** there is no open (d) any more; it was decided 2026-09-07 as X6b (§6) and lands in PR 7 |
-| C5 Variants `Variant` half | 4 | pending | alias-precondition migration |
-| X1 pricing write path | 5 | pending | + IOW 5 test files |
+| C5 Variants `Variant` half | 4 | **done** (`release-2`, 2026-11-08) | alias-precondition migration `drop_variant_tables` + `VariantStillReferencedException`; the `Variants` registry stripped too (CLAUDE.md registry rule; bianka 7 call sites); `TestVariantable` kept as `TestPricedCartable` (3 Commerce tests price through it); alias assertion moved to `OptionTest`; `Cart::defaultCurrency()` is now the only copy, so no `Currency::default()` accessor was added |
+| X1 pricing write path | 5 | **done** (`release-2`, 2026-11-08) | model hooks + both repeater rules; `PriceRepeaterAuditTest` drives the stub edit page (the price repeater joined `StubEditableResource`, `TestEditable` gained `HasPrices`); `LogDispatcher` docblock rewritten; IOW's 5 test files are consumer work at the bump; seeder actor is consumer work |
 | X2 shipment timing | 6 | pending | `OrderStatusChanged`; 6 tests; orphan cleanup; IOW `CheckoutControllerTest` |
 | X7 Commerce README drift | 6 | pending | free rider |
-| D7/D8 domain gate | 7 | pending | `bootDomain()` refactor across all child providers |
-| X6b TTL default 120 + boot assertion | 7 | pending | decided 2026-09-07; TTL must exceed abandon window |
-| D10 Tax string | 8 | pending | 2 steps + 2 tests |
-| D12 `tax_category` cast | 8 | pending | |
+| D7/D8 domain gate | 7 | **done** (`release-2`, 2026-11-08) | `bootDomain()` + `isEnabled()` on the base; Commerce, Inventory, Logging, Pricing, Taxonomy moved their extras; `DomainEnableGateTest` (verified failing with the gate bypassed and with an extra left in `boot()`); Tracking steps early-return (`TrackingSwitchedOffTest`). **Consumer step changed:** bianka uses Tracking since its analytics (2026-10-30) — it must NOT be switched off; Purchasing is unused there — ruling at the bump |
+| X6b TTL default 120 + boot assertion | 7 | **done** (`release-2`, 2026-11-08) | `ReservationWindow::assertOutlivesAbandonWindow()` first in `CommerceServiceProvider::bootDomain()`; null TTL passes |
+| D10 Tax string | 8 | **done** (`release-2`, 2026-11-08) | package tests pass country strings; both consumer steps + tests at the bump |
+| D12 `tax_category` cast | 8 | **dropped** | premise no longer holds: the books read API (`PurchaseOrderResource`, v0.72.0) reads the cast since 2026-10-27 |
 | C23 `Ready` step 1 | 9 | pending | production `ready` rows = 0 on both shops (2026-09-07); IOW `ListOrdersController:88` |
 | C23 `Ready` step 2 (enum case) | 11 | pending | |
 | C2 price lists | 10 | pending | dedupe keeps list row; MySQL-tested with collision |

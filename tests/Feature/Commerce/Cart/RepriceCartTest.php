@@ -10,7 +10,7 @@ use InOtherShops\Commerce\Cart\Models\Cart;
 use InOtherShops\Commerce\Cart\Models\CartItem;
 use InOtherShops\Currency\Enums\Currency;
 use InOtherShops\Tests\Stubs\TestCartable;
-use InOtherShops\Tests\Stubs\TestVariantable;
+use InOtherShops\Tests\Stubs\TestPricedCartable;
 use InOtherShops\Tests\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 
@@ -75,7 +75,7 @@ final class RepriceCartTest extends TestCase
     {
         // Zeroing it would let the piece check out free; the unpriced case is
         // the consumer's cart-validation step's to reject.
-        $unpriced = TestVariantable::factory()->create();
+        $unpriced = TestPricedCartable::factory()->create();
         $cart = Cart::factory()->create(['currency' => Currency::EUR]);
         $item = CartItem::factory()->for($cart)->create([
             'cartable_type' => $unpriced->getMorphClass(),
@@ -106,8 +106,8 @@ final class RepriceCartTest extends TestCase
 
     private function pricedItem(int $livePrice, int $snapshot, int $quantity = 1): CartItem
     {
-        $variantable = TestVariantable::factory()->create();
-        $variantable->prices()->create([
+        $priced = TestPricedCartable::factory()->create();
+        $priced->prices()->create([
             'currency' => Currency::EUR->value,
             'amount' => $livePrice,
             'minimum_quantity' => 1,
@@ -117,8 +117,8 @@ final class RepriceCartTest extends TestCase
         $cart = Cart::factory()->create(['currency' => Currency::EUR]);
 
         $item = CartItem::factory()->for($cart)->create([
-            'cartable_type' => $variantable->getMorphClass(),
-            'cartable_id' => $variantable->id,
+            'cartable_type' => $priced->getMorphClass(),
+            'cartable_id' => $priced->id,
             'unit_price' => $snapshot,
             'quantity' => $quantity,
         ]);

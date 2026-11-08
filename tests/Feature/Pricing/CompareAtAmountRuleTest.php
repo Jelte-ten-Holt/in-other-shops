@@ -58,6 +58,16 @@ final class CompareAtAmountRuleTest extends TestCase
         $this->assertNull($this->failure(record: $price, value: '40.00'));
     }
 
+    /** A running sale: the strikethrough already on the row is not being set. */
+    #[Test]
+    public function an_unchanged_strikethrough_passes_on_edit(): void
+    {
+        $price = new Price(['amount' => 4000, 'compare_at_amount' => 5000]);
+
+        $this->assertNull($this->failure(record: $price, value: '50.00'));
+        $this->assertNotNull($this->failure(record: $price, value: '55.00'), 'a changed one is still checked');
+    }
+
     /**
      * Runs the rule and returns the failure message, or null if it passed.
      */

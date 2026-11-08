@@ -23,7 +23,6 @@ use InOtherShops\Translation\Filament\TranslationSchema;
 use InOtherShops\Variants\Filament\Resources\OptionResource\Pages;
 use InOtherShops\Variants\Models\Option;
 use InOtherShops\Variants\Models\OptionValue;
-use InOtherShops\Variants\Variants;
 
 /**
  * Standalone admin for the global Option catalog (Metal, Ring Size, …) and each

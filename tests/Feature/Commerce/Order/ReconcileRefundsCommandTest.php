@@ -120,6 +120,21 @@ final class ReconcileRefundsCommandTest extends TestCase
         $this->assertSame(0, Refund::query()->count());
     }
 
+    /**
+     * R4: a failed refund lowers the payment total and keeps its row, marked
+     * failed. The tripwire compares the total with the rows that stand, so the
+     * two still agree.
+     */
+    #[Test]
+    public function a_failed_refund_row_does_not_count_against_the_payment_total(): void
+    {
+        $payment = $this->orderPayment(refunded: 500);
+        $this->refundRow($payment, 500);
+        $this->refundRow($payment, 300)->update(['failed_at' => now()]);
+
+        $this->artisan('commerce:reconcile-refunds')->assertExitCode(0);
+    }
+
     private function orderPayment(int $refunded, ?string $reference = null, ?\DateTimeInterface $touched = null): Payment
     {
         return Payment::factory()->for(Order::factory()->create(['total' => 6350]), 'payable')->create([

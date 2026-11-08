@@ -9,6 +9,7 @@ use InOtherShops\Payment\Contracts\ManagesCustomers;
 use InOtherShops\Payment\Contracts\PaymentGateway;
 use InOtherShops\Payment\Contracts\ReportsSettlements;
 use InOtherShops\Payment\DTOs\GatewayRefund;
+use InOtherShops\Payment\DTOs\GatewayRefundFailure;
 use InOtherShops\Payment\DTOs\PaymentCustomerData;
 use InOtherShops\Payment\DTOs\PaymentSession;
 use InOtherShops\Payment\DTOs\Settlement;
@@ -172,11 +173,15 @@ final class StripePaymentGateway implements ListsRefunds, ManagesCustomers, Paym
             return $this->parseChargeRefunded($event);
         }
 
+        if ($event->type === 'charge.refund.updated' && ($failure = $this->parseRefundFailure($event)) !== null) {
+            return $failure;
+        }
+
         // Everything below reads a PaymentIntent. An authentic event about
         // anything else (a dispute, a refund, a charge) is not one this driver
         // handles: casting it would read a du_…/re_…/ch_… id as an intent id.
-        // That includes charge.refund.updated, which says nothing the payment
-        // or its refund rows follow.
+        // That includes every charge.refund.updated that is not a refund's
+        // change into failed (an acquirer reference arriving, say).
         if (($event->data->object->object ?? null) !== PaymentIntent::OBJECT_NAME) {
             Log::info('Stripe webhook ignored: not an event this driver handles', [
                 'event_type' => $event->type,
@@ -376,6 +381,49 @@ final class StripePaymentGateway implements ListsRefunds, ManagesCustomers, Paym
     public function customerDashboardUrl(string $gatewayCustomerId): ?string
     {
         return "https://dashboard.stripe.com/customers/{$gatewayCustomerId}";
+    }
+
+    /**
+     * charge.refund.updated — data.object is a Refund. Stripe sends one for
+     * every change to a refund; this reads only the change INTO `failed` or
+     * `canceled`, which `previous_attributes` shows as a status that was
+     * something else. A later update of a refund that is already failed carries
+     * no status in `previous_attributes` and is ignored, so a failure lowers the
+     * payment's refunded total once (seen 2026-11-01: the refund is created
+     * `succeeded` and fails about two minutes later; Stripe lowers the charge's
+     * `amount_refunded` and sends no charge event about it).
+     */
+    private function parseRefundFailure(\Stripe\Event $event): ?WebhookPayload
+    {
+        /** @var \Stripe\Refund $refund */
+        $refund = $event->data->object;
+        $gaveUp = [Refund::STATUS_FAILED, Refund::STATUS_CANCELED];
+        $previous = $event->data->previous_attributes ?? null;
+        $previousStatus = $previous instanceof \Stripe\StripeObject ? ($previous['status'] ?? null) : null;
+
+        if (
+            ($refund->object ?? null) !== Refund::OBJECT_NAME
+            || ! in_array($refund->status ?? null, $gaveUp, true)
+            || ! is_string($previousStatus)
+            || in_array($previousStatus, $gaveUp, true)
+            || ! is_string($refund->payment_intent ?? null)
+            || ! is_int($refund->amount ?? null)
+        ) {
+            return null;
+        }
+
+        return new WebhookPayload(
+            gatewayReference: $refund->payment_intent,
+            status: PaymentStatus::Refunded,
+            eventId: $event->id,
+            gatewayData: ['event_type' => $event->type],
+            currency: isset($refund->currency) && is_string($refund->currency) ? strtolower($refund->currency) : null,
+            refundFailure: new GatewayRefundFailure(
+                id: $refund->id,
+                amount: $refund->amount,
+                reason: is_string($refund->failure_reason ?? null) ? $refund->failure_reason : null,
+            ),
+        );
     }
 
     public function paymentDashboardUrl(Payment $payment): ?string

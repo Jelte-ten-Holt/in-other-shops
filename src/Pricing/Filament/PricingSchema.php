@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace InOtherShops\Pricing\Filament;
 
+use Carbon\Carbon;
 use Closure;
+use DateTimeInterface;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
@@ -74,7 +76,27 @@ final class PricingSchema
         return self::moneyField('compare_at_amount')
             ->label(__('shops-pricing::price.compare_at_amount'))
             ->hintIcon('heroicon-m-exclamation-triangle', tooltip: __('shops-pricing::price.compare_at_tooltip'))
-            ->rule(static fn (?Model $record): Closure => self::compareAtAmountRule($record));
+            ->rule(static fn (?Model $record): Closure => self::compareAtAmountRule($record))
+            ->rule(static fn (Get $get): Closure => self::compareAtAboveAmountRule($get('amount')));
+    }
+
+    /**
+     * The model's invariant as a field error: a strikethrough only reads as a
+     * discount above the price entered beside it. Without this rule the
+     * `Price` saving guard throws inside the Livewire save and the admin sees
+     * a 500. Both values are the form's state, in major units.
+     */
+    public static function compareAtAboveAmountRule(mixed $amount): Closure
+    {
+        return static function (string $attribute, mixed $value, Closure $fail) use ($amount): void {
+            if ($value === null || $value === '' || $amount === null || $amount === '') {
+                return;
+            }
+
+            if (MoneyFields::dehydrateCents($value) <= MoneyFields::dehydrateCents($amount)) {
+                $fail(__('shops-pricing::price.compare_at_not_above'));
+            }
+        };
     }
 
     /**
@@ -83,11 +105,20 @@ final class PricingSchema
      * blocked outright, and on edit it may not exceed the price already on
      * record. Heuristic, not an invariant: lives in the form layer, not on the
      * model. Returned as a standalone closure so it is unit-testable.
+     *
+     * Checked only when the strikethrough is being set or changed. A running
+     * sale always has its strikethrough above the price on record — that is
+     * what a sale is — so checking an unchanged one blocked every later save
+     * of a product on sale (found 2026-11-08).
      */
     public static function compareAtAmountRule(?Model $record): Closure
     {
         return static function (string $attribute, mixed $value, Closure $fail) use ($record): void {
             if ($value === null || $value === '') {
+                return;
+            }
+
+            if ($record !== null && MoneyFields::dehydrateCents($value) === $record->getAttribute('compare_at_amount')) {
                 return;
             }
 
@@ -122,10 +153,36 @@ final class PricingSchema
         return DateTimePicker::make('compare_at_until')
             ->label(__('shops-pricing::price.compare_at_until'))
             ->seconds(false)
-            ->after('now')
+            ->rule(static fn (?Model $record): Closure => self::compareAtUntilRule($record))
             ->timezone(config('app.timezone'))
             ->visible(fn (Get $get): bool => filled($get('compare_at_amount')))
             ->helperText(__('shops-pricing::price.compare_at_until_help', ['timezone' => config('app.timezone')]));
+    }
+
+    /**
+     * An end date may not be moved into the past. One the row already carries
+     * that has passed is left alone: the hourly sweep may not have reached it
+     * yet, and an unrelated edit in that hour must still save (the model guard
+     * draws the same line). Judged on whether the stored date has passed, not
+     * on equality, because the picker drops seconds a stored date may have.
+     */
+    public static function compareAtUntilRule(?Model $record): Closure
+    {
+        return static function (string $attribute, mixed $value, Closure $fail) use ($record): void {
+            if ($value === null || $value === '') {
+                return;
+            }
+
+            $stored = $record?->getAttribute('compare_at_until');
+
+            if ($stored instanceof DateTimeInterface && $stored->getTimestamp() <= now()->getTimestamp()) {
+                return;
+            }
+
+            if (Carbon::parse($value, config('app.timezone'))->lessThanOrEqualTo(now())) {
+                $fail(__('shops-pricing::price.compare_at_until_past'));
+            }
+        };
     }
 
     /**

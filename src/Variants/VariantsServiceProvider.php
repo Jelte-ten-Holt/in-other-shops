@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace InOtherShops\Variants;
 
 use InOtherShops\Support\DomainServiceProvider;
+use InOtherShops\Variants\Models\Option;
+use InOtherShops\Variants\Models\OptionValue;
 
 final class VariantsServiceProvider extends DomainServiceProvider
 {
@@ -16,14 +18,13 @@ final class VariantsServiceProvider extends DomainServiceProvider
     protected function morphAliases(): array
     {
         return [
-            'option' => Variants::option(),
-            'option_value' => Variants::optionValue(),
-            'variant' => Variants::variant(),
+            'option' => Option::class,
+            'option_value' => OptionValue::class,
         ];
     }
 
     protected function publishesConfig(): bool
     {
-        return true;
+        return false;
     }
 }

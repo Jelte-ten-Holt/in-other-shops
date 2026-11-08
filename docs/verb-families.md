@@ -157,18 +157,7 @@ Current actions: `CreateOrder`, `UpdateOrderStatus`, `ReserveOrderStock`, `Relea
 
 ### Variants
 
-**Primary family: CRUD + combinatorial generation.**
-
-- `Create` — single explicit variant creation (`CreateVariant`).
-- `Generate` — bulk combinatorial creation, the cartesian product of selected option values (`GenerateVariants`). New cross-domain verb introduced by this domain (see glossary).
-- `CreateDefaultVariant` — `Create` family (creates one default variant + emits `VariantCreated`); the flat-owner migration path. **Not** `Ensure` — `Ensure` is reserved for void-returning guards, and this creates a record.
-- `Delete` — `DeleteVariant`.
-
-Banned conflation: don't name the migration action `EnsureDefaultVariant` — that reads as a guard but it creates a record. Don't use `Create` for the cartesian expansion — that's `Generate`.
-
-Current actions: `CreateVariant`, `GenerateVariants`, `CreateDefaultVariant`, `DeleteVariant`. ✅ Compliant.
-
----
+No actions since the Variant model was retired (2026-11, complexity cleanup release 2). `Create`/`Generate`/`CreateDefault`/`Delete` were its verbs; `Generate` stays in the glossary for Media's image ladder (`GenerateImageVariants`, `media:variants`).
 
 ## Renames pending
 

@@ -34,9 +34,9 @@ final class TaxonomyServiceProvider extends DomainServiceProvider
         ];
     }
 
-    public function boot(): void
+    protected function bootDomain(): void
     {
-        parent::boot();
+        parent::bootDomain();
 
         Taxonomy::category()::observe(CategoryObserver::class);
 

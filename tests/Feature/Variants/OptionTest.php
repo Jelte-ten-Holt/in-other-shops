@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace InOtherShops\Tests\Feature\Variants;
 
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use InOtherShops\Translation\Contracts\HasTranslations;
 use InOtherShops\Variants\Models\Option;
@@ -53,5 +54,17 @@ final class OptionTest extends TestCase
         $option->delete();
 
         $this->assertDatabaseMissing('option_values', ['id' => $value->id]);
+    }
+
+    /**
+     * Carried over from the deleted VariantsRegistryTest: bianka's Family and
+     * Product rows point at these through the morph map, which is required.
+     */
+    #[Test]
+    public function the_domain_registers_its_morph_aliases(): void
+    {
+        $this->assertSame(Option::class, Relation::getMorphedModel('option'));
+        $this->assertSame(OptionValue::class, Relation::getMorphedModel('option_value'));
+        $this->assertNull(Relation::getMorphedModel('variant'), 'the variant alias went with the model');
     }
 }

@@ -13,7 +13,7 @@ use InOtherShops\Commerce\Checkout\Http\CheckoutRoutes;
 use InOtherShops\Currency\Enums\Currency;
 use InOtherShops\Pricing\Models\Voucher;
 use InOtherShops\Tests\Stubs\TestCartable;
-use InOtherShops\Tests\Stubs\TestVariantable;
+use InOtherShops\Tests\Stubs\TestPricedCartable;
 use InOtherShops\Tests\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 
@@ -122,8 +122,8 @@ final class VoucherCheckoutHttpTest extends TestCase
         // judged against the subtotal the order would actually charge.
         Voucher::factory()->create(['code' => 'BIGCART', 'amount' => 500, 'minimum_order_amount' => 5000]);
 
-        $variantable = TestVariantable::factory()->create();
-        $variantable->prices()->create([
+        $priced = TestPricedCartable::factory()->create();
+        $priced->prices()->create([
             'currency' => Currency::EUR->value,
             'amount' => 6000,
             'minimum_quantity' => 1,
@@ -131,8 +131,8 @@ final class VoucherCheckoutHttpTest extends TestCase
         ]);
         $cart = $this->emptyCart();
         CartItem::factory()->for($cart)->create([
-            'cartable_type' => $variantable->getMorphClass(),
-            'cartable_id' => $variantable->id,
+            'cartable_type' => $priced->getMorphClass(),
+            'cartable_id' => $priced->id,
             'unit_price' => 4000,
             'quantity' => 1,
         ]);

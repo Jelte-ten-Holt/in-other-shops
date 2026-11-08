@@ -21,7 +21,7 @@ use Throwable;
  *
  * Orphans exist because three things left files behind: the replace no-op
  * fixed in v0.68.0 (every replacement ever made), `DeleteVariant` detaching
- * without deleting, and a Filament save that throws after the upload has
+ * without deleting (the action is gone since the Variant model went, 2026-11), and a Filament save that throws after the upload has
  * already been moved out of `livewire-tmp` (bianka's panel runs
  * `->databaseTransactions()`, so a rollback leaves a moved file with no row).
  * Nothing has ever swept them up; on staging more than half the bytes under

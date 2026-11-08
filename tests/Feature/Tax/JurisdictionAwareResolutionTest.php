@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace InOtherShops\Tests\Feature\Tax;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use InOtherShops\Location\Models\Address;
 use InOtherShops\Tax\Actions\ResolveTaxRate;
 use InOtherShops\Tax\Models\TaxRate;
 use InOtherShops\Tests\TestCase;
@@ -41,7 +40,7 @@ final class JurisdictionAwareResolutionTest extends TestCase
     {
         TaxRate::factory()->forCountry('DE', 1900, 'Germany VAT 19%')->default()->create();
 
-        $rate = ($this->resolve)($this->makeAddress('FR'));
+        $rate = ($this->resolve)('FR');
 
         $this->assertNotNull($rate);
         $this->assertSame(1900, $rate->rate_bps);
@@ -55,7 +54,7 @@ final class JurisdictionAwareResolutionTest extends TestCase
         TaxRate::factory()->forCountry('DE', 1900)->default()->create();
         TaxRate::factory()->forCountry('FR', 2000, 'France VAT 20%')->create();
 
-        $rate = ($this->resolve)($this->makeAddress('FR'));
+        $rate = ($this->resolve)('FR');
 
         $this->assertNotNull($rate);
         $this->assertSame('FR', $rate->country_code);
@@ -67,7 +66,7 @@ final class JurisdictionAwareResolutionTest extends TestCase
     {
         TaxRate::factory()->forCountry('DE', 1900)->default()->create();
 
-        $rate = ($this->resolve)($this->makeAddress('US'));
+        $rate = ($this->resolve)('US');
 
         $this->assertNotNull($rate);
         $this->assertSame(0, $rate->rate_bps);
@@ -83,7 +82,7 @@ final class JurisdictionAwareResolutionTest extends TestCase
         // must not inherit the seller's home rate.
         TaxRate::factory()->forCountry('DE', 1900)->default()->create();
 
-        $rate = ($this->resolve)($this->makeAddress('GB'));
+        $rate = ($this->resolve)('GB');
 
         $this->assertNotNull($rate);
         $this->assertSame(0, $rate->rate_bps);
@@ -98,7 +97,7 @@ final class JurisdictionAwareResolutionTest extends TestCase
         TaxRate::factory()->forCountry('DE', 1900)->default()->create();
         TaxRate::factory()->forCountry('GB', 2000, 'UK VAT 20%')->create();
 
-        $rate = ($this->resolve)($this->makeAddress('GB'));
+        $rate = ($this->resolve)('GB');
 
         $this->assertNotNull($rate);
         $this->assertSame(2000, $rate->rate_bps);
@@ -111,7 +110,7 @@ final class JurisdictionAwareResolutionTest extends TestCase
         config()->set('tax.home_jurisdiction', null);
         TaxRate::factory()->forCountry('NL', 2100)->default()->create();
 
-        $rate = ($this->resolve)($this->makeAddress('US'));
+        $rate = ($this->resolve)('US');
 
         $this->assertNotNull($rate);
         $this->assertSame('NL', $rate->country_code);
@@ -127,7 +126,7 @@ final class JurisdictionAwareResolutionTest extends TestCase
         ]);
         TaxRate::factory()->forCountry('DE', 1900)->default()->create();
 
-        $rate = ($this->resolve)($this->makeAddress('US'));
+        $rate = ($this->resolve)('US');
 
         $this->assertNotNull($rate);
         $this->assertSame(100, $rate->rate_bps);
@@ -139,17 +138,10 @@ final class JurisdictionAwareResolutionTest extends TestCase
     {
         TaxRate::factory()->forCountry('DE', 1900)->default()->create();
 
-        $rate = ($this->resolve)($this->makeAddress('fr'));
+        $rate = ($this->resolve)('fr');
 
         $this->assertNotNull($rate);
         $this->assertSame(1900, $rate->rate_bps); // Falls back to home default, not export.
     }
 
-    private function makeAddress(string $countryCode): Address
-    {
-        $address = new Address;
-        $address->country_code = $countryCode;
-
-        return $address;
-    }
 }

@@ -288,10 +288,15 @@ final class LogSubscriberMappingTest extends TestCase
         $this->assertSame('fixed', $entry->context['type']);
     }
 
+    // The Price fixtures below are created quietly: since X1 the model's own
+    // hooks dispatch these events, and these tests pin the subscriber's
+    // mapping of one event they dispatch by hand. PriceWritePathTest and
+    // PriceRepeaterAuditTest cover the hooks.
+
     #[Test]
     public function price_created_routes_to_commerce_channel_at_info(): void
     {
-        $price = Price::factory()->create([
+        $price = Price::factory()->createQuietly([
             'priceable_type' => 'test_browsable',
             'priceable_id' => 1,
         ]);
@@ -306,7 +311,7 @@ final class LogSubscriberMappingTest extends TestCase
     #[Test]
     public function price_updated_routes_to_commerce_channel_at_info(): void
     {
-        $price = Price::factory()->create([
+        $price = Price::factory()->createQuietly([
             'priceable_type' => 'test_browsable',
             'priceable_id' => 1,
         ]);
@@ -323,7 +328,7 @@ final class LogSubscriberMappingTest extends TestCase
         // (so cache/index consumers react) AND CompareAtPriceExpired (the
         // audited specialization). The generic "Price updated" line must be
         // suppressed for the expiry path so the audit log keeps one entry.
-        $price = Price::factory()->create([
+        $price = Price::factory()->createQuietly([
             'priceable_type' => 'test_browsable',
             'priceable_id' => 1,
         ]);
@@ -353,7 +358,7 @@ final class LogSubscriberMappingTest extends TestCase
     {
         // The strikethrough cutover changes the money field on a timer — the
         // log entry is what keeps that auditable rather than silent.
-        $price = Price::factory()->create([
+        $price = Price::factory()->createQuietly([
             'priceable_type' => 'test_browsable',
             'priceable_id' => 1,
             'amount' => 5000,

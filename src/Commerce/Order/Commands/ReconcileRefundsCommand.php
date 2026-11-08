@@ -97,7 +97,8 @@ final class ReconcileRefundsCommand extends Command
             ->where('updated_at', '<', $settledBefore)
             ->addSelect(['recorded_refunds' => Commerce::refund()::query()
                 ->selectRaw('coalesce(sum(amount), 0)')
-                ->whereColumn('refunds.payment_id', 'payments.id'),
+                ->whereColumn('refunds.payment_id', 'payments.id')
+                ->whereNull('refunds.failed_at'),
             ])
             ->with('payable')
             ->orderBy('id')

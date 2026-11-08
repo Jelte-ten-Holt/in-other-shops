@@ -7,6 +7,7 @@ namespace InOtherShops\Commerce\Listeners;
 use InOtherShops\Commerce\Order\Events\OrderConfirmationBlocked;
 use InOtherShops\Commerce\Order\Events\OrderCreated;
 use InOtherShops\Commerce\Order\Events\OrderStatusChanged;
+use InOtherShops\Commerce\Order\Events\RefundFailed;
 use InOtherShops\Commerce\Order\Events\RefundRecorded;
 use InOtherShops\Commerce\Order\Enums\RefundActorSource;
 use InOtherShops\Commerce\Order\Models\Refund;
@@ -35,6 +36,7 @@ final class CommerceLogSubscriber extends LogSubscriberBase
             OrderStatusChanged::class => 'handleOrderStatusChanged',
             OrderConfirmationBlocked::class => 'handleOrderConfirmationBlocked',
             RefundRecorded::class => 'handleRefundRecorded',
+            RefundFailed::class => 'handleRefundFailed',
         ];
     }
 
@@ -67,6 +69,23 @@ final class CommerceLogSubscriber extends LogSubscriberBase
                 'actor_id' => $refund->actor_id,
                 'actor_label' => $refund->actor_label,
             ], actor: $this->auditActorForRefund($refund));
+    }
+
+    public function handleRefundFailed(RefundFailed $event): void
+    {
+        $refund = $event->refund;
+
+        // No explicit actor: the failure comes from the gateway, which is the
+        // webhook boundary's ambient actor.
+        $this->log(LogLevel::Warning, "Refund of {$refund->amount} on order {$refund->order_id} failed at the gateway.", [
+            'refund_id' => $refund->id,
+            'order_id' => $refund->order_id,
+            'payment_id' => $refund->payment_id,
+            'gateway' => $refund->gateway,
+            'gateway_refund_id' => $refund->gateway_refund_id,
+            'amount' => $refund->amount,
+            'failure_reason' => $refund->failure_reason,
+        ]);
     }
 
     /**

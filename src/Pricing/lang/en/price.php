@@ -15,6 +15,8 @@ return [
     'compare_at_tooltip' => "Only use a price this item was genuinely sold at recently. Inventing a higher 'original' price to fake a discount is illegal under EU pricing rules (Omnibus Directive).",
     'compare_at_create_blocked' => "A strikethrough can't be set when first creating a price — there's no prior price the item was sold at. Save the price, then add a strikethrough.",
     'compare_at_too_high' => 'The strikethrough price cannot be higher than what this item is currently priced at. Use a price it was actually sold at before.',
+    'compare_at_not_above' => 'The strikethrough price must be higher than the price.',
     'compare_at_until' => 'Strikethrough ends',
     'compare_at_until_help' => 'When this passes, the strikethrough price becomes the actual price and the strikethrough is cleared. Times are in the shop’s configured timezone (:timezone).',
+    'compare_at_until_past' => 'The strikethrough end must be in the future.',
 ];

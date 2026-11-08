@@ -39,7 +39,7 @@ final class BootConfigMergeTest extends TestCase
             'taxonomy' => ['taxonomy.models'],
             'tracking' => ['tracking.models'],
             'translation' => ['translation.locales'],
-            'variants' => ['variants.models'],
+            'variants' => ['variants.enabled'],
         ];
     }
 

@@ -54,6 +54,13 @@ final class RecordCartItemAttribution extends AbstractFlowStep
     {
         assert($payload instanceof AddToCartPayload);
 
+        // Switched off with `tracking.enabled`: a step still listed in a
+        // published chain writes nothing, and must not touch tables a fresh
+        // install of a shop with Tracking off never created.
+        if (config('tracking.enabled', true) === false) {
+            return;
+        }
+
         // No cart item means an upstream step did not run. Skip rather than
         // assert: this step is supplementary, and a consumer reordering their
         // published chain should not get a fatal from the analytics step.

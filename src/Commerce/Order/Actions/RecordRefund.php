@@ -117,6 +117,8 @@ final class RecordRefund
 
     /**
      * Per-bracket tax and base already reversed by this order's prior refunds.
+     * A failed refund reversed nothing that stands, so it is left out and the
+     * next refund reverses that VAT again.
      *
      * @return array{0: array<int, int>, 1: array<int, int>}
      */
@@ -125,7 +127,7 @@ final class RecordRefund
         $tax = [];
         $base = [];
 
-        foreach ($order->refunds()->get() as $refund) {
+        foreach ($order->refunds()->notFailed()->get() as $refund) {
             foreach ($refund->taxSummary() as $line) {
                 $tax[$line->rateBps] = ($tax[$line->rateBps] ?? 0) + $line->tax;
                 $base[$line->rateBps] = ($base[$line->rateBps] ?? 0) + $line->taxableBase;
