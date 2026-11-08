@@ -8,7 +8,7 @@ The format is loosely [Keep a Changelog](https://keepachangelog.com/); the
 package is pre-1.0, so minor versions may carry breaking changes (all consumers
 are pre-launch — single-release-window policy, no deprecation bridges).
 
-## Unreleased — release 2 (v0.75.0)
+## v0.75.0 — 2026-11-08
 
 - **A refund that fails at the gateway is undone (R4).** Stripe can accept a
   refund and fail it minutes or days later (a closed or expired card); the
