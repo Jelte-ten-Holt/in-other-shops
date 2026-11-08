@@ -208,7 +208,7 @@ Discussed and agreed: both are stubs (a table plus a nullable FK), not features.
 
 1. **X3** — do admins ever create orders by hand in Filament? Determines whether ~450 lines (order-line picker + float totals) go or get `MorphToSelect`.
 2. **W3** — migrate Agent to `laravel/mcp` (beta, first-party, deletes ~375 lines of OAuth glue + the opgginc dep) or stay on opgginc?
-3. **D7/D8** — gate Purchasing and Tracking off in bianka, or leave the dormant tables?
+3. **D7/D8** — gate Purchasing and Tracking off in bianka, or leave the dormant tables? **Ruled 2026-11-08: both stay on.** Tracking carries bianka's analytics (since 2026-10-30), and Bianka plans to buy in goods as well as make them. The `{domain}.enabled` gate shipped in release 2 anyway.
 4. **C25** — is AddToCart-as-FlowChain worth its ~250-line premium over two events, given it's the *only* published chain? (Reviewers split; the mechanism works and both consumers use it.)
 5. **X8** — which is true about admin locale: the memory entry or the code?
 6. §7 leans — which conventions to rewrite in CLAUDE.md.
