@@ -18,6 +18,7 @@ use InOtherShops\Commerce\Order\Listeners\ReconcileRefundFromWebhook;
 use InOtherShops\Commerce\Order\Listeners\RecordRefundFailureFromWebhook;
 use InOtherShops\Commerce\Order\Listeners\ReleaseVoucherOnOrderCancelled;
 use InOtherShops\Commerce\Order\Listeners\SyncInventoryOnOrderStatusChange;
+use InOtherShops\Commerce\Order\Support\ReservationWindow;
 use InOtherShops\Commerce\Order\Models\Order;
 use InOtherShops\FlowChain\FlowChainRegistry;
 use InOtherShops\Location\Location;
@@ -78,9 +79,11 @@ final class CommerceServiceProvider extends DomainServiceProvider
         return [PruneExpiredCartsCommand::class, ExpireAbandonedOrdersCommand::class, ReconcileRefundsCommand::class, RecordSettlementsCommand::class];
     }
 
-    public function boot(): void
+    protected function bootDomain(): void
     {
-        parent::boot();
+        ReservationWindow::assertOutlivesAbandonWindow();
+
+        parent::bootDomain();
 
         $this->registerCartRoutes();
 

@@ -11,11 +11,12 @@ use Illuminate\Support\ServiceProvider;
 
 /**
  * Base for domain service providers: implements the canonical register/boot
- * sequence (merge config → load migrations → morph map → log subscriber →
- * commands → publishes) so a domain provider declares WHAT it contributes
- * via hooks and the sequence itself can't drift per domain. Providers with
- * extra behavior (routes, observers, singletons, schedules) override
- * register()/boot() and call parent first — the hooks stay declarative.
+ * sequence (merge config → morph map → publishes, then behind `{key}.enabled`:
+ * migrations → translations → views → log subscriber → commands) so a domain
+ * provider declares WHAT it contributes via hooks and the sequence itself
+ * can't drift per domain. Providers with extra behavior (routes, observers,
+ * listeners, schedules) override bootDomain() — or register() for singletons —
+ * and call parent first; the hooks stay declarative.
  *
  * Hooks return values, never act: domainDir() must be the child's __DIR__
  * (a base-class __DIR__ resolves to src/Support/), configKey() defaults to
@@ -95,7 +96,49 @@ abstract class DomainServiceProvider extends ServiceProvider
         return 'shops-'.$this->configKey();
     }
 
+    /**
+     * The config-independent steps run for every domain, enabled or not: the
+     * morph map (a disabled domain's rows can still be referenced by others,
+     * and the map is required) and the config publish. Everything else waits
+     * behind `{key}.enabled` in {@see self::bootDomain()}.
+     */
     public function boot(): void
+    {
+        $aliases = $this->morphAliases();
+
+        if ($aliases !== []) {
+            Relation::morphMap($aliases);
+        }
+
+        if ($this->publishesConfig()) {
+            $this->publishes([
+                $this->domainDir().'/config/'.$this->configKey().'.php' => config_path($this->configKey().'.php'),
+            ], $this->configKey().'-config');
+        }
+
+        if ($this->isEnabled()) {
+            $this->bootDomain();
+        }
+    }
+
+    /**
+     * Whether `{key}.enabled` leaves the domain on (default true). A disabled
+     * domain loads no migrations, translations or views, subscribes nothing,
+     * registers no commands and schedules nothing — its tables stay where
+     * they are, they just stop growing.
+     */
+    protected function isEnabled(): bool
+    {
+        return config($this->configKey().'.enabled', true) !== false;
+    }
+
+    /**
+     * The domain's own boot, run only while it is enabled. A child provider
+     * puts its extras here (listeners, routes, observers, schedules) and calls
+     * `parent::bootDomain()` first; an extra left in `boot()` would run for a
+     * disabled domain too.
+     */
+    protected function bootDomain(): void
     {
         $this->loadMigrationsFrom($this->domainDir().'/Database/Migrations');
 
@@ -111,12 +154,6 @@ abstract class DomainServiceProvider extends ServiceProvider
             $this->loadViewsFrom($viewDir, $this->translationNamespace());
         }
 
-        $aliases = $this->morphAliases();
-
-        if ($aliases !== []) {
-            Relation::morphMap($aliases);
-        }
-
         $subscriber = $this->logSubscriber();
 
         if ($subscriber !== null) {
@@ -128,25 +165,20 @@ abstract class DomainServiceProvider extends ServiceProvider
         if ($commands !== []) {
             $this->commands($commands);
         }
-
-        if ($this->publishesConfig()) {
-            $this->publishes([
-                $this->domainDir().'/config/'.$this->configKey().'.php' => config_path($this->configKey().'.php'),
-            ], $this->configKey().'-config');
-        }
     }
 
     /**
      * Registers a scheduled-task callback gated on the domain's
      * `{key}.schedule.enabled` config (default true), deferred to
-     * app.booted so the Schedule singleton exists. Called from a child's
-     * boot() override — the schedule stays visible in the domain provider.
+     * app.booted so the Schedule singleton exists, and on `{key}.enabled`.
+     * Called from a child's bootDomain() — the schedule stays visible in the
+     * domain provider.
      *
      * @param  callable(Schedule): void  $schedule
      */
     protected function scheduleWhenEnabled(callable $schedule): void
     {
-        if (! config($this->configKey().'.schedule.enabled', true)) {
+        if (! $this->isEnabled() || ! config($this->configKey().'.schedule.enabled', true)) {
             return;
         }
 

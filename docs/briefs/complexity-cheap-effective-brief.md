@@ -198,8 +198,8 @@ Consumer work, release 2 (total): IOW — 5 pricing test files, `CheckoutControl
 | X1 pricing write path | 5 | **done** (`release-2`, 2026-11-08) | model hooks + both repeater rules; `PriceRepeaterAuditTest` drives the stub edit page (the price repeater joined `StubEditableResource`, `TestEditable` gained `HasPrices`); `LogDispatcher` docblock rewritten; IOW's 5 test files are consumer work at the bump; seeder actor is consumer work |
 | X2 shipment timing | 6 | pending | `OrderStatusChanged`; 6 tests; orphan cleanup; IOW `CheckoutControllerTest` |
 | X7 Commerce README drift | 6 | pending | free rider |
-| D7/D8 domain gate | 7 | pending | `bootDomain()` refactor across all child providers |
-| X6b TTL default 120 + boot assertion | 7 | pending | decided 2026-09-07; TTL must exceed abandon window |
+| D7/D8 domain gate | 7 | **done** (`release-2`, 2026-11-08) | `bootDomain()` + `isEnabled()` on the base; Commerce, Inventory, Logging, Pricing, Taxonomy moved their extras; `DomainEnableGateTest` (verified failing with the gate bypassed and with an extra left in `boot()`); Tracking steps early-return (`TrackingSwitchedOffTest`). **Consumer step changed:** bianka uses Tracking since its analytics (2026-10-30) — it must NOT be switched off; Purchasing is unused there — ruling at the bump |
+| X6b TTL default 120 + boot assertion | 7 | **done** (`release-2`, 2026-11-08) | `ReservationWindow::assertOutlivesAbandonWindow()` first in `CommerceServiceProvider::bootDomain()`; null TTL passes |
 | D10 Tax string | 8 | pending | 2 steps + 2 tests |
 | D12 `tax_category` cast | 8 | pending | |
 | C23 `Ready` step 1 | 9 | pending | production `ready` rows = 0 on both shops (2026-09-07); IOW `ListOrdersController:88` |

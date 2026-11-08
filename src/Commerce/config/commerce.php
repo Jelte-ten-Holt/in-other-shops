@@ -5,6 +5,20 @@ declare(strict_types=1);
 return [
     /*
     |--------------------------------------------------------------------------
+    | Domain switch
+    |--------------------------------------------------------------------------
+    |
+    | false switches the whole domain off: no migrations, translations or
+    | views load, its log subscriber, listeners, commands and schedules are
+    | not registered. The morph aliases stay, and so do its tables — they just
+    | stop growing. Config only; there is no env variable.
+    |
+    */
+
+    'enabled' => true,
+
+    /*
+    |--------------------------------------------------------------------------
     | Models
     |--------------------------------------------------------------------------
     |
@@ -67,11 +81,10 @@ return [
         // (This comment said the opposite until v0.71.0; bianka reported it
         // 2026-07-17 and pins the real invariant in ReservationTtlInvariantTest.)
         //
-        // ⚠ The package's own SHIPPED DEFAULTS violate this: 60 here against an
-        // `inventory.reservation_ttl` default of 30. Both consumers override the
-        // TTL to 90, so no live shop is exposed — but a fresh consumer taking
-        // both defaults is. Correcting the default is a behaviour change and is
-        // deliberately not part of this release.
+        // Since release 2 (X6b) the package enforces it: the reservation TTL
+        // default is 120 against this 60, and Commerce refuses to boot when the
+        // TTL is not longer than this window (ReservationTtlTooShortException,
+        // Order\Support\ReservationWindow). Both consumers set the TTL to 90.
         'abandon_after_minutes' => (int) env('ORDER_ABANDON_AFTER_MINUTES', 60),
     ],
 

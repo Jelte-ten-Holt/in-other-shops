@@ -45,9 +45,9 @@ final class InventoryServiceProvider extends DomainServiceProvider
         return true;
     }
 
-    public function boot(): void
+    protected function bootDomain(): void
     {
-        parent::boot();
+        parent::bootDomain();
 
         if ($this->app->bound('livewire')) {
             Livewire::component('inventory-stock-movements-table', StockMovementsTable::class);

@@ -51,9 +51,9 @@ final class PricingServiceProvider extends DomainServiceProvider
         return true;
     }
 
-    public function boot(): void
+    protected function bootDomain(): void
     {
-        parent::boot();
+        parent::bootDomain();
 
         $this->scheduleWhenEnabled(function (Schedule $schedule): void {
             $schedule->command('pricing:expire-compare-at')->hourly();

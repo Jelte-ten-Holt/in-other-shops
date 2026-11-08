@@ -58,6 +58,19 @@ are pre-launch — single-release-window policy, no deprecation bridges).
   strikethrough checks as field errors instead of a 500. **For consumers:**
   tests that used the actions write the model or a factory; a seeder that
   writes prices should set a system audit actor, or its rows read `unknown`.
+- **Every domain can be switched off (complexity cleanup D7/D8).** Each
+  domain config gains `'enabled' => true`; set it `false` and the domain
+  loads no migrations, translations or views and registers no subscriber,
+  listener, command, route or schedule. Morph aliases stay, and so do its
+  tables. Child providers moved their extras from `boot()` to the new
+  `bootDomain()` hook. Tracking's chain steps write nothing while Tracking is
+  off. **For consumers:** nothing changes unless you switch a domain off.
+- **The reservation TTL default rises from 30 to 120 minutes, and a TTL that
+  does not outlast the order abandon window stops the boot (X6b).** The old
+  default (30) was shorter than the package's own abandon window (60): stock
+  went back on sale while the gateway intent was still live. Commerce now
+  throws `ReservationTtlTooShortException` at boot for any such pair. Both
+  shops set 90 against 60 and are unaffected.
 
 ## v0.74.0 — 2026-11-04
 

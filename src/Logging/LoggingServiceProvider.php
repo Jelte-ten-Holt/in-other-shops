@@ -54,6 +54,11 @@ final class LoggingServiceProvider extends DomainServiceProvider
         $this->publishes([
             __DIR__.'/config/domain-log.php' => config_path('domain-log.php'),
         ], 'logging-config');
+    }
+
+    protected function bootDomain(): void
+    {
+        parent::bootDomain();
 
         $this->scheduleWhenEnabled(function (Schedule $schedule): void {
             $schedule->command('logging:prune-domain-logs')->daily();
