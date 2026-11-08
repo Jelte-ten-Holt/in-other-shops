@@ -106,7 +106,7 @@ return [
         'ttl_days' => (int) env('CART_TTL_DAYS', 30),
 
         /*
-        | Block deleting any cart-able model (Product, Bundle, Variant, …) while
+        | Block deleting any cart-able model (Product, Bundle, …) while
         | a live cart still references it, preventing stranded cart lines. Set
         | to false to allow deletion regardless (order lines snapshot, so order
         | history is never affected either way).

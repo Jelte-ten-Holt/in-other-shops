@@ -29,6 +29,21 @@ are pre-launch — single-release-window policy, no deprecation bridges).
   refunds, the list read at processing time now caps a refund event's
   cumulative, so a `charge.refunded` delivered after a failure no longer raises
   the total back. The read API does not show the failure yet.
+- **The `Variant` half of Variants is deleted (complexity cleanup C5).**
+  Neither shop sold a variant: bianka groups products into Families on
+  Options, in-other-worlds sells flat products. Gone: the `Variant` model,
+  `HasVariants`/`InteractsWithVariants`, `CreateVariant`, `GenerateVariants`,
+  `CreateDefaultVariant`, `DeleteVariant`, `VariantsSchema`, `VariantCreated`,
+  `VariantDeleted`, `InvalidVariantOptionsException`, `OptionValue::variants()`,
+  the `variant` morph alias — and the `Variants` registry with its
+  `variants.models.*` keys (the registry rule: stripped when its domain loses a
+  model). **Breaking for bianka:** replace `Variants::option()` and
+  `Variants::optionValue()` with `Option::class` and `OptionValue::class`.
+  `Option`, `OptionValue` and `OptionResource` stay. **Migration — the
+  package's first that drops tables:** `drop_variant_tables` refuses
+  (`VariantStillReferencedException`) while any cart line or order line points
+  at a `variant`, else deletes what variants owned and drops `variants`,
+  `option_value_variant` and `optionables`.
 
 ## v0.74.0 — 2026-11-04
 

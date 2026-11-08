@@ -32,8 +32,6 @@ use InOtherShops\Translation\Concerns\InteractsWithLocaleGroup;
 use InOtherShops\Translation\Concerns\InteractsWithTranslations;
 use InOtherShops\Translation\Contracts\HasLocaleGroup;
 use InOtherShops\Translation\Contracts\HasTranslations;
-use InOtherShops\Variants\Concerns\InteractsWithVariants;
-use InOtherShops\Variants\Contracts\HasVariants;
 use Illuminate\Database\Eloquent\Builder;
 
 /*
@@ -439,19 +437,18 @@ final class TestTranslatable extends StubModel implements HasTranslations
 }
 
 /**
- * A product-shaped variant owner: cart-able and priced/stocked in its own right
- * (as a flat owner would be), and able to own variants. Exercises the price
- * template copy, stock carry, and cart-line label composition. Priced via
- * `HasPrices` (not a flat `unit_price`), so no `flatPrice` capability.
+ * A product-shaped cart line priced through `HasPrices` rather than a flat
+ * `unit_price` (so no `flatPrice` capability) and stocked in its own right.
+ * Used where a test needs the live price resolution a cart reprices against.
+ * (Was `TestVariantable` until the Variant model went, 2026-11.)
  */
-final class TestVariantable extends StubModel implements HasCart, HasPrices, HasStock, HasVariants
+final class TestPricedCartable extends StubModel implements HasCart, HasPrices, HasStock
 {
     use InteractsWithCart;
     use InteractsWithPrices;
     use InteractsWithStock;
-    use InteractsWithVariants;
 
-    protected $table = 'test_variantables';
+    protected $table = 'test_priced_cartables';
 
     public static function capabilities(): array
     {

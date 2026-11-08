@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace InOtherShops\Variants\Database\Factories;
 
 use InOtherShops\Variants\Models\Option;
-use InOtherShops\Variants\Variants;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
 
@@ -16,7 +15,7 @@ final class OptionFactory extends Factory
 {
     public function modelName(): string
     {
-        return Variants::option();
+        return Option::class;
     }
 
     public function definition(): array

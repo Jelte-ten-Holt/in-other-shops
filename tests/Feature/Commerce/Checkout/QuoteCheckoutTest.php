@@ -16,7 +16,7 @@ use InOtherShops\Pricing\Exceptions\VoucherMinimumNotMetException;
 use InOtherShops\Pricing\Models\Voucher;
 use InOtherShops\Tests\Stubs\TestCartable;
 use InOtherShops\Tests\Stubs\TestShippableCartable;
-use InOtherShops\Tests\Stubs\TestVariantable;
+use InOtherShops\Tests\Stubs\TestPricedCartable;
 use InOtherShops\Tests\TestCase;
 use PHPUnit\Framework\Attributes\Test;
 use RuntimeException;
@@ -225,20 +225,20 @@ final class QuoteCheckoutTest extends TestCase
         $items = [];
 
         foreach ([[1111, 2], [3333, 1]] as [$price, $quantity]) {
-            $variantable = TestVariantable::factory()->create();
-            $variantable->prices()->create([
+            $priced = TestPricedCartable::factory()->create();
+            $priced->prices()->create([
                 'currency' => Currency::EUR->value,
                 'amount' => $price,
                 'minimum_quantity' => 1,
                 'price_list_id' => null,
             ]);
             CartItem::factory()->for($cart)->create([
-                'cartable_type' => $variantable->getMorphClass(),
-                'cartable_id' => $variantable->id,
+                'cartable_type' => $priced->getMorphClass(),
+                'cartable_id' => $priced->id,
                 'unit_price' => $price,
                 'quantity' => $quantity,
             ]);
-            $items[] = ['item' => $variantable, 'quantity' => $quantity, 'description' => 'Piece', 'taxRateBps' => 1900];
+            $items[] = ['item' => $priced, 'quantity' => $quantity, 'description' => 'Piece', 'taxRateBps' => 1900];
         }
 
         $cart->refresh()->load('items.cartable');

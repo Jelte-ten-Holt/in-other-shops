@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace InOtherShops\Variants\Database\Factories;
 
+use InOtherShops\Variants\Models\Option;
 use InOtherShops\Variants\Models\OptionValue;
-use InOtherShops\Variants\Variants;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
 
@@ -16,12 +16,12 @@ final class OptionValueFactory extends Factory
 {
     public function modelName(): string
     {
-        return Variants::optionValue();
+        return OptionValue::class;
     }
 
     public function definition(): array
     {
-        $optionModel = Variants::option();
+        $optionModel = Option::class;
         $value = fake()->unique()->word();
 
         return [

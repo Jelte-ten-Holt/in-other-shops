@@ -24,7 +24,7 @@ The real structure is not 18 peers:
 - **Generic leaves** — Currency, Translation, Logging, Location, Media, FlowChain, Support. Domain-neutral, genuinely decoupled, and the **only** tier where extraction is both feasible *and* valuable (a future non-shop app could reuse Logging or Media). **This is the one seam worth protecting** — keep these sharply independent.
 - **Middle band** — Pricing, Taxonomy, Payment, Tax, Inventory. Depend only on leaves. Extractable in principle, but there is no reuse case outside a shop, so don't spend effort keeping them split-ready beyond ordinary hygiene.
 - **Shop core** — Commerce + Shipping + Purchasing. Treat as **one unit.** Commerce's transitive closure is most of the package, and Shipping↔Commerce is a live cycle. Cross-coupling *within* this cluster is expected and fine — do not contort it for separability. If the package is ever split, this cluster moves together as a single "shop core" package.
-- **Integration tier** — Storefront, Variants, Agent. Sit on top, depend on many domains, and are **not extractable by design** — they wire the package to a specific consumer surface (read API, variant catalog, MCP).
+- **Integration tier** — Storefront, Variants, Agent. Sit on top, depend on many domains, and are **not extractable by design** — they wire the package to a specific consumer surface (read API, option catalog, MCP).
 
 **Extraction policy:** on-demand and leaf-only. Split a generic leaf into its own lower-level package **only** when a concrete non-shop consumer needs it without the shop. Never split speculatively; never try to separate the shop core or the integration tier.
 
@@ -57,7 +57,7 @@ Shop core — one unit; moves together if ever split; internal coupling is expec
 
 Integration tier — not extractable by design:
   Storefront ──── depends on Currency, Inventory, Pricing, Taxonomy, Translation
-  Variants ────── depends on Commerce (package Variant implements HasCart), Inventory, Media, Pricing, Translation; also READS currency.default config. No cycle — Commerce does not depend on Variants. Adopted only by consumers with variant catalogs (bianka), not in-other-worlds (flat SKUs)
+  Variants ────── depends on Media (an OptionValue's swatch), Translation. Options and values only since the Variant model went (2026-11); adopted by bianka (its Family axis), not in-other-worlds
   Agent ────────── depends on Commerce, Inventory, Storefront, Taxonomy; the bookkeeping read API adds Payment, Purchasing, Shipping, Location, Pricing — top of the graph
 ```
 

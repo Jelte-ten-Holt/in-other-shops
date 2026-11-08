@@ -7,7 +7,6 @@ namespace InOtherShops\Variants\Models;
 use InOtherShops\Translation\Concerns\InteractsWithTranslations;
 use InOtherShops\Translation\Contracts\HasTranslations;
 use InOtherShops\Variants\Database\Factories\OptionFactory;
-use InOtherShops\Variants\Variants;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -55,6 +54,6 @@ class Option extends Model implements HasTranslations
 
     public function values(): HasMany
     {
-        return $this->hasMany(Variants::optionValue(), 'option_id')->orderBy('position');
+        return $this->hasMany(OptionValue::class, 'option_id')->orderBy('position');
     }
 }

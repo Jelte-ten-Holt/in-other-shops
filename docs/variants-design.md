@@ -1,5 +1,7 @@
 # Variants — domain design
 
+> **Superseded 2026-11-08 (complexity cleanup release 2, PR 4): Options only; the `Variant` half is retired.** Neither consumer sold a variant (bianka builds Families on Options, in-other-worlds sells flat products), so the `Variant` model, `HasVariants`, the four variant actions, `VariantsSchema` and three tables were removed. What stays is `Option`/`OptionValue`/`OptionResource`; see `src/Variants/README.md`. The decision record below is kept as written.
+
 **Status:** approved for build 2026-06-02. Decisions reached 2026-05-09 (Shopware feature-surface comparison driven by `in-other-worlds`); open questions resolved 2026-06-02 against the `bianka-shop-one` consumer (jewellery — recurring axes Metal / Ring Size / Chain Length / Gemstone). Build is gated on this consumer; `in-other-worlds` stays SKU-flat and does **not** adopt Variants.
 
 This doc is the rebrief: it records the settled decisions, the resolved forks, the dependency-graph impact, the planned periphery, and the phased build plan. Start construction from the Build Plan at the bottom.

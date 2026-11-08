@@ -147,7 +147,7 @@ interface HasMedia
 
 #### Pruning orphaned files
 
-Three things left files on disk with no row pointing at them: the replace no-op fixed in v0.68.0 (every replacement ever made), `DeleteVariant` detaching without deleting, and a Filament save that throws after the upload has already moved out of `livewire-tmp` — sharper on a panel running `->databaseTransactions()`, where a rollback leaves a moved file and no row. Nothing swept them up; on staging more than half the bytes under one consumer's `media/` were orphaned.
+Three things left files on disk with no row pointing at them: the replace no-op fixed in v0.68.0 (every replacement ever made), `DeleteVariant` detaching without deleting (gone with the Variant model, 2026-11), and a Filament save that throws after the upload has already moved out of `livewire-tmp` — sharper on a panel running `->databaseTransactions()`, where a rollback leaves a moved file and no row. Nothing swept them up; on staging more than half the bytes under one consumer's `media/` were orphaned.
 
 `media:prune` is that sweep. It deletes files, so its promises are invariants with a test each, not documentation:
 

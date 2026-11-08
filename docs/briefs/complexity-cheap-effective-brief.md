@@ -194,7 +194,7 @@ Consumer work, release 2 (total): IOW — 5 pricing test files, `CheckoutControl
 | D2 `imagewebp` guard + `ext-exif` | 3 | **done** (#26) | |
 | D4 Stripe `^20` | 3 | **done** (#26) | suite green on 20.3.1, no source change; `composer.lock` is gitignored so it resolves on next install |
 | X6 inverted TTL comment | 3 | **done** (#26) | **but the shipped defaults violate the invariant** (abandon 60 min vs reservation TTL 30 min) — see §6 open (d). **2026-10-17:** there is no open (d) any more; it was decided 2026-09-07 as X6b (§6) and lands in PR 7 |
-| C5 Variants `Variant` half | 4 | pending | alias-precondition migration |
+| C5 Variants `Variant` half | 4 | **done** (`release-2`, 2026-11-08) | alias-precondition migration `drop_variant_tables` + `VariantStillReferencedException`; the `Variants` registry stripped too (CLAUDE.md registry rule; bianka 7 call sites); `TestVariantable` kept as `TestPricedCartable` (3 Commerce tests price through it); alias assertion moved to `OptionTest`; `Cart::defaultCurrency()` is now the only copy, so no `Currency::default()` accessor was added |
 | X1 pricing write path | 5 | pending | + IOW 5 test files |
 | X2 shipment timing | 6 | pending | `OrderStatusChanged`; 6 tests; orphan cleanup; IOW `CheckoutControllerTest` |
 | X7 Commerce README drift | 6 | pending | free rider |
