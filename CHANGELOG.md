@@ -75,11 +75,6 @@ are pre-launch — single-release-window policy, no deprecation bridges).
   $countryCode, ?TaxCategory $category = null)` instead of an `Address`. Both
   shops' `ResolveTaxRateForOrder` step built a throwaway `Address` to pass the
   country; pass the country instead. Tax no longer depends on Location.
-- **`Storefront\Contracts\HasAvailability` is deleted (D14).** It was the same
-  capability as `Inventory\Contracts\HasStock`; the storefront's `in_stock`
-  now reads `HasStock`. In-other-worlds' `Purchasable` contract extends
-  `HasStock` instead.
-
 ## v0.74.0 — 2026-11-04
 
 Stock holds, and admin orders that take stock. Design:

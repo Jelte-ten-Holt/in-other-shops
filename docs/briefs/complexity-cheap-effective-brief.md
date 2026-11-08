@@ -179,7 +179,7 @@ Consumer work, release 2 (total): IOW — 5 pricing test files, `CheckoutControl
 | C14 `OrderFactory::status()` | 2 | **dropped** | factory state used by 2 test files |
 | C13 `FakePaymentGateway` → tests | — | **dropped** | consumed by both consumers' suites; audit premise false |
 | D13 Storefront→Media | 2 | **done** (#25) | |
-| D14 `HasAvailability` | 2 → **8** | **done** (`release-2`, 2026-11-08) | `BrowsableResource` keys off `HasStock`; IOW `app/Contracts/Purchasable.php:15` switches to `HasStock` at the bump (both its implementers already implement it) |
+| D14 `HasAvailability` | 2 → **8** | **dropped** (2026-11-08) | premise false: IOW's `Bundle` derives stock from its components and implements only `HasAvailability` (via `Purchasable`), so deleting it broke `Bundle` and would drop `in_stock` for bundles from the storefront the agent's `browse_catalog` reads. Found by the IOW suite against the branch. It is the derived-stock contract, not a duplicate |
 | D16 Media system-actor imports | 2 | **done** (#25) | |
 | D18 `default_currency` home | 2 | **done** (#25) | `currency.default` had to be **created**; bianka `config/commerce.php:82` restates the old key (same value) — delete on bump |
 | D19 `requireMorphMap()` | 2 | **done** (#25) | now fires from Support (first provider) — strictly earlier |
