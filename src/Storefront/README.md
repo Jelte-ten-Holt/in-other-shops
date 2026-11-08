@@ -10,7 +10,7 @@ Read-only catalog layer that exposes browsable items via Action classes. Compose
 
 Any model can appear in the storefront by implementing `HasStorefrontPresence` and using the `InteractsWithStorefrontPresence` trait.
 
-Models that want stock state in the storefront payload additionally implement `Storefront\Contracts\HasAvailability` (`stockLevel(): int` + `isInStock(): bool`). The package only exposes the boolean (`in_stock`) — exposing exact stock levels is a project decision (e.g. "only 2 left!" UI hints) and lives in the consuming project's own resources. The contract is intentionally minimal so that derived-stock models (e.g. bundles whose stock is computed from components) can implement it without needing a `stockItem` relationship like `Inventory\Contracts\HasStock` requires.
+Models that implement `Inventory\Contracts\HasStock` get stock state in the storefront payload. The package only exposes the boolean (`in_stock`, from `isInStock()`) — exposing exact stock levels is a project decision (e.g. "only 2 left!" UI hints) and lives in the consuming project's own resources. (`Storefront\Contracts\HasAvailability` was a second contract for the same capability, kept for derived-stock bundles; both shops' bundles implement `HasStock`, so it was deleted in release 2, D14.)
 
 ```php
 interface HasStorefrontPresence

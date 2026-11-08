@@ -179,7 +179,7 @@ Consumer work, release 2 (total): IOW — 5 pricing test files, `CheckoutControl
 | C14 `OrderFactory::status()` | 2 | **dropped** | factory state used by 2 test files |
 | C13 `FakePaymentGateway` → tests | — | **dropped** | consumed by both consumers' suites; audit premise false |
 | D13 Storefront→Media | 2 | **done** (#25) | |
-| D14 `HasAvailability` | 2 → **8** | **moved to release 2** | IOW `app/Contracts/Purchasable.php:15` extends it — one consumer line, goes with PR 8's consumer edits |
+| D14 `HasAvailability` | 2 → **8** | **done** (`release-2`, 2026-11-08) | `BrowsableResource` keys off `HasStock`; IOW `app/Contracts/Purchasable.php:15` switches to `HasStock` at the bump (both its implementers already implement it) |
 | D16 Media system-actor imports | 2 | **done** (#25) | |
 | D18 `default_currency` home | 2 | **done** (#25) | `currency.default` had to be **created**; bianka `config/commerce.php:82` restates the old key (same value) — delete on bump |
 | D19 `requireMorphMap()` | 2 | **done** (#25) | now fires from Support (first provider) — strictly earlier |
@@ -200,8 +200,8 @@ Consumer work, release 2 (total): IOW — 5 pricing test files, `CheckoutControl
 | X7 Commerce README drift | 6 | pending | free rider |
 | D7/D8 domain gate | 7 | **done** (`release-2`, 2026-11-08) | `bootDomain()` + `isEnabled()` on the base; Commerce, Inventory, Logging, Pricing, Taxonomy moved their extras; `DomainEnableGateTest` (verified failing with the gate bypassed and with an extra left in `boot()`); Tracking steps early-return (`TrackingSwitchedOffTest`). **Consumer step changed:** bianka uses Tracking since its analytics (2026-10-30) — it must NOT be switched off; Purchasing is unused there — ruling at the bump |
 | X6b TTL default 120 + boot assertion | 7 | **done** (`release-2`, 2026-11-08) | `ReservationWindow::assertOutlivesAbandonWindow()` first in `CommerceServiceProvider::bootDomain()`; null TTL passes |
-| D10 Tax string | 8 | pending | 2 steps + 2 tests |
-| D12 `tax_category` cast | 8 | pending | |
+| D10 Tax string | 8 | **done** (`release-2`, 2026-11-08) | package tests pass country strings; both consumer steps + tests at the bump |
+| D12 `tax_category` cast | 8 | **dropped** | premise no longer holds: the books read API (`PurchaseOrderResource`, v0.72.0) reads the cast since 2026-10-27 |
 | C23 `Ready` step 1 | 9 | pending | production `ready` rows = 0 on both shops (2026-09-07); IOW `ListOrdersController:88` |
 | C23 `Ready` step 2 (enum case) | 11 | pending | |
 | C2 price lists | 10 | pending | dedupe keeps list row; MySQL-tested with collision |

@@ -71,6 +71,14 @@ are pre-launch — single-release-window policy, no deprecation bridges).
   went back on sale while the gateway intent was still live. Commerce now
   throws `ReservationTtlTooShortException` at boot for any such pair. Both
   shops set 90 against 60 and are unaffected.
+- **`ResolveTaxRate` takes a country code (D10).** `__invoke(string
+  $countryCode, ?TaxCategory $category = null)` instead of an `Address`. Both
+  shops' `ResolveTaxRateForOrder` step built a throwaway `Address` to pass the
+  country; pass the country instead. Tax no longer depends on Location.
+- **`Storefront\Contracts\HasAvailability` is deleted (D14).** It was the same
+  capability as `Inventory\Contracts\HasStock`; the storefront's `in_stock`
+  now reads `HasStock`. In-other-worlds' `Purchasable` contract extends
+  `HasStock` instead.
 
 ## v0.74.0 — 2026-11-04
 

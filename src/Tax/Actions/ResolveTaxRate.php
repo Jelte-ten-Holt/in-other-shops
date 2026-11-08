@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace InOtherShops\Tax\Actions;
 
-use InOtherShops\Location\Models\Address;
 use InOtherShops\Tax\Enums\TaxCategory;
 use InOtherShops\Tax\Models\TaxRate;
 use InOtherShops\Tax\Tax;
@@ -12,9 +11,13 @@ use InOtherShops\Tax\TaxConfig;
 
 final class ResolveTaxRate
 {
-    public function __invoke(Address $address, ?TaxCategory $category = null): ?TaxRate
+    /**
+     * @param  string  $countryCode  ISO 3166-1 alpha-2, any case — the country the
+     *                               tax follows (the shipping address's, for an order)
+     */
+    public function __invoke(string $countryCode, ?TaxCategory $category = null): ?TaxRate
     {
-        $country = strtoupper((string) $address->country_code);
+        $country = strtoupper($countryCode);
 
         $match = $this->findCountryRow($country, $category);
 

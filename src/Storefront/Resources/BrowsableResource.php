@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace InOtherShops\Storefront\Resources;
 
+use InOtherShops\Inventory\Contracts\HasStock;
 use InOtherShops\Pricing\Contracts\HasPrices;
-use InOtherShops\Storefront\Contracts\HasAvailability;
 use InOtherShops\Storefront\DTOs\StorefrontContext;
 use InOtherShops\Taxonomy\Contracts\HasCategories;
 use InOtherShops\Taxonomy\Contracts\HasTags;
@@ -52,7 +52,7 @@ final class BrowsableResource extends JsonResource
 
     private function addAvailabilityData(array &$data): void
     {
-        if (! $this->resource instanceof HasAvailability) {
+        if (! $this->resource instanceof HasStock) {
             return;
         }
 

@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace InOtherShops\Tests\Feature\Tax;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use InOtherShops\Location\Models\Address;
 use InOtherShops\Tax\Actions\ResolveTaxRate;
 use InOtherShops\Tax\Models\TaxRate;
 use InOtherShops\Tests\TestCase;
@@ -59,7 +58,7 @@ final class ShippedDefaultConfigTest extends TestCase
 
         TaxRate::factory()->forCountry('NL', 2100)->default()->create();
 
-        $rate = ($this->resolve)($this->address('US'));
+        $rate = ($this->resolve)('US');
 
         $this->assertNotNull($rate);
         $this->assertSame('NL', $rate->country_code,
@@ -75,13 +74,5 @@ final class ShippedDefaultConfigTest extends TestCase
         $this->assertSame(0, $exportRate['rate_bps'],
             'Shipped export_rate must be zero-rated — EU export rule.');
         $this->assertSame('Zero-rated export', $exportRate['name']);
-    }
-
-    private function address(string $countryCode): Address
-    {
-        $address = new Address;
-        $address->country_code = $countryCode;
-
-        return $address;
     }
 }

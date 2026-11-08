@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace InOtherShops\Tests\Feature\Tax;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use InOtherShops\Location\Models\Address;
 use InOtherShops\Tax\Actions\ResolveTaxRate;
 use InOtherShops\Tax\Enums\TaxCategory;
 use InOtherShops\Tax\Models\TaxRate;
@@ -31,9 +30,9 @@ final class ResolveTaxRateTest extends TestCase
         TaxRate::factory()->forCountry('NL', 2100, 'Netherlands VAT')->create();
         TaxRate::factory()->forCountry('DE', 1900, 'Germany VAT')->create();
 
-        $address = $this->makeAddress('NL');
+        $country = 'NL';
 
-        $rate = ($this->resolve)($address);
+        $rate = ($this->resolve)($country);
 
         $this->assertNotNull($rate);
         $this->assertSame('NL', $rate->country_code);
@@ -45,9 +44,9 @@ final class ResolveTaxRateTest extends TestCase
     {
         TaxRate::factory()->forCountry('FR', 2000)->create();
 
-        $address = $this->makeAddress('fr');
+        $country = 'fr';
 
-        $rate = ($this->resolve)($address);
+        $rate = ($this->resolve)($country);
 
         $this->assertNotNull($rate);
         $this->assertSame('FR', $rate->country_code);
@@ -58,9 +57,9 @@ final class ResolveTaxRateTest extends TestCase
     {
         TaxRate::factory()->forCountry('NL', 2100)->default()->create();
 
-        $address = $this->makeAddress('US');
+        $country = 'US';
 
-        $rate = ($this->resolve)($address);
+        $rate = ($this->resolve)($country);
 
         $this->assertNotNull($rate);
         $this->assertSame('NL', $rate->country_code);
@@ -73,9 +72,9 @@ final class ResolveTaxRateTest extends TestCase
         TaxRate::factory()->forCountry('NL', 2100)->default()->create();
         TaxRate::factory()->forCountry('DE', 1900)->create();
 
-        $address = $this->makeAddress('DE');
+        $country = 'DE';
 
-        $rate = ($this->resolve)($address);
+        $rate = ($this->resolve)($country);
 
         $this->assertNotNull($rate);
         $this->assertSame('DE', $rate->country_code);
@@ -86,9 +85,9 @@ final class ResolveTaxRateTest extends TestCase
     {
         TaxRate::factory()->forCountry('NL', 2100)->create();
 
-        $address = $this->makeAddress('US');
+        $country = 'US';
 
-        $this->assertNull(($this->resolve)($address));
+        $this->assertNull(($this->resolve)($country));
     }
 
     #[Test]
@@ -100,9 +99,9 @@ final class ResolveTaxRateTest extends TestCase
             ->forCategory(TaxCategory::DigitalServices)
             ->create();
 
-        $address = $this->makeAddress('DE');
+        $country = 'DE';
 
-        $rate = ($this->resolve)($address, TaxCategory::DigitalServices);
+        $rate = ($this->resolve)($country, TaxCategory::DigitalServices);
 
         $this->assertNotNull($rate);
         $this->assertSame(700, $rate->rate_bps);
@@ -114,9 +113,9 @@ final class ResolveTaxRateTest extends TestCase
     {
         TaxRate::factory()->forCountry('DE', 1900, 'Germany VAT 19%')->create();
 
-        $address = $this->makeAddress('DE');
+        $country = 'DE';
 
-        $rate = ($this->resolve)($address, TaxCategory::DigitalServices);
+        $rate = ($this->resolve)($country, TaxCategory::DigitalServices);
 
         $this->assertNotNull($rate);
         $this->assertSame(1900, $rate->rate_bps);
@@ -132,20 +131,13 @@ final class ResolveTaxRateTest extends TestCase
             ->forCategory(TaxCategory::DigitalServices)
             ->create();
 
-        $address = $this->makeAddress('DE');
+        $country = 'DE';
 
-        $rate = ($this->resolve)($address);
+        $rate = ($this->resolve)($country);
 
         $this->assertNotNull($rate);
         $this->assertSame(1900, $rate->rate_bps);
         $this->assertNull($rate->tax_category);
     }
 
-    private function makeAddress(string $countryCode): Address
-    {
-        $address = new Address;
-        $address->country_code = $countryCode;
-
-        return $address;
-    }
 }
