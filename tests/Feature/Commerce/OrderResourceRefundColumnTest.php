@@ -92,6 +92,29 @@ final class OrderResourceRefundColumnTest extends TestCase
         );
     }
 
+    /**
+     * R4: a refund the gateway gave up on returned nothing. The page-wide
+     * aggregate and the per-row fallback both leave it out, or an order whose
+     * only refund failed would read "refunded" on the list.
+     */
+    #[Test]
+    public function a_failed_refund_counts_on_neither_path(): void
+    {
+        $order = Order::factory()->create(['total' => 10000]);
+        Refund::factory()->for($order, 'order')->create(['amount' => 10000, 'failed_at' => now()]);
+        Refund::factory()->for($order, 'order')->create(['amount' => 2500]);
+
+        $table = $this->ordersTable();
+        $aggregated = $table->getQuery()->whereKey($order->getKey())->sole();
+
+        $this->assertSame(2500, (int) $aggregated->refunds_sum_amount);
+        $this->assertSame(__('shops-commerce::orders.refund_state.partial'), $this->refundState($table, $aggregated));
+        $this->assertSame(
+            __('shops-commerce::orders.refund_state.partial'),
+            $this->refundState($table, Order::query()->findOrFail($order->getKey())),
+        );
+    }
+
     #[Test]
     public function the_table_query_carries_the_refund_aggregate(): void
     {

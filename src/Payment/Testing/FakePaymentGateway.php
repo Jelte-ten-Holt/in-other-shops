@@ -9,6 +9,7 @@ use InOtherShops\Payment\Contracts\ManagesCustomers;
 use InOtherShops\Payment\Contracts\PaymentGateway;
 use InOtherShops\Payment\Contracts\ReportsSettlements;
 use InOtherShops\Payment\DTOs\GatewayRefund;
+use InOtherShops\Payment\DTOs\GatewayRefundFailure;
 use InOtherShops\Payment\DTOs\PaymentCustomerData;
 use InOtherShops\Payment\DTOs\PaymentSession;
 use InOtherShops\Payment\DTOs\Settlement;
@@ -185,6 +186,7 @@ final class FakePaymentGateway implements ListsRefunds, ManagesCustomers, Paymen
         $amount = $body['amount'] ?? null;
         $currency = $body['currency'] ?? null;
         $amountRefunded = $body['amount_refunded'] ?? null;
+        $failure = $body['refund_failure'] ?? null;
 
         return new WebhookPayload(
             gatewayReference: $reference,
@@ -194,6 +196,13 @@ final class FakePaymentGateway implements ListsRefunds, ManagesCustomers, Paymen
             amount: is_int($amount) ? $amount : null,
             currency: is_string($currency) ? strtolower($currency) : null,
             amountRefunded: is_int($amountRefunded) ? $amountRefunded : null,
+            refundFailure: is_array($failure) && is_string($failure['id'] ?? null) && is_int($failure['amount'] ?? null)
+                ? new GatewayRefundFailure(
+                    id: $failure['id'],
+                    amount: $failure['amount'],
+                    reason: is_string($failure['reason'] ?? null) ? $failure['reason'] : null,
+                )
+                : null,
         );
     }
 
@@ -215,6 +224,26 @@ final class FakePaymentGateway implements ListsRefunds, ManagesCustomers, Paymen
     public function recordOutsideRefund(Payment $payment, int $amount): string
     {
         return $this->addToLedger($payment, $amount)->id;
+    }
+
+    /**
+     * A refund the gateway accepted and later gave up on, as Stripe does when
+     * the card is closed or expired: it leaves the gateway's list and stops
+     * counting toward its refund cap. Returns the failure a refund-failure
+     * webhook carries; send it with `refund_failure` in the body.
+     */
+    public function failRefund(Payment $payment, string $gatewayRefundId, ?string $reason = 'expired_or_canceled_card'): GatewayRefundFailure
+    {
+        foreach ($this->refundLedger[$payment->gateway_reference] ?? [] as $i => $refund) {
+            if ($refund->id === $gatewayRefundId) {
+                unset($this->refundLedger[$payment->gateway_reference][$i]);
+                $this->refundLedger[$payment->gateway_reference] = array_values($this->refundLedger[$payment->gateway_reference]);
+
+                return new GatewayRefundFailure(id: $refund->id, amount: $refund->amount, reason: $reason);
+            }
+        }
+
+        throw new RuntimeException("fake: no refund {$gatewayRefundId} on payment {$payment->id}.");
     }
 
     public function listRefunds(Payment $payment): array
@@ -340,6 +369,27 @@ final class FakePaymentGateway implements ListsRefunds, ManagesCustomers, Paymen
                 'amount_refunded' => in_array($status, [PaymentStatus::Refunded, PaymentStatus::PartiallyRefunded], true)
                     ? $this->refundedAtGateway($payment->gateway_reference)
                     : null,
+            ], JSON_THROW_ON_ERROR),
+            server: ['CONTENT_TYPE' => 'application/json'],
+        );
+    }
+
+    /**
+     * The webhook a gateway sends when a refund fails (Stripe's
+     * `charge.refund.updated` with status `failed`): a refund event that names
+     * the failed refund and carries no cumulative. Pair it with failRefund().
+     */
+    public function simulateRefundFailure(Payment $payment, GatewayRefundFailure $failure, ?string $eventId = null): Request
+    {
+        return Request::create(
+            uri: '/webhooks/'.$this->identifier,
+            method: 'POST',
+            content: json_encode([
+                'gateway_reference' => $payment->gateway_reference,
+                'status' => PaymentStatus::Refunded->value,
+                'event_id' => $eventId ?? 'fake_evt_'.uniqid(),
+                'currency' => strtolower($payment->currency?->value ?? ''),
+                'refund_failure' => ['id' => $failure->id, 'amount' => $failure->amount, 'reason' => $failure->reason],
             ], JSON_THROW_ON_ERROR),
             server: ['CONTENT_TYPE' => 'application/json'],
         );

@@ -8,6 +8,7 @@ use InOtherShops\Logging\Enums\LogLevel;
 use InOtherShops\Logging\LogSubscriberBase;
 use InOtherShops\Payment\Events\PaymentFailed;
 use InOtherShops\Payment\Events\PaymentRefunded;
+use InOtherShops\Payment\Events\PaymentRefundFailed;
 use InOtherShops\Payment\Events\PaymentSucceeded;
 use InOtherShops\Payment\Models\Payment;
 use Illuminate\Contracts\Events\Dispatcher;
@@ -23,6 +24,7 @@ final class PaymentLogSubscriber extends LogSubscriberBase
             PaymentSucceeded::class => 'handlePaymentSucceeded',
             PaymentFailed::class => 'handlePaymentFailed',
             PaymentRefunded::class => 'handlePaymentRefunded',
+            PaymentRefundFailed::class => 'handlePaymentRefundFailed',
         ];
     }
 
@@ -42,6 +44,17 @@ final class PaymentLogSubscriber extends LogSubscriberBase
                 ...$this->paymentContext($event->payment),
                 'amount_refunded' => $event->payment->amount_refunded,
             ]);
+    }
+
+    public function handlePaymentRefundFailed(PaymentRefundFailed $event): void
+    {
+        $this->log(LogLevel::Warning, "Refund failed on {$event->payment->gateway}; the payment's refunded total was lowered.", [
+            ...$this->paymentContext($event->payment),
+            'amount_refunded' => $event->payment->amount_refunded,
+            'gateway_refund_id' => $event->refund->id,
+            'failed_amount' => $event->refund->amount,
+            'failure_reason' => $event->refund->reason,
+        ]);
     }
 
     /** @return array<string, mixed> */

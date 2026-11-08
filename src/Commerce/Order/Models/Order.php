@@ -265,13 +265,13 @@ class Order extends Model implements HasAddresses, HasOpenReservations, HasPayme
     }
 
     /**
-     * Total gross cents refunded across all refunds on this order. Refund state
-     * is derived here rather than stored as an OrderStatus case — order status
-     * stays a fulfilment concept.
+     * Total gross cents refunded across this order's refunds, leaving out any
+     * the gateway gave up on. Refund state is derived here rather than stored
+     * as an OrderStatus case — order status stays a fulfilment concept.
      */
     public function refundedTotal(): int
     {
-        return (int) $this->refunds()->sum('amount');
+        return (int) $this->refunds()->notFailed()->sum('amount');
     }
 
     public function isRefunded(): bool

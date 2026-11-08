@@ -8,6 +8,28 @@ The format is loosely [Keep a Changelog](https://keepachangelog.com/); the
 package is pre-1.0, so minor versions may carry breaking changes (all consumers
 are pre-launch — single-release-window policy, no deprecation bridges).
 
+## Unreleased — release 2 (v0.75.0)
+
+- **A refund that fails at the gateway is undone (R4).** Stripe can accept a
+  refund and fail it minutes or days later (a closed or expired card); the
+  money goes back to the shop's balance. Until now the order stayed
+  "refunded", its VAT reversal stood, and a later genuine refund of the same
+  charge was dropped as stale. Now the Stripe driver reads
+  `charge.refund.updated` on a refund's change into `failed` or `canceled`
+  (both endpoints already receive it — no Stripe change). The payment's
+  `amount_refunded` falls by the failed amount and its status is recomputed;
+  the order's `Refund` row stays, marked with the new `failed_at` and
+  `failure_reason`, and counts toward nothing: not the order's refunded total,
+  not the VAT reversal, not `commerce:reconcile-refunds`, not the orders
+  list. New events `PaymentRefundFailed` (Payment) and `RefundFailed`
+  (Commerce), each with a warning audit row. **Migration:** two nullable
+  columns on `refunds`. **For consumers:** code that sums refunds itself uses
+  `Refund::notFailed()` (neither shop does today); listen to `RefundFailed` to
+  tell a customer or alert the operator. **Changed:** for a gateway that lists
+  refunds, the list read at processing time now caps a refund event's
+  cumulative, so a `charge.refunded` delivered after a failure no longer raises
+  the total back. The read API does not show the failure yet.
+
 ## v0.74.0 — 2026-11-04
 
 Stock holds, and admin orders that take stock. Design:

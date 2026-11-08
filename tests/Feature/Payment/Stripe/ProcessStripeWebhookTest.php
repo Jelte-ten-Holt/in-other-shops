@@ -43,6 +43,11 @@ final class ProcessStripeWebhookTest extends TestCase
     /** The dashboard refund (EUR 22.00) the captured events are about. */
     private const string CAPTURED_REFUND = 're_3UNEh8Qibh0bqUCQ03L4oluj';
 
+    /** The R4 run (2026-11-01): a payment with the refund-fail card, and its refund. */
+    private const string FAIL_CARD_INTENT = 'pi_3UWvsPQibh0bqUCQ0z7WFEz3';
+
+    private const string FAILED_REFUND = 're_3UWvsPQibh0bqUCQ0bLXCpoU';
+
     private RefundService $refunds;
 
     private ProcessPaymentWebhook $process;
@@ -134,6 +139,92 @@ final class ProcessStripeWebhookTest extends TestCase
         $this->assertSame(0, $payment->amount_refunded);
     }
 
+    /**
+     * R4, on the bodies the 2026-11-01 sandbox run captured: a EUR 10.00 refund
+     * created `succeeded`, then about two minutes later the same refund's
+     * charge.refund.updated with `status` failed. Stripe put the money back and
+     * lowered its own `amount_refunded` to 0 without a charge event, so this
+     * event is the only signal.
+     */
+    #[Test]
+    public function a_refund_that_fails_later_is_taken_back_out_of_the_payment_and_the_order(): void
+    {
+        $payment = $this->failCardPayment();
+        $this->refunds->shouldReceive('all')->once()->andReturn($this->refundList('succeeded'));
+
+        ($this->process)('stripe', $this->signedRequest($this->stripeFixture('charge.refunded.refund-fail-card.2026-03-25.dahlia.json'), time()));
+        $this->assertSame(1000, $payment->refresh()->amount_refunded);
+        $this->assertSame(1, $payment->payable->refunds()->count());
+
+        $returned = ($this->process)('stripe', $this->signedRequest($this->stripeFixture('charge.refund.updated.failed.2026-03-25.dahlia.json'), time()));
+
+        $this->assertTrue($payment->is($returned));
+        $payment->refresh();
+        $this->assertSame(0, $payment->amount_refunded);
+        $this->assertSame(PaymentStatus::Succeeded, $payment->status);
+
+        $refund = $payment->payable->refunds()->sole();
+        $this->assertSame(self::FAILED_REFUND, $refund->gateway_refund_id);
+        $this->assertNotNull($refund->failed_at);
+        $this->assertSame('expired_or_canceled_card', $refund->failure_reason);
+        $this->assertSame(0, $payment->payable->refundedTotal());
+    }
+
+    /**
+     * The other order of delivery: the failure first (no row yet, the total
+     * stays at zero), then the charge.refunded sent before it. Its cumulative
+     * still counts the failed refund; the list, which keeps only refunds that
+     * returned money or are returning it, does not.
+     */
+    #[Test]
+    public function a_refund_event_delivered_after_its_failure_moves_nothing(): void
+    {
+        $payment = $this->failCardPayment();
+
+        ($this->process)('stripe', $this->signedRequest($this->stripeFixture('charge.refund.updated.failed.2026-03-25.dahlia.json'), time()));
+
+        $this->refunds->shouldReceive('all')->once()->andReturn($this->refundList('failed'));
+        ($this->process)('stripe', $this->signedRequest($this->stripeFixture('charge.refunded.refund-fail-card.2026-03-25.dahlia.json'), time()));
+
+        $payment->refresh();
+        $this->assertSame(0, $payment->amount_refunded);
+        $this->assertSame(PaymentStatus::Succeeded, $payment->status);
+        $this->assertSame(0, $payment->payable->refunds()->count());
+    }
+
+    /**
+     * Stripe sends charge.refund.updated for any change to a refund, a failed
+     * one included. Only the change INTO failed or canceled lowers the total; a
+     * later update of a refund that had already given up must not lower it a
+     * second time.
+     *
+     * @param  array<string, mixed>  $previous
+     */
+    #[Test]
+    #[DataProvider('updatesOfAGivenUpRefund')]
+    public function a_later_update_of_an_already_failed_refund_is_ignored(array $previous): void
+    {
+        $payment = $this->failCardPayment(refunded: 1000);
+        $event = json_decode($this->stripeFixture('charge.refund.updated.failed.2026-03-25.dahlia.json'), true);
+        $event['id'] = 'evt_later_update';
+        $event['data']['previous_attributes'] = $previous;
+
+        $returned = ($this->process)('stripe', $this->signedRequest(json_encode($event, JSON_THROW_ON_ERROR), time()));
+
+        $this->assertNull($returned);
+        $this->assertSame(0, WebhookEvent::query()->count());
+        $this->assertSame(1000, $payment->refresh()->amount_refunded);
+    }
+
+    /** @return array<string, array{array<string, mixed>}> */
+    public static function updatesOfAGivenUpRefund(): array
+    {
+        return [
+            'status unchanged' => [['destination_details' => ['card' => ['reference_status' => 'pending']]]],
+            'canceled, then failed' => [['status' => 'canceled']],
+        ];
+    }
+
     /** @return array<string, array{string}> */
     public static function refundUpdateEventTypes(): array
     {
@@ -141,6 +232,34 @@ final class ProcessStripeWebhookTest extends TestCase
             'as captured' => ['charge.refund.updated'],
             'under its other name' => ['refund.updated'],
         ];
+    }
+
+    /** The refund the R4 run captured, as the gateway's list returns it. */
+    private function refundList(string $status): Collection
+    {
+        return Collection::constructFrom([
+            'object' => 'list',
+            'has_more' => false,
+            'data' => [['id' => self::FAILED_REFUND, 'object' => 'refund', 'amount' => 1000, 'status' => $status]],
+        ]);
+    }
+
+    private function failCardPayment(int $refunded = 0): Payment
+    {
+        $order = Order::factory()->create([
+            'total' => 1000,
+            'tax' => 160,
+            'tax_summary' => [['rate_bps' => 1900, 'taxable_base' => 840, 'tax' => 160]],
+        ]);
+
+        return Payment::factory()->for($order, 'payable')->create([
+            'gateway' => 'stripe',
+            'gateway_reference' => self::FAIL_CARD_INTENT,
+            'amount' => 1000,
+            'amount_refunded' => $refunded,
+            'currency' => Currency::EUR,
+            'status' => $refunded > 0 ? PaymentStatus::Refunded : PaymentStatus::Succeeded,
+        ]);
     }
 
     /** @return array<int, int> rate in basis points => reversed tax in cents */

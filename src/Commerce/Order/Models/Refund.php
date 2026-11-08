@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace InOtherShops\Commerce\Order\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -20,6 +21,10 @@ use InOtherShops\Pricing\DTOs\TaxBreakdownLine;
  * OrderStatus case (order status stays a fulfilment concept). Multiple partial
  * refunds are multiple rows; `gateway_refund_id` is unique per gateway so an
  * admin refund and its echoing webhook converge on one row.
+ *
+ * A refund the gateway gave up on keeps its row with `failed_at` set: it counts
+ * toward nothing (refunded total, VAT reversal, the refunds tripwire), so every
+ * sum over refunds reads {@see self::scopeNotFailed()}.
  */
 class Refund extends Model
 {
@@ -38,7 +43,24 @@ class Refund extends Model
             'fee' => 'integer',
             'settled_amount' => 'integer',
             'exchange_rate' => 'decimal:10',
+            'failed_at' => 'datetime',
         ];
+    }
+
+    /**
+     * Refunds that returned money or are returning it: everything but the ones
+     * the gateway gave up on.
+     *
+     * @param  Builder<self>  $query
+     */
+    public function scopeNotFailed(Builder $query): void
+    {
+        $query->whereNull($query->qualifyColumn('failed_at'));
+    }
+
+    public function isFailed(): bool
+    {
+        return $this->failed_at !== null;
     }
 
     public function order(): BelongsTo

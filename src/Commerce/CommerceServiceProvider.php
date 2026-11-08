@@ -15,6 +15,7 @@ use InOtherShops\Commerce\Order\Events\OrderCreated;
 use InOtherShops\Commerce\Order\Events\OrderStatusChanged;
 use InOtherShops\Commerce\Order\Listeners\CreateShipmentForNewOrder;
 use InOtherShops\Commerce\Order\Listeners\ReconcileRefundFromWebhook;
+use InOtherShops\Commerce\Order\Listeners\RecordRefundFailureFromWebhook;
 use InOtherShops\Commerce\Order\Listeners\ReleaseVoucherOnOrderCancelled;
 use InOtherShops\Commerce\Order\Listeners\SyncInventoryOnOrderStatusChange;
 use InOtherShops\Commerce\Order\Models\Order;
@@ -22,6 +23,7 @@ use InOtherShops\FlowChain\FlowChainRegistry;
 use InOtherShops\Location\Location;
 use InOtherShops\Location\Models\Address;
 use InOtherShops\Payment\Events\PaymentRefunded;
+use InOtherShops\Payment\Events\PaymentRefundFailed;
 use InOtherShops\Support\DomainServiceProvider;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\Facades\Event;
@@ -86,6 +88,7 @@ final class CommerceServiceProvider extends DomainServiceProvider
         Event::listen(OrderStatusChanged::class, SyncInventoryOnOrderStatusChange::class);
         Event::listen(OrderStatusChanged::class, ReleaseVoucherOnOrderCancelled::class);
         Event::listen(PaymentRefunded::class, ReconcileRefundFromWebhook::class);
+        Event::listen(PaymentRefundFailed::class, RecordRefundFailureFromWebhook::class);
 
         $this->app->make(FlowChainRegistry::class)->register(AddToCartChain::class);
 

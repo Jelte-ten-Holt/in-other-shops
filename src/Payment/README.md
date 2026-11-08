@@ -95,6 +95,7 @@ Gateways implement the interfaces they support: `class StripePaymentGateway impl
 - **`InitiatePaymentResult`** — payment record + redirect URL.
 - **`WebhookPayload`** — parsed webhook data. A refund event carries the payment's cumulative refunded amount; it names no single refund.
 - **`GatewayRefund`** — one refund as the gateway records it: its id there and its amount.
+- **`GatewayRefundFailure`** — a refund the gateway accepted and later gave up on: its id, its amount, the gateway's reason. Carried by a refund-failure `WebhookPayload` (`refundFailure`) and by `PaymentRefundFailed`.
 - **`RefundResult`** — what `RefundPayment` returns: the gateway refund id, the amount, the payment's cumulative refunded after it.
 
 ## Actions
@@ -120,7 +121,9 @@ Asks the payment's gateway for its current `PaymentSession` (clientSecret / redi
 
 Verifies the signature, parses the webhook via the gateway, finds the Payment by `gateway_reference` under a row lock, records the event id in the idempotency ledger (`webhook_events`) and updates the payment. Dispatches `PaymentSucceeded` or `PaymentFailed` if the status changed. Returns `null`, with no ledger row, for an event the gateway does not handle and for an informational event that matches no payment.
 
-**Refund events.** A refund event carries the payment's cumulative refunded amount and does not say which refund it is about. `amount_refunded` follows that cumulative and never falls; the status is recomputed from the amounts. When the event would move the total and the gateway implements `ListsRefunds`, the action fetches the gateway's refund list for the payment and dispatches `PaymentRefunded` with it. The list is fetched after an unlocked payment lookup and **before** the database transaction, so no gateway call runs under the row lock; if the call throws, nothing has been written and the gateway retries the delivery. The echo of a refund this app issued does not move the total, so it costs no call and dispatches nothing.
+**Refund events.** A refund event carries the payment's cumulative refunded amount and does not say which refund it is about. `amount_refunded` follows that cumulative and only falls through a refund failure (below); the status is recomputed from the amounts. When the gateway implements `ListsRefunds`, the list read at processing time caps the event's cumulative: a refund that failed since the event was sent is off the list, so a late `charge.refunded` cannot raise the total back to it. When the event would move the total and the gateway implements `ListsRefunds`, the action fetches the gateway's refund list for the payment and dispatches `PaymentRefunded` with it. The list is fetched after an unlocked payment lookup and **before** the database transaction, so no gateway call runs under the row lock; if the call throws, nothing has been written and the gateway retries the delivery. The echo of a refund this app issued does not move the total, so it costs no call and dispatches nothing.
+
+**Refund failures.** A refund the gateway accepted can fail later (a closed or expired card); the money goes back to the shop's balance. A refund-failure event (`refundFailure` set) lowers `amount_refunded` by the failed amount, never below zero, recomputes the status from the amounts (back to `succeeded` when nothing stays refunded, with no `PaymentSucceeded`), and dispatches `PaymentRefundFailed`. A gateway reports a failure once per refund, on its change into failed; the ledger row stops a redelivery.
 
 ### RefundPayment
 
@@ -130,6 +133,7 @@ Validates the payment is refundable, calls the gateway, updates `amount_refunded
 
 - **PaymentSucceeded** — carries `Payment`. Fired when webhook confirms success.
 - **PaymentFailed** — carries `Payment`. Fired when webhook confirms failure.
+- **PaymentRefundFailed** — carries `Payment` and the `GatewayRefundFailure`. Fired after a refund failure lowered the payment's refunded total. Commerce listens and marks the order's `Refund` row failed.
 - **PaymentRefunded** — carries `Payment` and `gatewayRefunds` (`list<GatewayRefund>`, oldest first; empty when the gateway cannot list refunds). Fired when a refund webhook moves the payment's refunded total, which is a refund made outside the app (the Stripe dashboard, another API client). **Not** fired by `RefundPayment`. Commerce listens and records a `Refund` row for every listed refund that has none.
 
 ## Stripe webhook events
@@ -142,8 +146,9 @@ The events a Stripe endpoint should carry:
 | `payment_intent.payment_failed` | payment → Failed, `PaymentFailed` |
 | `payment_intent.canceled` | payment → Cancelled |
 | `charge.refunded` | payment's refunded total and status; `PaymentRefunded` when the total moves |
+| `charge.refund.updated`, only on the refund's change into `failed` or `canceled` (`previous_attributes.status` names another state) | lowers the refunded total by the refund's amount; `PaymentRefundFailed` |
 
-Any other `payment_intent.*` event is read through the intent's own status. Everything else is ignored: answered as received, logged at `info` with the event type and id, no ledger row. That includes `charge.refund.updated`, `refund.*`, `charge.succeeded`, `charge.updated` and **`charge.dispute.*`**. A dispute is not a refund and leaves no local record; Stripe's own e-mail and dashboard are the signal for one.
+Any other `payment_intent.*` event is read through the intent's own status. Everything else is ignored: answered as received, logged at `info` with the event type and id, no ledger row. That includes every other `charge.refund.updated` (a later update of a failed refund among them), `refund.*`, `charge.succeeded`, `charge.updated` and **`charge.dispute.*`**. A dispute is not a refund and leaves no local record; Stripe's own e-mail and dashboard are the signal for one.
 
 `charge.refunded` is rendered without the charge's `refunds` list (Stripe API `2022-11-15` and later), which is why the driver lists refunds through the API instead of reading them off the event. A captured body is in `tests/Fixtures/Stripe/`.
 

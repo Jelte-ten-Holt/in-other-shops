@@ -25,5 +25,12 @@ final readonly class WebhookPayload
         // non-refund events. A refund event names no single refund — the
         // gateway's own list does (Contracts\ListsRefunds).
         public ?int $amountRefunded = null,
+        // Refund-failure events only: the refund that failed. Such an event is
+        // a refund event (`status` Refunded, `amountRefunded` null); the
+        // processor lowers the payment's refunded total by the failed amount
+        // and recomputes its status from the amounts. A gateway reports a
+        // failure once, on the refund's change into failed, never again for a
+        // later update of the same failed refund.
+        public ?GatewayRefundFailure $refundFailure = null,
     ) {}
 }

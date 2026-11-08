@@ -12,10 +12,12 @@ use Illuminate\Support\Facades\Log;
 use InOtherShops\Payment\Contracts\ListsRefunds;
 use InOtherShops\Payment\Contracts\PaymentGateway;
 use InOtherShops\Payment\DTOs\GatewayRefund;
+use InOtherShops\Payment\DTOs\GatewayRefundFailure;
 use InOtherShops\Payment\DTOs\WebhookPayload;
 use InOtherShops\Payment\Enums\PaymentStatus;
 use InOtherShops\Payment\Events\PaymentFailed;
 use InOtherShops\Payment\Events\PaymentRefunded;
+use InOtherShops\Payment\Events\PaymentRefundFailed;
 use InOtherShops\Payment\Events\PaymentSucceeded;
 use InOtherShops\Payment\Exceptions\PaymentAmountMismatchException;
 use InOtherShops\Payment\Exceptions\UnmatchedWebhookPaymentException;
@@ -55,8 +57,9 @@ final class ProcessPaymentWebhook
         // payment row lock. If it throws, nothing has been written: the delivery
         // answers non-2xx and the gateway retries it.
         $gatewayRefunds = $this->gatewayRefundsFor($gateway, $gatewayName, $payload);
+        $gatewayListsRefunds = $gateway instanceof ListsRefunds;
 
-        return DB::transaction(function () use ($gatewayName, $payload, $gatewayRefunds): ?Payment {
+        return DB::transaction(function () use ($gatewayName, $payload, $gatewayRefunds, $gatewayListsRefunds): ?Payment {
             // Resolve the payment BEFORE recording idempotency. An event whose
             // gateway_reference matches no payment yet (delivered before the pay
             // page wrote the reference, or the process died between the gateway
@@ -90,8 +93,10 @@ final class ProcessPaymentWebhook
 
             $this->guardAmountMatches($payment, $payload);
 
-            if ($this->isRefundEvent($payload)) {
-                $this->applyRefund($payment, $payload, $gatewayRefunds);
+            if ($payload->refundFailure !== null) {
+                $this->applyRefundFailure($payment, $payload->refundFailure, $payload);
+            } elseif ($this->isRefundEvent($payload)) {
+                $this->applyRefund($payment, $payload, $gatewayRefunds, $gatewayListsRefunds);
             } elseif ($this->updatePaymentStatus($payment, $payload)) {
                 $this->dispatchEvent($payment);
             }
@@ -140,8 +145,8 @@ final class ProcessPaymentWebhook
 
     /**
      * The gateway's own refunds for the payment a refund event is about, oldest
-     * first — or nothing, when the event cannot move the payment's refunded
-     * total. The gateway is asked only when all of these hold:
+     * first — or null, when the event cannot move the payment's refunded total.
+     * The gateway is asked only when all of these hold:
      *
      * - the event is a refund event carrying a cumulative;
      * - the gateway can list refunds;
@@ -149,25 +154,26 @@ final class ProcessPaymentWebhook
      *   than one shop, and then every endpoint receives every shop's events;
      *   this keeps the call to payments that are ours;
      * - that row's refunded total is below the event's cumulative. The echo of
-     *   an admin refund fails this and costs no call. The shortcut is safe
-     *   because the total only ever rises: if the unlocked read says it would
-     *   not move, the locked read inside the transaction cannot say it would.
+     *   an admin refund fails this and costs no call.
      *
-     * The locked read inside the transaction stays the authority for everything
-     * else.
+     * The total can fall since failed refunds (R4), so the locked read inside
+     * the transaction may find it lower than this read did: a failure landed in
+     * between. {@see self::applyRefund()} then moves nothing without a list,
+     * because the event predates the failure and its cumulative still counts
+     * the failed refund.
      *
-     * @return list<GatewayRefund>
+     * @return list<GatewayRefund>|null
      */
-    private function gatewayRefundsFor(PaymentGateway $gateway, string $gatewayName, WebhookPayload $payload): array
+    private function gatewayRefundsFor(PaymentGateway $gateway, string $gatewayName, WebhookPayload $payload): ?array
     {
         if (! $this->isRefundEvent($payload) || $payload->amountRefunded === null || ! $gateway instanceof ListsRefunds) {
-            return [];
+            return null;
         }
 
         $payment = $this->paymentQuery($gatewayName, $payload)->first();
 
         if ($payment === null || $payment->amount_refunded >= $payload->amountRefunded) {
-            return [];
+            return null;
         }
 
         return $gateway->listRefunds($payment);
@@ -193,18 +199,25 @@ final class ProcessPaymentWebhook
     }
 
     /**
-     * Apply a refund webhook to the payment. `amount_refunded` is set to the
-     * gateway's CUMULATIVE total monotonically (never regresses on out-of-order
-     * delivery), and status is recomputed FROM THE AMOUNTS — not from the event
-     * type — so a partial `charge.refunded` doesn't flip the row to fully
-     * Refunded while money remains. When the total moves, dispatches
-     * PaymentRefunded with the gateway's own refund list so Commerce records
-     * every refund not yet recorded. The event does not say which refund it is
-     * about, so nothing is derived from that.
+     * Apply a refund webhook to the payment. `amount_refunded` only rises here
+     * (an out-of-order delivery never regresses it; a failed refund lowers it
+     * in {@see self::applyRefundFailure()}), and status is recomputed FROM THE
+     * AMOUNTS — not from the event type — so a partial `charge.refunded` doesn't
+     * flip the row to fully Refunded while money remains. When the total moves,
+     * dispatches PaymentRefunded with the gateway's own refund list so Commerce
+     * records every refund not yet recorded. The event does not say which
+     * refund it is about, so nothing is derived from that.
      *
-     * @param  list<GatewayRefund>  $gatewayRefunds
+     * When the gateway can list refunds, the list caps the event's cumulative:
+     * it was read just now, the event may be minutes old, and a refund that
+     * failed since is off the list (Stripe's own total falls with it). Without
+     * the cap, a late `charge.refunded` arriving after a failure would raise
+     * the total back to the failed amount. No list from such a gateway means
+     * the unlocked read found nothing to move, so nothing moves.
+     *
+     * @param  list<GatewayRefund>|null  $gatewayRefunds
      */
-    private function applyRefund(Payment $payment, WebhookPayload $payload, array $gatewayRefunds): void
+    private function applyRefund(Payment $payment, WebhookPayload $payload, ?array $gatewayRefunds, bool $gatewayListsRefunds): void
     {
         // A refund event without a cumulative carries nothing authoritative to
         // apply.
@@ -212,23 +225,64 @@ final class ProcessPaymentWebhook
             return;
         }
 
-        $newRefunded = max($payment->amount_refunded, $payload->amountRefunded);
+        $cumulative = $payload->amountRefunded;
 
-        if ($newRefunded <= $payment->amount_refunded) {
+        if ($gatewayListsRefunds) {
+            if ($gatewayRefunds === null) {
+                return;
+            }
+
+            $cumulative = min($cumulative, array_sum(array_map(
+                fn (GatewayRefund $refund): int => $refund->amount,
+                $gatewayRefunds,
+            )));
+        }
+
+        if ($cumulative <= $payment->amount_refunded) {
             return; // stale or already applied — don't regress, don't re-dispatch
         }
 
-        $status = $newRefunded >= $payment->amount
-            ? PaymentStatus::Refunded
-            : PaymentStatus::PartiallyRefunded;
-
         $payment->update([
-            'amount_refunded' => $newRefunded,
-            'status' => $status,
+            'amount_refunded' => $cumulative,
+            'status' => $this->statusFor($payment, $cumulative),
             'gateway_data' => array_merge($payment->gateway_data ?? [], $payload->gatewayData),
         ]);
 
-        PaymentRefunded::dispatch($payment, $gatewayRefunds);
+        PaymentRefunded::dispatch($payment, $gatewayRefunds ?? []);
+    }
+
+    /**
+     * A refund the gateway accepted has failed: the money is back on the shop's
+     * balance and never reached the customer. Lowers the payment's refunded
+     * total by the failed amount (never below zero: the refund event may not
+     * have been applied yet) and recomputes the status from the amounts, back
+     * to Succeeded when nothing stays refunded. Dispatches no PaymentSucceeded:
+     * the payment was never unpaid. PaymentRefundFailed takes the Refund row out
+     * of the order's totals on the Commerce side.
+     *
+     * Applied once per refund: the gateway reports a failure only on the
+     * refund's change into failed, and the ledger row stops a redelivery.
+     */
+    private function applyRefundFailure(Payment $payment, GatewayRefundFailure $failure, WebhookPayload $payload): void
+    {
+        $refunded = max(0, $payment->amount_refunded - $failure->amount);
+
+        $payment->update([
+            'amount_refunded' => $refunded,
+            'status' => $this->statusFor($payment, $refunded),
+            'gateway_data' => array_merge($payment->gateway_data ?? [], $payload->gatewayData),
+        ]);
+
+        PaymentRefundFailed::dispatch($payment, $failure);
+    }
+
+    private function statusFor(Payment $payment, int $refunded): PaymentStatus
+    {
+        return match (true) {
+            $refunded <= 0 => PaymentStatus::Succeeded,
+            $refunded >= $payment->amount => PaymentStatus::Refunded,
+            default => PaymentStatus::PartiallyRefunded,
+        };
     }
 
     /**

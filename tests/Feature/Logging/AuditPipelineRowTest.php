@@ -17,6 +17,7 @@ use InOtherShops\FlowChain\FlowChain;
 use InOtherShops\Inventory\Actions\AdjustStock;
 use InOtherShops\Inventory\Enums\StockMovementReason;
 use InOtherShops\Logging\Handlers\DatabaseLogHandler;
+use InOtherShops\Commerce\Order\Models\Order;
 use InOtherShops\Payment\Actions\ProcessPaymentWebhook;
 use InOtherShops\Payment\Enums\PaymentStatus;
 use InOtherShops\Payment\Models\Payment;
@@ -185,6 +186,42 @@ final class AuditPipelineRowTest extends TestCase
         $row = DB::table('domain_logs')->where('channel', 'payment')->latest('id')->first();
 
         $this->assertNotNull($row, 'No payment audit row was written for the webhook.');
+    }
+
+    /**
+     * R4: a refund that fails at the gateway leaves a warning on both channels
+     * it touches, attributed to the gateway — the webhook boundary's actor.
+     */
+    #[Test]
+    public function a_failed_refund_writes_a_payment_and_a_commerce_audit_row(): void
+    {
+        $gateway = new FakePaymentGateway('fake');
+        $this->app->make(PaymentGatewayManager::class)
+            ->extend('fake', fn (): FakePaymentGateway => $gateway);
+
+        $order = Order::factory()->create(['total' => 2500]);
+        $payment = Payment::factory()->for($order, 'payable')->create([
+            'gateway' => 'fake',
+            'gateway_reference' => 'fake_pi_refund_fails',
+            'amount' => 2500,
+            'amount_refunded' => 0,
+            'currency' => Currency::EUR,
+            'status' => PaymentStatus::Succeeded,
+        ]);
+        $refundId = $gateway->recordOutsideRefund($payment, 2500);
+        $this->app->make(ProcessPaymentWebhook::class)('fake', $gateway->simulateWebhook($payment, PaymentStatus::Refunded));
+        $failure = $gateway->failRefund($payment, $refundId);
+
+        $this->app->make(ProcessPaymentWebhook::class)('fake', $gateway->simulateRefundFailure($payment->refresh(), $failure));
+
+        foreach (['payment' => 'Refund failed on fake%', 'commerce' => 'Refund of 2500 on order%failed at the gateway.'] as $channel => $message) {
+            $row = DB::table('domain_logs')->where('channel', $channel)->where('message', 'like', $message)->first();
+
+            $this->assertNotNull($row, "No {$channel} audit row was written for the failed refund.");
+            $this->assertSame('warning', $row->level);
+            $this->assertSame('gateway', $row->actor_type);
+            $this->assertSame($refundId, json_decode((string) $row->context, true)['gateway_refund_id']);
+        }
     }
 
     #[Test]
