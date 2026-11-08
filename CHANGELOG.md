@@ -17,7 +17,8 @@ are pre-launch — single-release-window policy, no deprecation bridges).
   charge was dropped as stale. Now the Stripe driver reads
   `charge.refund.updated` on a refund's change into `failed` or `canceled`
   (both endpoints already receive it — no Stripe change). The payment's
-  `amount_refunded` falls by the failed amount and its status is recomputed;
+  `amount_refunded` falls to what Stripe's refund list still holds and its
+  status is recomputed;
   the order's `Refund` row stays, marked with the new `failed_at` and
   `failure_reason`, and counts toward nothing: not the order's refunded total,
   not the VAT reversal, not `commerce:reconcile-refunds`, not the orders

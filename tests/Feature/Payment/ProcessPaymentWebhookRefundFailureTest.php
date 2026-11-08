@@ -5,14 +5,20 @@ declare(strict_types=1);
 namespace InOtherShops\Tests\Feature\Payment;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Log;
+use InOtherShops\Commerce\Order\Actions\RefundOrder;
+use InOtherShops\Commerce\Order\DTOs\RefundActor;
 use InOtherShops\Commerce\Order\Events\RefundFailed;
 use InOtherShops\Commerce\Order\Models\Order;
 use InOtherShops\Commerce\Order\Models\Refund;
 use InOtherShops\Currency\Enums\Currency;
 use InOtherShops\Payment\Actions\ProcessPaymentWebhook;
+use InOtherShops\Payment\Contracts\PaymentGateway;
 use InOtherShops\Payment\DTOs\GatewayRefundFailure;
+use InOtherShops\Payment\DTOs\PaymentSession;
+use InOtherShops\Payment\DTOs\WebhookPayload;
 use InOtherShops\Payment\Enums\PaymentStatus;
 use InOtherShops\Payment\Events\PaymentRefunded;
 use InOtherShops\Payment\Events\PaymentRefundFailed;
@@ -21,6 +27,7 @@ use InOtherShops\Payment\Models\WebhookEvent;
 use InOtherShops\Payment\PaymentGatewayManager;
 use InOtherShops\Payment\Testing\FakePaymentGateway;
 use InOtherShops\Tests\TestCase;
+use LogicException;
 use Mockery;
 use PHPUnit\Framework\Attributes\Test;
 
@@ -165,6 +172,114 @@ final class ProcessPaymentWebhookRefundFailureTest extends TestCase
         $this->assertSame(1, $order->refunds()->count());
     }
 
+    /**
+     * Found by the 2026-11-08 pathology review: a refund event retried past
+     * the failure (a deploy, a list call that threw) already leaves the failed
+     * refund out, because the list caps it. Subtracting the failed amount
+     * afterwards took the standing refund with it (500 - 300 = 200). Read from
+     * the list, both delivery orders end where the gateway is.
+     */
+    #[Test]
+    public function a_failure_after_its_refund_event_was_retried_past_it_keeps_the_standing_refund(): void
+    {
+        [$order, $payment, $failure] = $this->standingRefundAndOneThatFails();
+        $refundEvent = $this->gateway->simulateWebhook($payment, PaymentStatus::PartiallyRefunded, eventId: 'evt_x_refunded');
+        $this->gateway->failRefund($payment, $failure);
+
+        ($this->process)('fake', $refundEvent);
+        ($this->process)('fake', $this->gateway->simulateRefundFailure($payment->refresh(), $this->failureOf($failure, 300)));
+
+        $this->assertSame(500, $payment->refresh()->amount_refunded);
+        $this->assertSame(PaymentStatus::PartiallyRefunded, $payment->status);
+        $this->assertSame(500, $order->refundedTotal());
+    }
+
+    #[Test]
+    public function a_failure_before_its_refund_event_keeps_the_standing_refund(): void
+    {
+        [$order, $payment, $failure] = $this->standingRefundAndOneThatFails();
+        $refundEvent = $this->gateway->simulateWebhook($payment, PaymentStatus::PartiallyRefunded, eventId: 'evt_x_refunded');
+        $this->gateway->failRefund($payment, $failure);
+
+        ($this->process)('fake', $this->gateway->simulateRefundFailure($payment->refresh(), $this->failureOf($failure, 300)));
+        ($this->process)('fake', $refundEvent);
+
+        $this->assertSame(500, $payment->refresh()->amount_refunded);
+        $this->assertSame(500, $order->refundedTotal());
+    }
+
+    /**
+     * The gateway reports a failure once, but nothing here should depend on
+     * it: a second failure event for the same refund, under its own event id,
+     * changes nothing.
+     */
+    #[Test]
+    public function a_second_failure_event_for_the_same_refund_changes_nothing(): void
+    {
+        $order = $this->order();
+        $payment = $this->paymentFor($order);
+        $this->gateway->recordOutsideRefund($payment, 1000);
+        $failing = $this->gateway->recordOutsideRefund($payment, 500);
+        ($this->process)('fake', $this->gateway->simulateWebhook($payment, PaymentStatus::PartiallyRefunded));
+        $failure = $this->gateway->failRefund($payment, $failing);
+
+        ($this->process)('fake', $this->gateway->simulateRefundFailure($payment->refresh(), $failure, eventId: 'evt_a'));
+        ($this->process)('fake', $this->gateway->simulateRefundFailure($payment->refresh(), $failure, eventId: 'evt_b'));
+
+        $this->assertSame(1000, $payment->refresh()->amount_refunded);
+        $this->assertSame(1000, $order->refundedTotal());
+    }
+
+    /**
+     * The path the fix exists for: the admin refunds in full, the refund
+     * fails, and the admin refunds again. The second refund goes through
+     * RefundPayment's cap and reverses the VAT in full.
+     */
+    #[Test]
+    public function an_admin_refund_that_fails_can_be_made_again(): void
+    {
+        $order = $this->order();
+        $payment = $this->paymentFor($order);
+        $first = $this->app->make(RefundOrder::class)($order, RefundActor::admin('1', 'Shop admin'));
+        $this->assertSame(1760, $payment->refresh()->amount_refunded);
+
+        $failure = $this->gateway->failRefund($payment, $first->gateway_refund_id);
+        ($this->process)('fake', $this->gateway->simulateRefundFailure($payment->refresh(), $failure));
+
+        $payment->refresh();
+        $this->assertSame(0, $payment->amount_refunded);
+        $this->assertSame(PaymentStatus::Succeeded, $payment->status);
+        $this->assertTrue($first->refresh()->isFailed());
+
+        $second = $this->app->make(RefundOrder::class)($order->refresh(), RefundActor::admin('1', 'Shop admin'));
+
+        $this->assertSame(1760, $second->amount);
+        $this->assertSame(1760, $payment->refresh()->amount_refunded);
+        $this->assertSame(PaymentStatus::Refunded, $payment->status);
+        $this->assertSame(1760, $order->refundedTotal());
+        $this->assertSame(210, $this->taxOf($second));
+    }
+
+    /**
+     * A gateway that cannot list refunds has nothing to read the total from,
+     * so the failure subtracts its amount, never below zero.
+     */
+    #[Test]
+    public function a_gateway_that_cannot_list_refunds_subtracts_the_failed_amount_never_below_zero(): void
+    {
+        $this->app->make(PaymentGatewayManager::class)->extend('fake', fn (): PaymentGateway => $this->gatewayWithoutRefundList());
+        $order = $this->order();
+        $payment = $this->paymentFor($order);
+        $payment->update(['amount_refunded' => 800, 'status' => PaymentStatus::PartiallyRefunded]);
+
+        ($this->process)('fake', $this->gateway->simulateRefundFailure($payment, new GatewayRefundFailure(id: 'fake_re_a', amount: 300)));
+        $this->assertSame(500, $payment->refresh()->amount_refunded);
+
+        ($this->process)('fake', $this->gateway->simulateRefundFailure($payment, new GatewayRefundFailure(id: 'fake_re_b', amount: 900)));
+        $this->assertSame(0, $payment->refresh()->amount_refunded);
+        $this->assertSame(PaymentStatus::Succeeded, $payment->status);
+    }
+
     #[Test]
     public function a_redelivered_failure_is_applied_once(): void
     {
@@ -234,6 +349,76 @@ final class ProcessPaymentWebhookRefundFailureTest extends TestCase
 
         $this->assertNull($returned);
         $this->assertSame(0, WebhookEvent::query()->count());
+    }
+
+    /**
+     * A standing 500 refund, recorded, and a 300 refund made at the gateway
+     * whose own refund event has not been processed yet.
+     *
+     * @return array{Order, Payment, string}
+     */
+    private function standingRefundAndOneThatFails(): array
+    {
+        $order = $this->order();
+        $payment = $this->paymentFor($order);
+        $this->gateway->recordOutsideRefund($payment, 500);
+        ($this->process)('fake', $this->gateway->simulateWebhook($payment, PaymentStatus::PartiallyRefunded));
+        $this->assertSame(500, $payment->refresh()->amount_refunded);
+
+        return [$order, $payment, $this->gateway->recordOutsideRefund($payment, 300)];
+    }
+
+    private function failureOf(string $refundId, int $amount): GatewayRefundFailure
+    {
+        return new GatewayRefundFailure(id: $refundId, amount: $amount, reason: 'expired_or_canceled_card');
+    }
+
+    /** The fake without ListsRefunds: refund webhooks only, no list to read. */
+    private function gatewayWithoutRefundList(): PaymentGateway
+    {
+        return new class($this->gateway) implements PaymentGateway
+        {
+            public function __construct(private readonly FakePaymentGateway $fake) {}
+
+            public function identifier(): string
+            {
+                return 'fake';
+            }
+
+            public function verifyWebhookSignature(Request $request): void {}
+
+            public function parseWebhook(Request $request): ?WebhookPayload
+            {
+                return $this->fake->parseWebhook($request);
+            }
+
+            public function createSession(Payment $payment, string $returnUrl, string $cancelUrl, ?string $gatewayCustomerId = null): PaymentSession
+            {
+                throw new LogicException('not used');
+            }
+
+            public function retrieveSession(Payment $payment): PaymentSession
+            {
+                throw new LogicException('not used');
+            }
+
+            public function cancelSession(Payment $payment): void {}
+
+            public function refund(Payment $payment, ?int $amount = null): string
+            {
+                throw new LogicException('not used');
+            }
+
+            public function customerDashboardUrl(string $gatewayCustomerId): ?string
+            {
+                return null;
+            }
+
+            public function paymentDashboardUrl(Payment $payment): ?string
+            {
+                return null;
+            }
+        };
     }
 
     private function taxOf(Refund $refund): int

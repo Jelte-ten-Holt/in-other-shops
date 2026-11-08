@@ -94,7 +94,7 @@ final class ProcessPaymentWebhook
             $this->guardAmountMatches($payment, $payload);
 
             if ($payload->refundFailure !== null) {
-                $this->applyRefundFailure($payment, $payload->refundFailure, $payload);
+                $this->applyRefundFailure($payment, $payload->refundFailure, $payload, $gatewayRefunds, $gatewayListsRefunds);
             } elseif ($this->isRefundEvent($payload)) {
                 $this->applyRefund($payment, $payload, $gatewayRefunds, $gatewayListsRefunds);
             } elseif ($this->updatePaymentStatus($payment, $payload)) {
@@ -148,13 +148,15 @@ final class ProcessPaymentWebhook
      * first — or null, when the event cannot move the payment's refunded total.
      * The gateway is asked only when all of these hold:
      *
-     * - the event is a refund event carrying a cumulative;
+     * - the event reports a refund failure, or is a refund event carrying a
+     *   cumulative;
      * - the gateway can list refunds;
      * - an UNLOCKED read finds the payment. One gateway account can serve more
      *   than one shop, and then every endpoint receives every shop's events;
      *   this keeps the call to payments that are ours;
-     * - that row's refunded total is below the event's cumulative. The echo of
-     *   an admin refund fails this and costs no call.
+     * - for a refund event, that row's refunded total is below the event's
+     *   cumulative. The echo of an admin refund fails this and costs no call.
+     *   A failure always asks: the list is what the lowered total is read from.
      *
      * The total can fall since failed refunds (R4), so the locked read inside
      * the transaction may find it lower than this read did: a failure landed in
@@ -166,13 +168,15 @@ final class ProcessPaymentWebhook
      */
     private function gatewayRefundsFor(PaymentGateway $gateway, string $gatewayName, WebhookPayload $payload): ?array
     {
-        if (! $this->isRefundEvent($payload) || $payload->amountRefunded === null || ! $gateway instanceof ListsRefunds) {
+        $isFailure = $payload->refundFailure !== null;
+
+        if (! $gateway instanceof ListsRefunds || (! $isFailure && (! $this->isRefundEvent($payload) || $payload->amountRefunded === null))) {
             return null;
         }
 
         $payment = $this->paymentQuery($gatewayName, $payload)->first();
 
-        if ($payment === null || $payment->amount_refunded >= $payload->amountRefunded) {
+        if ($payment === null || (! $isFailure && $payment->amount_refunded >= $payload->amountRefunded)) {
             return null;
         }
 
@@ -254,18 +258,31 @@ final class ProcessPaymentWebhook
     /**
      * A refund the gateway accepted has failed: the money is back on the shop's
      * balance and never reached the customer. Lowers the payment's refunded
-     * total by the failed amount (never below zero: the refund event may not
-     * have been applied yet) and recomputes the status from the amounts, back
-     * to Succeeded when nothing stays refunded. Dispatches no PaymentSucceeded:
-     * the payment was never unpaid. PaymentRefundFailed takes the Refund row out
-     * of the order's totals on the Commerce side.
+     * total and recomputes the status from the amounts, back to Succeeded when
+     * nothing stays refunded. Dispatches no PaymentSucceeded: the payment was
+     * never unpaid. PaymentRefundFailed takes the Refund row out of the order's
+     * totals on the Commerce side.
      *
-     * Applied once per refund: the gateway reports a failure only on the
-     * refund's change into failed, and the ledger row stops a redelivery.
+     * When the gateway lists refunds, the new total is the lower of the stored
+     * total and what the list still holds (without the failed refund), never a
+     * subtraction. A subtraction takes off money the total may never have
+     * counted: a refund event retried past the failure already left the failed
+     * refund out, and subtracting it again would take a standing refund with
+     * it. Read from the list, the result is the same whatever order the events
+     * arrive in, and a second failure event for the same refund changes
+     * nothing. A gateway that cannot list refunds falls back to subtracting the
+     * failed amount, never below zero.
+     *
+     * @param  list<GatewayRefund>|null  $gatewayRefunds
      */
-    private function applyRefundFailure(Payment $payment, GatewayRefundFailure $failure, WebhookPayload $payload): void
+    private function applyRefundFailure(Payment $payment, GatewayRefundFailure $failure, WebhookPayload $payload, ?array $gatewayRefunds, bool $gatewayListsRefunds): void
     {
-        $refunded = max(0, $payment->amount_refunded - $failure->amount);
+        $refunded = $gatewayListsRefunds && $gatewayRefunds !== null
+            ? min($payment->amount_refunded, array_sum(array_map(
+                fn (GatewayRefund $refund): int => $refund->id === $failure->id ? 0 : $refund->amount,
+                $gatewayRefunds,
+            )))
+            : max(0, $payment->amount_refunded - $failure->amount);
 
         $payment->update([
             'amount_refunded' => $refunded,

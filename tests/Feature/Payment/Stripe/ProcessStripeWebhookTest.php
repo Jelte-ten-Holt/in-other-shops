@@ -150,7 +150,9 @@ final class ProcessStripeWebhookTest extends TestCase
     public function a_refund_that_fails_later_is_taken_back_out_of_the_payment_and_the_order(): void
     {
         $payment = $this->failCardPayment();
-        $this->refunds->shouldReceive('all')->once()->andReturn($this->refundList('succeeded'));
+        // The refund event reads the list while the refund still stands; the
+        // failure reads it again, after Stripe marked the refund failed.
+        $this->refunds->shouldReceive('all')->twice()->andReturn($this->refundList('succeeded'), $this->refundList('failed'));
 
         ($this->process)('stripe', $this->signedRequest($this->stripeFixture('charge.refunded.refund-fail-card.2026-03-25.dahlia.json'), time()));
         $this->assertSame(1000, $payment->refresh()->amount_refunded);
@@ -180,10 +182,9 @@ final class ProcessStripeWebhookTest extends TestCase
     public function a_refund_event_delivered_after_its_failure_moves_nothing(): void
     {
         $payment = $this->failCardPayment();
+        $this->refunds->shouldReceive('all')->twice()->andReturn($this->refundList('failed'));
 
         ($this->process)('stripe', $this->signedRequest($this->stripeFixture('charge.refund.updated.failed.2026-03-25.dahlia.json'), time()));
-
-        $this->refunds->shouldReceive('all')->once()->andReturn($this->refundList('failed'));
         ($this->process)('stripe', $this->signedRequest($this->stripeFixture('charge.refunded.refund-fail-card.2026-03-25.dahlia.json'), time()));
 
         $payment->refresh();
@@ -214,6 +215,36 @@ final class ProcessStripeWebhookTest extends TestCase
         $this->assertNull($returned);
         $this->assertSame(0, WebhookEvent::query()->count());
         $this->assertSame(1000, $payment->refresh()->amount_refunded);
+    }
+
+    /**
+     * A refund that needed the customer's action and was canceled never
+     * returned money. Read from the list, the payment total stays where it is;
+     * subtracting the canceled amount would take off money it never counted.
+     */
+    #[Test]
+    public function a_canceled_refund_that_never_returned_money_changes_nothing(): void
+    {
+        $payment = $this->failCardPayment();
+        $payment->update(['amount_refunded' => 400, 'status' => PaymentStatus::PartiallyRefunded]);
+        $event = json_decode($this->stripeFixture('charge.refund.updated.failed.2026-03-25.dahlia.json'), true);
+        $event['id'] = 'evt_canceled';
+        $event['data']['object']['status'] = 'canceled';
+        $event['data']['previous_attributes'] = ['status' => 'requires_action'];
+        $this->refunds->shouldReceive('all')->once()->andReturn(Collection::constructFrom([
+            'object' => 'list',
+            'has_more' => false,
+            'data' => [
+                ['id' => self::FAILED_REFUND, 'object' => 'refund', 'amount' => 1000, 'status' => 'canceled'],
+                ['id' => 're_standing', 'object' => 'refund', 'amount' => 400, 'status' => 'succeeded'],
+            ],
+        ]));
+
+        $returned = ($this->process)('stripe', $this->signedRequest(json_encode($event, JSON_THROW_ON_ERROR), time()));
+
+        $this->assertTrue($payment->is($returned), 'a change into canceled is read as a failure');
+        $this->assertSame(400, $payment->refresh()->amount_refunded);
+        $this->assertSame(PaymentStatus::PartiallyRefunded, $payment->status);
     }
 
     /** @return array<string, array{array<string, mixed>}> */
