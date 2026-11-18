@@ -3,6 +3,8 @@
 Real event bodies, captured from the Stripe dashboard's delivery view or, since 2026-11-01, from `GET /v1/events` with `Stripe-Version: 2026-03-25.dahlia` (the endpoints' version). Use these
 instead of hand-built payloads when a test's point is the live payload shape.
 
+The endpoints stay on `2026-03-25.dahlia` after the move to stripe-php ^23, whose API calls send `2026-10-28.endive`. A webhook body is rendered at the endpoint's version, never the SDK's, so these files are still what the shops receive. None of the fields the driver reads changed between the two (`docs/briefs/stripe-php-23-brief.md` § 3).
+
 | File | Captured | Source |
 | --- | --- | --- |
 | `charge.refunded.2026-03-25.dahlia.json` | 2026-10-05 | test-mode partial refund (EUR 22.00 of 63.50) issued from the dashboard, mayangna order 10. **The charge carries no `refunds` key.** |

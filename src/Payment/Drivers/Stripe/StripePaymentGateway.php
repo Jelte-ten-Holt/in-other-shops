@@ -288,7 +288,7 @@ final class StripePaymentGateway implements ListsRefunds, ManagesCustomers, Paym
     /**
      * The balance transaction of the intent's latest charge. Null until Stripe
      * has written it: under asynchronous capture, the default on the API
-     * version stripe-php ^21 pins, it is still empty when
+     * versions stripe-php ^21 (dahlia) and ^23 (endive) pin, it is still empty when
      * `payment_intent.succeeded` arrives and lands with `charge.updated`.
      */
     public function settlementFor(Payment $payment): ?Settlement
