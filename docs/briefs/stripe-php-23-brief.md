@@ -1,6 +1,6 @@
 # Brief — `stripe/stripe-php` 21 → 23
 
-**Status (2026-11-18): BUILT, awaiting merges and the two sandbox checkouts (§ 6).** Package on branch `chore/stripe-php-23`. IOW and bianka bump PRs opened the same day, after IOW #121 and bianka #41 merged. No driver code change.
+**Status (2026-11-18): DONE.** Merged and deployed the same day: in-other-shops #41 (no tag), in-other-worlds #122 and bianka-shop-one #42. No driver code change. Q1–Q3 are settled on their leans. § 6's browser checkout can't run while neither shop sells, so it is on each shop's launch list; § 9 records what was checked instead.
 **Repos:** in-other-shops (dev constraint, suite), in-other-worlds, bianka-shop-one. Precedent: [stripe-php-21-brief.md](stripe-php-21-brief.md).
 
 ## 1. Verdict
@@ -106,3 +106,14 @@ After each shop's bump PR merges and deploys. Do it once on inotherworlds.net an
 - **Q1. Tag a release?** Lean: no, same as Q1 of the 21 brief. The package change is the `require-dev` constraint, the `suggest` text and two comments, so nothing a consumer installs changes. Both shops stay on v0.75.0, and this rides the next release, where the CHANGELOG line goes in under "Also in this release". If you want one anyway, it's v0.75.1, and both shops then need `composer update jelte-ten-holt/in-other-shops` in a follow-up.
 - **Q2. Move the endpoints to endive?** Lean: no (§ 3).
 - **Q3. Set `STRIPE_SUPPRESS_NOTICES=true` in both shops' Coolify env?** Lean: no for now (§ 7.1). It is a one-line env change if a notice ever shows up.
+
+## 9. After the merge (2026-11-18)
+
+Neither shop can take a checkout. IOW blocks buying with `SHOP_PURCHASABLE=false`, and Jelte reports mayangna has no active shop either. So § 6 couldn't run. These were run instead, through the package's own `StripePaymentGateway` on SDK 23 against the sandbox:
+
+- **`createCustomer`** returned a `cus_…`, which was deleted straight away. No endpoint listens to customer events.
+- **`refund($payment, 100)`** on the 2026-11-01 R4 API payment (no shop `payment_id`) was refused with a 400: "A previous attempt to refund charge … to card … failed". That is Stripe's rule for the `refundFail` test card. Stripe validates parameters before business rules, so endive accepted the request as the driver builds it. Its success response is a Refund object, the same shape `refunds->retrieve` already returned on endive (§ 5). No refund was created and no event was sent. Every other succeeded sandbox payment carries a shop `payment_id`, so refunding one could write a Refund row into a live shop. A new API payment would reach both endpoints as an unknown `payment_intent.succeeded`, and they would refuse it on purpose, leaving Stripe retrying for days. Neither was done.
+- **The webhook that completes the order** is covered by both shops' suites on SDK 23. They feed the real dahlia bodies through the real `Webhook::constructEvent`, and the endpoints' version did not move.
+
+**Still unproven until launch:** the browser step, where Stripe.js `v3` confirms an intent created on endive. Stripe.js did not change, and this pairing of versions is one Stripe supports. The first sandbox checkout before selling is switched on covers it: IOW `docs/launch-blockers.md` and bianka `TODO.md` → Phase 5.
+
