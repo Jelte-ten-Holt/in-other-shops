@@ -8,6 +8,25 @@ The format is loosely [Keep a Changelog](https://keepachangelog.com/); the
 package is pre-1.0, so minor versions may carry breaking changes (all consumers
 are pre-launch — single-release-window policy, no deprecation bridges).
 
+## v0.76.0 — 2026-11-19
+
+- **A media row can be taken off its host's list.** A collection configured
+  with `listed_toggle => true` gives each row a "Listed" toggle in
+  `MediaSchema::mediaRepeater`, on by default. Off means the row stays out of
+  the host's own list of the collection and shows only where the host's text
+  places it — in-other-worlds' resource page lists its documents under the
+  title, and a document the body already places with `::download` no longer
+  has to show twice. The package reads the flag nowhere itself: a consumer's
+  list filters on `$media->pivot->is_listed`. Opt-in, unlike the cover toggle,
+  because on a collection nobody filters the switch would change nothing; a
+  collection without it saves every row as listed. **Migration:**
+  `mediables.is_listed`, boolean, default true — every existing row stays
+  listed. New `MediaSchema::collectionHasListedToggle()`; new lang keys
+  `fields.is_listed` and `fields.is_listed_tooltip` (es is a draft).
+  **For consumers:** nothing changes unless a collection opts in.
+- Dev only: `stripe/stripe-php` ^21.3 → ^23.0 (API 2026-10-28.endive), and
+  `TrackingSwitchedOffTest` owns its schema on MySQL.
+
 ## v0.75.0 — 2026-11-08
 
 - **A refund that fails at the gateway is undone (R4).** Stripe can accept a

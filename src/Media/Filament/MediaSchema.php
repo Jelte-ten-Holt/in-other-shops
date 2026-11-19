@@ -87,6 +87,18 @@ final class MediaSchema
                 ->default(false);
         }
 
+        // Off takes the row out of the host's own list of the collection (a
+        // resource page's download panel, say), leaving it only where the
+        // host's text places it. Opt-in with `listed_toggle => true`: nothing
+        // reads the flag unless a consumer's list does, so on any other
+        // collection the switch would change nothing.
+        if (self::collectionHasListedToggle($collection)) {
+            $schema[] = Toggle::make('is_listed')
+                ->label(__('shops-media::media.fields.is_listed'))
+                ->hintIcon('heroicon-m-information-circle', tooltip: __('shops-media::media.fields.is_listed_tooltip'))
+                ->default(true);
+        }
+
         return Repeater::make("_media.{$collection}")
             ->label($label)
             ->defaultItems(0)
@@ -231,6 +243,7 @@ final class MediaSchema
                     'url' => $media->type !== MediaType::Upload ? $media->getAttribute('url') : null,
                     ...self::translatableState($media),
                     'is_cover' => (bool) $media->pivot->is_cover,
+                    'is_listed' => (bool) $media->pivot->is_listed,
                 ])
                 ->all();
 
@@ -296,6 +309,30 @@ final class MediaSchema
     public static function collectionAllowsCover(string $collection): bool
     {
         return (self::collections()[$collection]['cover'] ?? true) !== false;
+    }
+
+    /**
+     * Whether a collection's rows can be taken out of the host's own list
+     * (`is_listed`). Defaults to false, unlike the cover toggle: the flag means
+     * something only where a consumer's list reads it, so a collection opts in
+     * with `listed_toggle => true` in its `media.collections` config entry.
+     */
+    public static function collectionHasListedToggle(string $collection): bool
+    {
+        return (self::collections()[$collection]['listed_toggle'] ?? false) === true;
+    }
+
+    /**
+     * A row is listed unless its collection offers the toggle and the form
+     * turned it off. A collection without the toggle has no way to say so in
+     * the admin, so a stray `false` from another write path must not hide a
+     * row; a missing value is the toggle's default.
+     *
+     * @param  array<string, mixed>  $item
+     */
+    private static function isListed(string $collection, array $item): bool
+    {
+        return ! self::collectionHasListedToggle($collection) || (bool) ($item['is_listed'] ?? true);
     }
 
     /**
@@ -397,7 +434,7 @@ final class MediaSchema
         // A changed type is not an update. An upload row and an external row
         // share no state worth carrying across — keeping the row would leave
         // `type=upload` next to a `url`, and `url()` would go on serving the
-        // old file. Delete and recreate at the same position and cover flag;
+        // old file. Delete and recreate at the same position and flags;
         // `Media::deleting` removes the upload's file as it goes.
         if ($type !== $media->type) {
             $record->media()->detach($mediaId);
@@ -441,6 +478,7 @@ final class MediaSchema
             'collection' => $collection,
             'position' => $position,
             'is_cover' => ! empty($item['is_cover']),
+            'is_listed' => self::isListed($collection, $item),
         ]);
 
         return $mediaId;
@@ -466,6 +504,7 @@ final class MediaSchema
             'collection' => $collection,
             'position' => $position,
             'is_cover' => ! empty($item['is_cover']),
+            'is_listed' => self::isListed($collection, $item),
         ]);
 
         return $media->id;
