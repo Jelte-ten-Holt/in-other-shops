@@ -92,6 +92,18 @@ ways tests quietly depend on:
   Testbench runs *only* for classes using `RefreshDatabase` while the stub
   migrations run for every test. With `executionOrder="random"`, that gap is a
   coin flip rather than a reliable failure.
+- **On MySQL a test's schema is the last migrating test's config, not its own.**
+  Testbench runs `migrate:fresh` only when `RefreshDatabaseState::$migrated` is
+  false, and the stub migrations (`loadMigrationsFrom` in `TestCase`) reset it on
+  the way out of the test after. So `migrate:fresh` runs every second
+  `RefreshDatabase` test, under that test's `defineEnvironment()`, and the test in
+  between keeps it. A class whose config changes the schema, a domain switched off
+  with `{domain}.enabled = false` above all, carries
+  `#[Orchestra\Testbench\Attributes\ResetRefreshDatabaseState]`: before the class,
+  so its first test migrates with its own config; after it, so the next class
+  doesn't inherit missing tables. Without it `TrackingSwitchedOffTest` failed 7 of
+  the 11 MySQL runs from the v0.75.0 tag to 2026-11-18, whichever of its tests ran
+  first (found 2026-11-19).
 - **SQLite does not enforce `UNSIGNED`,** and has no strict mode. A negative
   value written to an unsigned column is stored on SQLite and rejected outright
   on MySQL under `STRICT_TRANS_TABLES`.

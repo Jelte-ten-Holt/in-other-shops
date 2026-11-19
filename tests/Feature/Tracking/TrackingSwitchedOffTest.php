@@ -15,13 +15,23 @@ use InOtherShops\Tests\Stubs\TestCartable;
 use InOtherShops\Tests\TestCase;
 use InOtherShops\Tracking\FlowChains\Steps\RecordCartItemAttribution;
 use InOtherShops\Tracking\FlowChains\Steps\SnapshotCartItemAttributions;
+use Orchestra\Testbench\Attributes\ResetRefreshDatabaseState;
 use PHPUnit\Framework\Attributes\Test;
 
 /**
  * With `tracking.enabled = false` the domain loads no migrations, so on a fresh
  * install its tables never exist. A consumer's published chain may still list
  * the two steps; they must write nothing and touch no table (PR 7).
+ *
+ * The only test class whose config changes the schema, so it owns it: on MySQL,
+ * Testbench re-runs `migrate:fresh` only every second RefreshDatabase test (the
+ * stub migrations reset its state on the way out), and a test in between keeps
+ * whatever schema the one before it migrated. Resetting before the class makes
+ * its first test migrate with tracking off; resetting after it keeps the next
+ * class from inheriting a schema without the attribution tables. SQLite never
+ * showed it: each test migrates its own in-memory database.
  */
+#[ResetRefreshDatabaseState]
 final class TrackingSwitchedOffTest extends TestCase
 {
     use RefreshDatabase;
