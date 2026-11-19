@@ -36,6 +36,7 @@ Uses `morphToMany` with an explicit **`Mediable` pivot model**. The `media` tabl
 | `collection` | string | collection key (`images`, `documents`) |
 | `position` | unsigned int | ordering within collection, 0-indexed |
 | `is_cover` | bool | designates this row as the cover image; at most one row across all collections per parent |
+| `is_listed` | bool, default true | whether the row appears in its host's own list of the collection; false = only where the host's text places it (v0.76.0) |
 | `timestamps` | | |
 
 Unique constraint on `[media_id, mediable_type, mediable_id, collection]`.
@@ -114,6 +115,8 @@ Config-driven groupings defined in `config/media.php`:
 The `collection` string on the `mediables` pivot references these keys.
 
 **Cover image convention:** `$model->coverImage()` returns the row marked `is_cover = true` (across any collection), falling back to the first item in the `images` collection. The `MediaSchema` repeater enforces that at most one row per parent is marked as cover — `saveFormData` normalizes the form data before persisting.
+
+**Listed convention (v0.76.0):** a collection configured with `listed_toggle => true` gives each repeater row a "Listed" toggle, on by default, stored as `mediables.is_listed`. Off means the row stays out of the host's own list of the collection (in-other-worlds' resource download panel) and shows only where the host's text places it. The package reads the flag nowhere itself — a consumer's list filters on `$media->pivot->is_listed` — so the toggle is opt-in, unlike the cover toggle, and `saveFormData` saves every row of a collection without it as listed.
 
 ### Contract & Trait
 

@@ -59,6 +59,13 @@ return [
     | a player URL and an editor can't upload a file into a slot that expects
     | one. Omit the key to allow all three types.
     |
+    | Set `listed_toggle => true` to give each row a "Listed" toggle (the
+    | `mediables.is_listed` pivot flag, default on). Off means the row stays
+    | out of the host's own list of the collection — a consumer's download
+    | panel, say — and shows only where the host's text places it. The package
+    | reads the flag nowhere itself, so only opt in a collection whose list a
+    | consumer filters on it; every other row is saved as listed.
+    |
     */
     'collections' => [
         'images' => [

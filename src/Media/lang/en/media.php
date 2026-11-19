@@ -15,6 +15,8 @@ return [
         'description_help' => 'Shown beneath the image on the site. Leave empty for no caption. Text written alongside the image in the content body takes precedence over this.',
         'is_cover' => 'Use as cover image',
         'is_cover_help' => 'The cover image is used in listings and social previews. Only one row across all media collections is kept as the cover.',
+        'is_listed' => 'Listed',
+        'is_listed_tooltip' => 'Off: shows only where the body places it.',
     ],
     'embed' => [
         'prompt' => 'Paste a YouTube or Vimeo URL above.',

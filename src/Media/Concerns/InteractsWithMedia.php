@@ -17,7 +17,7 @@ trait InteractsWithMedia
 
         return $this->morphToMany($mediaModel, 'mediable')
             ->using($mediableModel)
-            ->withPivot('collection', 'position', 'is_cover')
+            ->withPivot('collection', 'position', 'is_cover', 'is_listed')
             ->withTimestamps()
             ->orderByPivot('position');
     }
